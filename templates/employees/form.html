@@ -1,0 +1,223 @@
+{% extends "layout.html" %}
+{% block title %}{{ 'Edit ' + employee.full_name if employee else 'New Employee' }} — Payroll{% endblock %}
+{% block breadcrumb %}
+  <a href="/employees" class="hover:text-slate-700">Employees</a>
+  {% if employee %}
+    <span class="mx-1">/</span>
+    <a href="/employees/{{ employee.id }}" class="hover:text-slate-700">{{ employee.full_name }}</a>
+  {% endif %}
+  <span class="mx-1">/</span>{{ 'Edit' if employee else 'New' }}
+{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl">
+  <h1 class="text-2xl font-bold text-slate-900 mb-6">
+    {{ 'Edit ' + employee.full_name if employee else 'New Employee' }}
+  </h1>
+
+  <form method="POST"
+        action="{{ '/employees/' + employee.id|string + '/edit' if employee else '/employees/new' }}"
+        class="space-y-6">
+
+    <!-- Personal Info -->
+    <div class="bg-white rounded-lg ring-1 ring-slate-200 divide-y divide-slate-100">
+      <div class="p-5">
+        <h2 class="text-sm font-semibold text-slate-700 mb-4">Personal Information</h2>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">First Name <span class="text-red-500">*</span></label>
+            <input type="text" name="first_name"
+                   value="{{ employee.first_name if employee else '' }}" required
+                   class="w-full rounded-md border {{ 'border-red-400' if errors.get('first_name') else 'border-slate-300' }} px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            {% if errors.get('first_name') %}<p class="text-xs text-red-600 mt-1">{{ errors.first_name }}</p>{% endif %}
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">Last Name <span class="text-red-500">*</span></label>
+            <input type="text" name="last_name"
+                   value="{{ employee.last_name if employee else '' }}" required
+                   class="w-full rounded-md border {{ 'border-red-400' if errors.get('last_name') else 'border-slate-300' }} px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            {% if errors.get('last_name') %}<p class="text-xs text-red-600 mt-1">{{ errors.last_name }}</p>{% endif %}
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">SSN</label>
+            <input type="password" name="ssn" placeholder="XXX-XX-XXXX" maxlength="11"
+                   autocomplete="off"
+                   class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            {% if employee and employee.ssn_encrypted %}
+              <p class="text-xs text-slate-400 mt-1">SSN on file — leave blank to keep unchanged.</p>
+            {% endif %}
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">Email</label>
+            <input type="email" name="email"
+                   value="{{ employee.email or '' if employee else '' }}"
+                   class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">Phone</label>
+            <input type="tel" name="phone"
+                   value="{{ employee.phone or '' if employee else '' }}"
+                   class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          </div>
+        </div>
+        <div class="mt-4 space-y-3">
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">Street Address</label>
+            <input type="text" name="address"
+                   value="{{ employee.address or '' if employee else '' }}"
+                   class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          </div>
+          <div class="grid grid-cols-3 gap-3">
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-1">City</label>
+              <input type="text" name="city"
+                     value="{{ employee.city or '' if employee else '' }}"
+                     class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-1">State</label>
+              <input type="text" name="state" maxlength="2"
+                     value="{{ employee.state if employee else 'OK' }}"
+                     class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 uppercase">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-1">ZIP</label>
+              <input type="text" name="zip_code" maxlength="10"
+                     value="{{ employee.zip_code or '' if employee else '' }}"
+                     class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Employment -->
+    <div class="bg-white rounded-lg ring-1 ring-slate-200 p-5">
+      <h2 class="text-sm font-semibold text-slate-700 mb-4">Employment</h2>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Company <span class="text-red-500">*</span></label>
+          <select name="company_id" required
+                  class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            {% for c in companies %}
+            <option value="{{ c.id }}" {{ 'selected' if employee and employee.company_id == c.id }}>
+              {{ c.name }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Employment Type <span class="text-red-500">*</span></label>
+          <select name="employment_type" required
+                  class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            {% for et in employment_types %}
+            <option value="{{ et }}" {{ 'selected' if employee and employee.employment_type == et }}>
+              {{ et | replace("_", " ") | title }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Status</label>
+          <select name="status"
+                  class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            {% for s in statuses %}
+            <option value="{{ s }}" {{ 'selected' if employee and employee.status == s }}>
+              {{ s | replace("_", " ") | title }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Department</label>
+          <input type="text" name="department"
+                 value="{{ employee.department or '' if employee else '' }}"
+                 class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Job Title</label>
+          <input type="text" name="job_title"
+                 value="{{ employee.job_title or '' if employee else '' }}"
+                 class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Hire Date</label>
+          <input type="date" name="hire_date"
+                 value="{{ employee.hire_date.isoformat() if employee and employee.hire_date else '' }}"
+                 class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        </div>
+        {% if employee %}
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Termination Date</label>
+          <input type="date" name="termination_date"
+                 value="{{ employee.termination_date.isoformat() if employee.termination_date else '' }}"
+                 class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        </div>
+        {% endif %}
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Workers Comp Code</label>
+          <select name="workers_comp_code_id"
+                  class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            <option value="">— None —</option>
+            {% for code in wc_codes %}
+            <option value="{{ code.id }}"
+                    {{ 'selected' if employee and employee.workers_comp_code_id == code.id }}>
+              {{ code.ncci_code }} — {{ code.description }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="flex items-center gap-2 pt-6">
+          <input type="checkbox" name="flsa_exempt" id="flsa_exempt"
+                 {{ 'checked' if employee and employee.flsa_exempt }}
+                 class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
+          <label for="flsa_exempt" class="text-sm text-slate-700">FLSA Exempt (salaried, no OT)</label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pay -->
+    <div class="bg-white rounded-lg ring-1 ring-slate-200 p-5">
+      <h2 class="text-sm font-semibold text-slate-700 mb-4">Pay</h2>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">
+            Pay Rate <span class="text-red-500">*</span>
+            <span class="font-normal text-slate-400">(annual salary or hourly rate)</span>
+          </label>
+          <div class="relative">
+            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">$</span>
+            <input type="number" name="pay_rate" step="0.0001" min="0" required
+                   value="{{ employee.pay_rate if employee else '' }}"
+                   class="w-full rounded-md border {{ 'border-red-400' if errors.get('pay_rate') else 'border-slate-300' }} pl-7 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          </div>
+          {% if errors.get('pay_rate') %}<p class="text-xs text-red-600 mt-1">{{ errors.pay_rate }}</p>{% endif %}
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">
+            Pay Frequency Override
+            <span class="font-normal text-slate-400">(leave blank to use company default)</span>
+          </label>
+          <select name="pay_frequency"
+                  class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            <option value="">— Use company default —</option>
+            <option value="weekly" {{ 'selected' if employee and employee.pay_frequency == 'weekly' }}>Weekly</option>
+            <option value="biweekly" {{ 'selected' if employee and employee.pay_frequency == 'biweekly' }}>Biweekly</option>
+            <option value="semi_monthly" {{ 'selected' if employee and employee.pay_frequency == 'semi_monthly' }}>Semi-monthly</option>
+            <option value="monthly" {{ 'selected' if employee and employee.pay_frequency == 'monthly' }}>Monthly</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-3">
+      <button type="submit"
+              class="px-5 py-2 text-sm font-medium bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors">
+        {{ 'Save Changes' if employee else 'Create Employee' }}
+      </button>
+      <a href="{{ '/employees/' + employee.id|string if employee else '/employees' }}"
+         class="px-4 py-2 text-sm text-slate-600 hover:text-slate-900">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

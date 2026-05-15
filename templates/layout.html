@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Payroll{% endblock %}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/htmx.org@1.9.12" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/alpinejs@3.14.1/dist/cdn.min.js" defer></script>
+  <style>
+    [x-cloak] { display: none !important; }
+    .htmx-indicator { opacity: 0; transition: opacity 200ms ease-in; }
+    .htmx-request .htmx-indicator { opacity: 1; }
+  </style>
+</head>
+<body class="h-full bg-slate-50 text-slate-900 font-sans antialiased">
+<div class="flex h-full">
+
+  <!-- Sidebar -->
+  <aside class="w-56 bg-slate-900 text-slate-100 flex-shrink-0 flex flex-col">
+    <div class="px-4 py-5 border-b border-slate-700">
+      <span class="text-lg font-bold tracking-tight text-white">Payroll</span>
+    </div>
+    <nav class="flex-1 px-3 py-4 space-y-0.5">
+      {% set nav_base = "flex items-center gap-2.5 px-3 py-2 rounded-md text-sm font-medium transition-colors" %}
+      {% set nav_active = "bg-indigo-600 text-white" %}
+      {% set nav_idle = "text-slate-300 hover:bg-slate-800 hover:text-white" %}
+
+      <a href="/"
+         class="{{ nav_base }} {{ nav_active if active_nav == 'dashboard' else nav_idle }}">
+        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
+        </svg>
+        Dashboard
+      </a>
+
+      <a href="/employees"
+         class="{{ nav_base }} {{ nav_active if active_nav == 'employees' else nav_idle }}">
+        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+        </svg>
+        Employees
+      </a>
+
+      <a href="/companies"
+         class="{{ nav_base }} {{ nav_active if active_nav == 'companies' else nav_idle }}">
+        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+        </svg>
+        Companies
+      </a>
+
+      <div class="pt-4 pb-1 px-3">
+        <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Payroll</p>
+      </div>
+
+      <a href="#" class="{{ nav_base }} text-slate-500 cursor-not-allowed" title="Coming in Phase 3">
+        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+        </svg>
+        Pay Runs
+      </a>
+
+      <a href="#" class="{{ nav_base }} text-slate-500 cursor-not-allowed" title="Coming in Phase 5">
+        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+        </svg>
+        Reports
+      </a>
+    </nav>
+  </aside>
+
+  <!-- Main content -->
+  <div class="flex-1 flex flex-col min-w-0 overflow-hidden">
+
+    <!-- Top bar -->
+    <header class="bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between shrink-0">
+      <div id="page-title" class="text-sm text-slate-500">{% block breadcrumb %}{% endblock %}</div>
+      <div class="text-xs text-slate-400">Oklahoma</div>
+    </header>
+
+    <!-- Flash messages -->
+    {% if flash %}
+    <div x-data="{ show: true }" x-show="show" x-cloak
+         class="mx-6 mt-4 px-4 py-3 rounded-md text-sm flex items-center justify-between
+                {% if flash in ['created','updated','w4_updated','ok_updated','enrolled','enrollment_ended','wc_added','benefit_added'] %}
+                  bg-green-50 text-green-800 ring-1 ring-green-200
+                {% else %}
+                  bg-red-50 text-red-800 ring-1 ring-red-200
+                {% endif %}">
+      <span>
+        {% if flash == 'created' %}Record created successfully.
+        {% elif flash == 'updated' %}Changes saved.
+        {% elif flash == 'w4_updated' %}Federal W-4 election updated.
+        {% elif flash == 'ok_updated' %}Oklahoma withholding election updated.
+        {% elif flash == 'enrolled' %}Benefit enrollment added.
+        {% elif flash == 'enrollment_ended' %}Benefit enrollment terminated.
+        {% elif flash == 'wc_added' %}Workers comp code added.
+        {% elif flash == 'benefit_added' %}Benefit plan added.
+        {% else %}{{ flash }}
+        {% endif %}
+      </span>
+      <button @click="show = false" class="ml-4 opacity-60 hover:opacity-100">&#x2715;</button>
+    </div>
+    {% endif %}
+
+    <!-- Page content -->
+    <main class="flex-1 overflow-auto p-6">
+      {% block content %}{% endblock %}
+    </main>
+
+  </div>
+</div>
+</body>
+</html>

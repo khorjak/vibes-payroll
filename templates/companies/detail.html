@@ -1,0 +1,232 @@
+{% extends "layout.html" %}
+{% block title %}{{ company.name }} — Payroll{% endblock %}
+{% block breadcrumb %}
+  <a href="/companies" class="hover:text-slate-700">Companies</a>
+  <span class="mx-1">/</span>{{ company.name }}
+{% endblock %}
+
+{% block content %}
+<div class="flex items-start justify-between mb-6">
+  <div>
+    <h1 class="text-2xl font-bold text-slate-900">{{ company.name }}</h1>
+    {% if company.ein %}<p class="text-sm text-slate-500 mt-0.5">EIN {{ company.ein }}</p>{% endif %}
+  </div>
+  <a href="/companies/{{ company.id }}/edit"
+     class="px-4 py-2 text-sm font-medium bg-white text-slate-700 rounded-md ring-1 ring-slate-300 hover:bg-slate-50 transition-colors">
+    Edit
+  </a>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+  <!-- Left column -->
+  <div class="lg:col-span-2 space-y-6">
+
+    <!-- Company details -->
+    <div class="bg-white rounded-lg ring-1 ring-slate-200 p-5">
+      <h2 class="text-sm font-semibold text-slate-700 mb-4">Details</h2>
+      <dl class="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
+        <div>
+          <dt class="text-slate-500">Address</dt>
+          <dd class="text-slate-900 mt-0.5">
+            {{ company.address or '—' }}{% if company.city %}, {{ company.city }}, {{ company.state }} {{ company.zip_code or '' }}{% endif %}
+          </dd>
+        </div>
+        <div>
+          <dt class="text-slate-500">Pay Frequency</dt>
+          <dd class="text-slate-900 mt-0.5">{{ company.pay_frequency | replace("_", "-") | title }}</dd>
+        </div>
+        <div>
+          <dt class="text-slate-500">SUTA Rate</dt>
+          <dd class="text-slate-900 mt-0.5">
+            {{ "%.4f%%"|format(company.suta_rate * 100) if company.suta_rate else '—' }}
+          </dd>
+        </div>
+        <div>
+          <dt class="text-slate-500">Workers Comp Policy</dt>
+          <dd class="text-slate-900 mt-0.5">{{ company.workers_comp_policy or '—' }}</dd>
+        </div>
+      </dl>
+    </div>
+
+    <!-- Benefit Plans -->
+    <div class="bg-white rounded-lg ring-1 ring-slate-200 p-5" x-data="{ open: false }">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-sm font-semibold text-slate-700">Benefit Plans</h2>
+        <button @click="open = !open"
+                class="text-xs font-medium text-indigo-600 hover:text-indigo-800">
+          + Add Plan
+        </button>
+      </div>
+
+      <!-- Add plan form -->
+      <form x-show="open" x-cloak method="POST"
+            action="/companies/{{ company.id }}/benefits/new"
+            class="mb-4 p-4 bg-slate-50 rounded-md ring-1 ring-slate-200 space-y-3">
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="text-xs font-medium text-slate-700">Plan Name</label>
+            <input type="text" name="name" required
+                   class="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          </div>
+          <div>
+            <label class="text-xs font-medium text-slate-700">Type</label>
+            <select name="benefit_type"
+                    class="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+              {% for bt in benefit_types %}
+              <option value="{{ bt }}">{{ bt | replace("_", " ") | title }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label class="text-xs font-medium text-slate-700">Employee Contribution</label>
+            <div class="flex gap-1 mt-1">
+              <select name="employee_contribution_type"
+                      class="rounded border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                <option value="fixed">$</option>
+                <option value="percent">%</option>
+              </select>
+              <input type="number" name="employee_contribution_amount" value="0" step="0.01" min="0"
+                     class="flex-1 rounded border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            </div>
+          </div>
+          <div>
+            <label class="text-xs font-medium text-slate-700">Employer Match %</label>
+            <input type="number" name="employer_match_percent" step="0.01" min="0" max="100"
+                   placeholder="e.g. 50"
+                   class="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          </div>
+          <div>
+            <label class="text-xs font-medium text-slate-700">Match Cap %</label>
+            <input type="number" name="employer_match_cap_percent" step="0.01" min="0" max="100"
+                   placeholder="e.g. 4"
+                   class="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          </div>
+          <div class="flex items-center gap-2 pt-5">
+            <input type="checkbox" name="pre_tax" id="pre_tax" checked class="rounded">
+            <label for="pre_tax" class="text-xs text-slate-700">Pre-tax</label>
+          </div>
+        </div>
+        <div class="flex gap-2">
+          <button type="submit"
+                  class="px-3 py-1.5 text-xs font-medium bg-indigo-600 text-white rounded hover:bg-indigo-700">
+            Add Plan
+          </button>
+          <button type="button" @click="open = false"
+                  class="px-3 py-1.5 text-xs text-slate-600 hover:text-slate-900">Cancel</button>
+        </div>
+      </form>
+
+      {% if benefit_plans %}
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="text-xs text-slate-500 border-b border-slate-100">
+            <th class="text-left pb-2 font-medium">Name</th>
+            <th class="text-left pb-2 font-medium">Type</th>
+            <th class="text-right pb-2 font-medium">Ee Contribution</th>
+            <th class="text-right pb-2 font-medium">Er Match</th>
+            <th class="text-center pb-2 font-medium">Pre-tax</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-50">
+          {% for plan in benefit_plans %}
+          <tr class="py-2">
+            <td class="py-2 text-slate-900">{{ plan.name }}</td>
+            <td class="py-2 text-slate-500">{{ plan.benefit_type | replace("_", " ") | title }}</td>
+            <td class="py-2 text-right text-slate-900">
+              {% if plan.employee_contribution_type == 'percent' %}
+                {{ plan.employee_contribution_amount }}%
+              {% else %}
+                ${{ "%.2f"|format(plan.employee_contribution_amount) }}
+              {% endif %}
+            </td>
+            <td class="py-2 text-right text-slate-500">
+              {% if plan.employer_match_percent %}
+                {{ plan.employer_match_percent }}% up to {{ plan.employer_match_cap_percent or '—' }}%
+              {% else %}—{% endif %}
+            </td>
+            <td class="py-2 text-center">
+              {% if plan.pre_tax %}
+                <span class="text-green-600 text-xs font-medium">Yes</span>
+              {% else %}
+                <span class="text-slate-400 text-xs">No</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <p class="text-sm text-slate-400">No benefit plans configured.</p>
+      {% endif %}
+    </div>
+
+  </div>
+
+  <!-- Right column -->
+  <div class="space-y-6">
+
+    <!-- Quick stats -->
+    <div class="bg-white rounded-lg ring-1 ring-slate-200 p-5">
+      <h2 class="text-sm font-semibold text-slate-700 mb-3">Employees</h2>
+      <p class="text-3xl font-bold text-slate-900">{{ company.employees | length }}</p>
+      <a href="/employees?company_id={{ company.id }}"
+         class="text-xs text-indigo-600 hover:underline mt-1 inline-block">View employees →</a>
+    </div>
+
+    <!-- Workers Comp Codes -->
+    <div class="bg-white rounded-lg ring-1 ring-slate-200 p-5" x-data="{ open: false }">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-sm font-semibold text-slate-700">WC Codes</h2>
+        <button @click="open = !open"
+                class="text-xs font-medium text-indigo-600 hover:text-indigo-800">+ Add</button>
+      </div>
+
+      <form x-show="open" x-cloak method="POST"
+            action="/companies/{{ company.id }}/wc-codes/new"
+            class="mb-3 space-y-2 p-3 bg-slate-50 rounded ring-1 ring-slate-200">
+        <div>
+          <label class="text-xs font-medium text-slate-700">NCCI Code</label>
+          <input type="text" name="ncci_code" required maxlength="10"
+                 class="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        </div>
+        <div>
+          <label class="text-xs font-medium text-slate-700">Description</label>
+          <input type="text" name="description" required
+                 class="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        </div>
+        <div>
+          <label class="text-xs font-medium text-slate-700">Rate per $100 wages</label>
+          <input type="number" name="rate_per_100_wages" step="0.0001" min="0"
+                 class="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        </div>
+        <div class="flex gap-2">
+          <button type="submit"
+                  class="px-3 py-1.5 text-xs font-medium bg-indigo-600 text-white rounded hover:bg-indigo-700">
+            Add
+          </button>
+          <button type="button" @click="open = false"
+                  class="text-xs text-slate-600 hover:text-slate-900">Cancel</button>
+        </div>
+      </form>
+
+      {% if wc_codes %}
+      <ul class="text-xs space-y-1.5">
+        {% for code in wc_codes %}
+        <li class="flex items-start justify-between">
+          <span class="font-mono text-slate-700 font-semibold">{{ code.ncci_code }}</span>
+          <span class="text-slate-500 text-right ml-2 flex-1">{{ code.description }}</span>
+          {% if code.rate_per_100_wages %}
+          <span class="text-slate-900 ml-2 shrink-0">${{ code.rate_per_100_wages }}</span>
+          {% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="text-xs text-slate-400">No WC codes added yet.</p>
+      {% endif %}
+    </div>
+
+  </div>
+</div>
+{% endblock %}

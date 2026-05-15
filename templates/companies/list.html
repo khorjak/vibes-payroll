@@ -1,0 +1,46 @@
+{% extends "layout.html" %}
+{% block title %}Companies — Payroll{% endblock %}
+{% block breadcrumb %}Companies{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+  <h1 class="text-2xl font-bold text-slate-900">Companies</h1>
+  <a href="/companies/new"
+     class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors">
+    + New Company
+  </a>
+</div>
+
+{% if companies %}
+<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+  {% for company in companies %}
+  <a href="/companies/{{ company.id }}"
+     class="bg-white rounded-lg ring-1 ring-slate-200 p-5 hover:ring-indigo-400 hover:shadow-sm transition-all block">
+    <div class="flex items-start justify-between">
+      <div>
+        <p class="font-semibold text-slate-900">{{ company.name }}</p>
+        {% if company.ein %}
+          <p class="text-xs text-slate-500 mt-0.5">EIN {{ company.ein }}</p>
+        {% endif %}
+      </div>
+      <span class="text-xs font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 shrink-0 ml-2">
+        {{ company.pay_frequency | replace("_", " ") | title }}
+      </span>
+    </div>
+    {% if company.city %}
+    <p class="text-sm text-slate-500 mt-2">{{ company.city }}, {{ company.state }}</p>
+    {% endif %}
+    <p class="text-sm text-slate-400 mt-1">{{ company.employees | length }} employee(s)</p>
+  </a>
+  {% endfor %}
+</div>
+{% else %}
+<div class="bg-white rounded-lg ring-1 ring-slate-200 p-12 text-center">
+  <p class="text-slate-500 mb-4">No companies yet.</p>
+  <a href="/companies/new"
+     class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium bg-indigo-600 text-white rounded-md hover:bg-indigo-700">
+    + Add your first company
+  </a>
+</div>
+{% endif %}
+{% endblock %}

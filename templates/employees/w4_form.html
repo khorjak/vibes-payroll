@@ -1,0 +1,87 @@
+{% extends "layout.html" %}
+{% block title %}Update Federal W-4 — {{ employee.full_name }}{% endblock %}
+{% block breadcrumb %}
+  <a href="/employees" class="hover:text-slate-700">Employees</a>
+  <span class="mx-1">/</span>
+  <a href="/employees/{{ employee.id }}" class="hover:text-slate-700">{{ employee.full_name }}</a>
+  <span class="mx-1">/</span>Federal W-4
+{% endblock %}
+
+{% block content %}
+<div class="max-w-lg">
+  <h1 class="text-2xl font-bold text-slate-900 mb-1">Federal W-4</h1>
+  <p class="text-sm text-slate-500 mb-6">{{ employee.full_name }} — updating creates a new election record.</p>
+
+  <form method="POST" action="/employees/{{ employee.id }}/w4/new"
+        class="bg-white rounded-lg ring-1 ring-slate-200 p-6 space-y-4">
+
+    <div>
+      <label class="block text-sm font-medium text-slate-700 mb-1">Effective Date <span class="text-red-500">*</span></label>
+      <input type="date" name="effective_date" value="{{ today }}" required
+             class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium text-slate-700 mb-1">Filing Status</label>
+      <select name="filing_status"
+              class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        {% for fs in filing_statuses %}
+        <option value="{{ fs }}">{{ fs | replace("_", " ") | title }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="flex items-center gap-2">
+      <input type="checkbox" name="multiple_jobs" id="multiple_jobs"
+             class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
+      <label for="multiple_jobs" class="text-sm text-slate-700">
+        Multiple jobs or spouse works (Step 2)
+      </label>
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium text-slate-700 mb-1">Dependents Amount (Step 3)</label>
+      <div class="relative">
+        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">$</span>
+        <input type="number" name="dependents_amount" value="0" step="0.01" min="0"
+               class="w-full rounded-md border border-slate-300 pl-7 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+      </div>
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium text-slate-700 mb-1">Other Income (Step 4a)</label>
+      <div class="relative">
+        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">$</span>
+        <input type="number" name="other_income" value="0" step="0.01" min="0"
+               class="w-full rounded-md border border-slate-300 pl-7 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+      </div>
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium text-slate-700 mb-1">Deductions (Step 4b)</label>
+      <div class="relative">
+        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">$</span>
+        <input type="number" name="deductions_amount" value="0" step="0.01" min="0"
+               class="w-full rounded-md border border-slate-300 pl-7 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+      </div>
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium text-slate-700 mb-1">Extra Withholding per Period (Step 4c)</label>
+      <div class="relative">
+        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">$</span>
+        <input type="number" name="extra_withholding" value="0" step="0.01" min="0"
+               class="w-full rounded-md border border-slate-300 pl-7 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+      </div>
+    </div>
+
+    <div class="pt-2 flex items-center gap-3">
+      <button type="submit"
+              class="px-5 py-2 text-sm font-medium bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors">
+        Save W-4
+      </button>
+      <a href="/employees/{{ employee.id }}" class="text-sm text-slate-600 hover:text-slate-900">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,305 @@
+{% extends "layout.html" %}
+{% block title %}{{ employee.full_name }} — Payroll{% endblock %}
+{% block breadcrumb %}
+  <a href="/employees" class="hover:text-slate-700">Employees</a>
+  <span class="mx-1">/</span>{{ employee.full_name }}
+{% endblock %}
+
+{% block content %}
+<!-- Header -->
+<div class="flex items-start justify-between mb-6">
+  <div>
+    <h1 class="text-2xl font-bold text-slate-900">{{ employee.full_name }}</h1>
+    <div class="flex items-center gap-2 mt-1">
+      {% if employee.job_title %}<span class="text-sm text-slate-500">{{ employee.job_title }}</span>{% endif %}
+      {% if employee.department %}<span class="text-slate-300">·</span><span class="text-sm text-slate-500">{{ employee.department }}</span>{% endif %}
+      <span class="text-slate-300">·</span>
+      {% if employee.status == 'active' %}
+        <span class="inline-flex px-2 py-0.5 text-xs font-medium rounded-full bg-green-50 text-green-700">Active</span>
+      {% elif employee.status == 'terminated' %}
+        <span class="inline-flex px-2 py-0.5 text-xs font-medium rounded-full bg-red-50 text-red-700">Terminated</span>
+      {% else %}
+        <span class="inline-flex px-2 py-0.5 text-xs font-medium rounded-full bg-yellow-50 text-yellow-700">On Leave</span>
+      {% endif %}
+    </div>
+  </div>
+  <a href="/employees/{{ employee.id }}/edit"
+     class="px-4 py-2 text-sm font-medium bg-white text-slate-700 rounded-md ring-1 ring-slate-300 hover:bg-slate-50 transition-colors">
+    Edit
+  </a>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+  <!-- Left: main details -->
+  <div class="lg:col-span-2 space-y-6">
+
+    <!-- Personal & Employment -->
+    <div class="bg-white rounded-lg ring-1 ring-slate-200 p-5">
+      <h2 class="text-sm font-semibold text-slate-700 mb-4">Details</h2>
+      <dl class="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
+        <div>
+          <dt class="text-slate-500">SSN</dt>
+          <dd class="text-slate-900 mt-0.5 font-mono">{{ ssn_display or '—' }}</dd>
+        </div>
+        <div>
+          <dt class="text-slate-500">Email</dt>
+          <dd class="text-slate-900 mt-0.5">{{ employee.email or '—' }}</dd>
+        </div>
+        <div>
+          <dt class="text-slate-500">Phone</dt>
+          <dd class="text-slate-900 mt-0.5">{{ employee.phone or '—' }}</dd>
+        </div>
+        <div>
+          <dt class="text-slate-500">Address</dt>
+          <dd class="text-slate-900 mt-0.5">
+            {% if employee.address %}
+              {{ employee.address }}, {{ employee.city }}, {{ employee.state }} {{ employee.zip_code or '' }}
+            {% else %}—{% endif %}
+          </dd>
+        </div>
+        <div>
+          <dt class="text-slate-500">Hire Date</dt>
+          <dd class="text-slate-900 mt-0.5">{{ employee.hire_date.strftime('%B %d, %Y') if employee.hire_date else '—' }}</dd>
+        </div>
+        {% if employee.termination_date %}
+        <div>
+          <dt class="text-slate-500">Termination Date</dt>
+          <dd class="text-red-700 mt-0.5">{{ employee.termination_date.strftime('%B %d, %Y') }}</dd>
+        </div>
+        {% endif %}
+        <div>
+          <dt class="text-slate-500">Employment Type</dt>
+          <dd class="text-slate-900 mt-0.5">{{ employee.employment_type | replace("_", " ") | title }}</dd>
+        </div>
+        <div>
+          <dt class="text-slate-500">FLSA Status</dt>
+          <dd class="text-slate-900 mt-0.5">{{ 'Exempt' if employee.flsa_exempt else 'Non-Exempt (OT eligible)' }}</dd>
+        </div>
+        <div>
+          <dt class="text-slate-500">Company</dt>
+          <dd class="text-slate-900 mt-0.5">
+            <a href="/companies/{{ employee.company_id }}" class="text-indigo-600 hover:underline">
+              {{ employee.company.name }}
+            </a>
+          </dd>
+        </div>
+        <div>
+          <dt class="text-slate-500">Workers Comp Code</dt>
+          <dd class="text-slate-900 mt-0.5">
+            {% if employee.workers_comp_code %}
+              {{ employee.workers_comp_code.ncci_code }} — {{ employee.workers_comp_code.description }}
+            {% else %}—{% endif %}
+          </dd>
+        </div>
+      </dl>
+    </div>
+
+    <!-- Pay -->
+    <div class="bg-white rounded-lg ring-1 ring-slate-200 p-5">
+      <h2 class="text-sm font-semibold text-slate-700 mb-4">Pay</h2>
+      <dl class="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
+        <div>
+          <dt class="text-slate-500">Pay Rate</dt>
+          <dd class="text-slate-900 mt-0.5 text-lg font-semibold tabular-nums">
+            {% if employee.employment_type == 'salaried' %}
+              ${{ "{:,.2f}".format(employee.pay_rate) }}<span class="text-sm font-normal text-slate-400">/yr</span>
+            {% else %}
+              ${{ "{:.2f}".format(employee.pay_rate) }}<span class="text-sm font-normal text-slate-400">/hr</span>
+            {% endif %}
+          </dd>
+        </div>
+        <div>
+          <dt class="text-slate-500">Pay Frequency</dt>
+          <dd class="text-slate-900 mt-0.5">
+            {% if employee.pay_frequency %}
+              {{ employee.pay_frequency | replace("_", "-") | title }}
+              <span class="text-slate-400 text-xs">(override)</span>
+            {% else %}
+              {{ employee.company.pay_frequency | replace("_", "-") | title }}
+              <span class="text-slate-400 text-xs">(company default)</span>
+            {% endif %}
+          </dd>
+        </div>
+      </dl>
+    </div>
+
+    <!-- Benefits -->
+    <div class="bg-white rounded-lg ring-1 ring-slate-200 p-5" x-data="{ open: false }">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-sm font-semibold text-slate-700">Benefit Enrollments</h2>
+        <button @click="open = !open"
+                class="text-xs font-medium text-indigo-600 hover:text-indigo-800">+ Enroll</button>
+      </div>
+
+      <form x-show="open" x-cloak method="POST"
+            action="/employees/{{ employee.id }}/benefits/enroll"
+            class="mb-4 p-4 bg-slate-50 rounded-md ring-1 ring-slate-200 space-y-3">
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="text-xs font-medium text-slate-700">Benefit Plan</label>
+            <select name="benefit_plan_id" required
+                    class="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+              {% for plan in employee.company.benefit_plans %}
+              {% if plan.active %}
+              <option value="{{ plan.id }}">{{ plan.name }}</option>
+              {% endif %}
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label class="text-xs font-medium text-slate-700">Effective Date</label>
+            <input type="date" name="effective_date" required
+                   class="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          </div>
+          <div>
+            <label class="text-xs font-medium text-slate-700">Employee Amount Override</label>
+            <input type="number" name="employee_override_amount" step="0.01"
+                   placeholder="Leave blank for plan default"
+                   class="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          </div>
+        </div>
+        <div class="flex gap-2">
+          <button type="submit"
+                  class="px-3 py-1.5 text-xs font-medium bg-indigo-600 text-white rounded hover:bg-indigo-700">
+            Enroll
+          </button>
+          <button type="button" @click="open = false"
+                  class="text-xs text-slate-600 hover:text-slate-900">Cancel</button>
+        </div>
+      </form>
+
+      {% if active_enrollments %}
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="text-xs text-slate-500 border-b border-slate-100">
+            <th class="text-left pb-2 font-medium">Plan</th>
+            <th class="text-left pb-2 font-medium">Type</th>
+            <th class="text-right pb-2 font-medium">Ee Amount</th>
+            <th class="text-left pb-2 font-medium">Effective</th>
+            <th class="text-left pb-2 font-medium"></th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-50">
+          {% for enrollment in active_enrollments %}
+          <tr x-data="{ terminating: false }">
+            <td class="py-2 text-slate-900">{{ enrollment.plan.name }}</td>
+            <td class="py-2 text-slate-500">{{ enrollment.plan.benefit_type | replace("_", " ") | title }}</td>
+            <td class="py-2 text-right tabular-nums">
+              {% set amt = enrollment.employee_override_amount or enrollment.plan.employee_contribution_amount %}
+              {% if enrollment.plan.employee_contribution_type == 'percent' %}
+                {{ amt }}%
+              {% else %}
+                ${{ "%.2f"|format(amt) }}
+              {% endif %}
+            </td>
+            <td class="py-2 text-slate-500">{{ enrollment.effective_date.strftime('%m/%d/%Y') }}</td>
+            <td class="py-2 text-right">
+              <button @click="terminating = !terminating"
+                      class="text-xs text-red-500 hover:text-red-700">End</button>
+              <form x-show="terminating" x-cloak method="POST"
+                    action="/employees/{{ employee.id }}/benefits/{{ enrollment.id }}/terminate"
+                    class="mt-2 flex gap-2 items-center">
+                <input type="date" name="end_date" required
+                       class="rounded border border-slate-300 px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                <button type="submit"
+                        class="px-2 py-1 text-xs font-medium bg-red-600 text-white rounded hover:bg-red-700">
+                  Confirm
+                </button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <p class="text-sm text-slate-400">No active benefit enrollments.</p>
+      {% endif %}
+    </div>
+
+  </div>
+
+  <!-- Right: tax elections -->
+  <div class="space-y-6">
+
+    <!-- Federal W-4 -->
+    <div class="bg-white rounded-lg ring-1 ring-slate-200 p-5">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-sm font-semibold text-slate-700">Federal W-4</h2>
+        <a href="/employees/{{ employee.id }}/w4/new"
+           class="text-xs font-medium text-indigo-600 hover:text-indigo-800">Update</a>
+      </div>
+      {% set w4 = employee.active_w4 %}
+      {% if w4 %}
+      <dl class="space-y-2 text-sm">
+        <div class="flex justify-between">
+          <dt class="text-slate-500">Filing Status</dt>
+          <dd class="text-slate-900">{{ w4.filing_status | replace("_", " ") | title }}</dd>
+        </div>
+        <div class="flex justify-between">
+          <dt class="text-slate-500">Multiple Jobs</dt>
+          <dd class="text-slate-900">{{ 'Yes' if w4.multiple_jobs else 'No' }}</dd>
+        </div>
+        <div class="flex justify-between">
+          <dt class="text-slate-500">Dependents Amt</dt>
+          <dd class="text-slate-900 tabular-nums">${{ "%.2f"|format(w4.dependents_amount) }}</dd>
+        </div>
+        <div class="flex justify-between">
+          <dt class="text-slate-500">Other Income</dt>
+          <dd class="text-slate-900 tabular-nums">${{ "%.2f"|format(w4.other_income) }}</dd>
+        </div>
+        <div class="flex justify-between">
+          <dt class="text-slate-500">Deductions</dt>
+          <dd class="text-slate-900 tabular-nums">${{ "%.2f"|format(w4.deductions_amount) }}</dd>
+        </div>
+        <div class="flex justify-between">
+          <dt class="text-slate-500">Extra Withholding</dt>
+          <dd class="text-slate-900 tabular-nums">${{ "%.2f"|format(w4.extra_withholding) }}</dd>
+        </div>
+        <div class="pt-1 border-t border-slate-100 text-xs text-slate-400">
+          Effective {{ w4.effective_date.strftime('%m/%d/%Y') }}
+        </div>
+      </dl>
+      {% else %}
+      <p class="text-sm text-slate-400 mb-2">No W-4 on file.</p>
+      <a href="/employees/{{ employee.id }}/w4/new"
+         class="text-xs font-medium text-indigo-600 hover:underline">Add W-4 →</a>
+      {% endif %}
+    </div>
+
+    <!-- Oklahoma Withholding -->
+    <div class="bg-white rounded-lg ring-1 ring-slate-200 p-5">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-sm font-semibold text-slate-700">Oklahoma Withholding</h2>
+        <a href="/employees/{{ employee.id }}/ok-withholding/new"
+           class="text-xs font-medium text-indigo-600 hover:text-indigo-800">Update</a>
+      </div>
+      {% set ok_w = employee.active_ok_withholding %}
+      {% if ok_w %}
+      <dl class="space-y-2 text-sm">
+        <div class="flex justify-between">
+          <dt class="text-slate-500">Filing Status</dt>
+          <dd class="text-slate-900">{{ ok_w.filing_status | title }}</dd>
+        </div>
+        <div class="flex justify-between">
+          <dt class="text-slate-500">Allowances</dt>
+          <dd class="text-slate-900">{{ ok_w.allowances }}</dd>
+        </div>
+        <div class="flex justify-between">
+          <dt class="text-slate-500">Extra Withholding</dt>
+          <dd class="text-slate-900 tabular-nums">${{ "%.2f"|format(ok_w.extra_withholding) }}</dd>
+        </div>
+        <div class="pt-1 border-t border-slate-100 text-xs text-slate-400">
+          Effective {{ ok_w.effective_date.strftime('%m/%d/%Y') }}
+        </div>
+      </dl>
+      {% else %}
+      <p class="text-sm text-slate-400 mb-2">No OK withholding election on file.</p>
+      <a href="/employees/{{ employee.id }}/ok-withholding/new"
+         class="text-xs font-medium text-indigo-600 hover:underline">Add election →</a>
+      {% endif %}
+    </div>
+
+  </div>
+</div>
+{% endblock %}

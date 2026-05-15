@@ -1,0 +1,60 @@
+{% if employees %}
+<table class="w-full text-sm" id="employee-table">
+  <thead>
+    <tr class="text-xs text-slate-500 border-b border-slate-200">
+      <th class="text-left pb-3 font-semibold">Name</th>
+      <th class="text-left pb-3 font-semibold">Type</th>
+      <th class="text-left pb-3 font-semibold">Department</th>
+      <th class="text-right pb-3 font-semibold">Pay Rate</th>
+      <th class="text-left pb-3 font-semibold">Hire Date</th>
+      <th class="text-left pb-3 font-semibold">Status</th>
+    </tr>
+  </thead>
+  <tbody class="divide-y divide-slate-100">
+    {% for emp in employees %}
+    <tr class="hover:bg-slate-50 cursor-pointer transition-colors"
+        onclick="window.location='/employees/{{ emp.id }}'">
+      <td class="py-3 pr-4">
+        <span class="font-medium text-slate-900">{{ emp.last_name }}, {{ emp.first_name }}</span>
+        {% if emp.job_title %}
+          <span class="block text-xs text-slate-400">{{ emp.job_title }}</span>
+        {% endif %}
+      </td>
+      <td class="py-3 pr-4">
+        {% if emp.employment_type == 'salaried' %}
+          <span class="inline-flex px-2 py-0.5 text-xs font-medium rounded-full bg-blue-50 text-blue-700">Salaried</span>
+        {% elif emp.employment_type == 'hourly' %}
+          <span class="inline-flex px-2 py-0.5 text-xs font-medium rounded-full bg-violet-50 text-violet-700">Hourly</span>
+        {% else %}
+          <span class="inline-flex px-2 py-0.5 text-xs font-medium rounded-full bg-amber-50 text-amber-700">Part-time</span>
+        {% endif %}
+      </td>
+      <td class="py-3 pr-4 text-slate-500">{{ emp.department or '—' }}</td>
+      <td class="py-3 pr-4 text-right text-slate-900 tabular-nums">
+        {% if emp.employment_type == 'salaried' %}
+          ${{ "{:,.2f}".format(emp.pay_rate) }}/yr
+        {% else %}
+          ${{ "{:.2f}".format(emp.pay_rate) }}/hr
+        {% endif %}
+      </td>
+      <td class="py-3 pr-4 text-slate-500">
+        {{ emp.hire_date.strftime('%m/%d/%Y') if emp.hire_date else '—' }}
+      </td>
+      <td class="py-3">
+        {% if emp.status == 'active' %}
+          <span class="inline-flex px-2 py-0.5 text-xs font-medium rounded-full bg-green-50 text-green-700">Active</span>
+        {% elif emp.status == 'terminated' %}
+          <span class="inline-flex px-2 py-0.5 text-xs font-medium rounded-full bg-red-50 text-red-700">Terminated</span>
+        {% else %}
+          <span class="inline-flex px-2 py-0.5 text-xs font-medium rounded-full bg-yellow-50 text-yellow-700">On Leave</span>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="py-12 text-center text-slate-400" id="employee-table">
+  <p>No employees found.</p>
+</div>
+{% endif %}
