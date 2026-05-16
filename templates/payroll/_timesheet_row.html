@@ -1,0 +1,44 @@
+<tr id="ts-row-{{ employee.id }}"
+    hx-post="/payroll/{{ pp.id }}/timesheets/{{ employee.id }}"
+    hx-trigger="change from:input delay:800ms"
+    hx-include="find input"
+    hx-target="#ts-row-{{ employee.id }}"
+    hx-swap="outerHTML">
+  <td class="px-4 py-2 font-medium text-slate-800">{{ employee.full_name }}</td>
+
+  {% set inp_cls = "w-20 text-sm text-center rounded border border-slate-200 px-2 py-1.5 focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-300" %}
+
+  <td class="px-2 py-2 text-center">
+    <input type="number" name="regular_hours" step="0.25" min="0"
+           value="{{ ts.regular_hours if ts and ts.regular_hours else '' }}"
+           class="{{ inp_cls }}">
+  </td>
+  <td class="px-2 py-2 text-center">
+    <input type="number" name="overtime_hours" step="0.25" min="0"
+           value="{{ ts.overtime_hours if ts and ts.overtime_hours else '' }}"
+           class="{{ inp_cls }}">
+  </td>
+  <td class="px-2 py-2 text-center">
+    <input type="number" name="double_time_hours" step="0.25" min="0"
+           value="{{ ts.double_time_hours if ts and ts.double_time_hours else '' }}"
+           class="{{ inp_cls }}">
+  </td>
+  <td class="px-2 py-2 text-center">
+    <input type="number" name="pto_hours" step="0.25" min="0"
+           value="{{ ts.pto_hours if ts and ts.pto_hours else '' }}"
+           class="{{ inp_cls }}">
+  </td>
+  <td class="px-2 py-2 text-center">
+    <input type="number" name="sick_hours" step="0.25" min="0"
+           value="{{ ts.sick_hours if ts and ts.sick_hours else '' }}"
+           class="{{ inp_cls }}">
+  </td>
+  <td class="px-2 py-2 text-center">
+    <input type="number" name="holiday_hours" step="0.25" min="0"
+           value="{{ ts.holiday_hours if ts and ts.holiday_hours else '' }}"
+           class="{{ inp_cls }}">
+  </td>
+  <td class="px-3 py-2 text-center text-xs {% if saved %}text-green-600{% else %}text-transparent{% endif %}">
+    {% if saved %}✓{% else %}&nbsp;{% endif %}
+  </td>
+</tr>

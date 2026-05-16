@@ -1,0 +1,172 @@
+{% extends "layout.html" %}
+{% block title %}Pay Period {{ pp.start_date }}{% endblock %}
+{% block breadcrumb %}<a href="/payroll/" class="hover:underline">Pay Runs</a> / {{ pp.start_date }} – {{ pp.end_date }}{% endblock %}
+
+{% block content %}
+{# Status badge helper #}
+{% set s = pp.status %}
+{% set badge_cls = {
+  'open': 'bg-sky-100 text-sky-700',
+  'draft': 'bg-amber-100 text-amber-700',
+  'approved': 'bg-green-100 text-green-700',
+  'paid': 'bg-emerald-100 text-emerald-700',
+  'closed': 'bg-slate-100 text-slate-500',
+} %}
+
+{# Header #}
+<div class="flex items-start justify-between mb-6">
+  <div>
+    <div class="flex items-center gap-3 mb-1">
+      <h1 class="text-xl font-semibold text-slate-800">{{ pp.company.name }}</h1>
+      <span class="inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium {{ badge_cls.get(s, 'bg-slate-100 text-slate-500') }}">
+        {{ s | capitalize }}
+      </span>
+    </div>
+    <p class="text-sm text-slate-500">
+      Period {{ pp.start_date }} – {{ pp.end_date }} &nbsp;·&nbsp; Pay date {{ pp.pay_date }}
+      &nbsp;·&nbsp; {{ pp.frequency | replace("_", "-") | capitalize }}
+    </p>
+  </div>
+
+  {# Action buttons #}
+  <div class="flex gap-2">
+    {% if s in ('open', 'draft') %}
+    <a href="/payroll/{{ pp.id }}/timesheets"
+       class="px-3 py-1.5 text-sm border border-slate-300 rounded-md text-slate-700 hover:bg-slate-50">
+      Timesheets
+    </a>
+    <form method="post" action="/payroll/{{ pp.id }}/calculate">
+      <button type="submit"
+              class="px-3 py-1.5 text-sm bg-indigo-600 text-white rounded-md hover:bg-indigo-700">
+        {% if s == 'draft' %}Recalculate{% else %}Calculate Draft{% endif %}
+      </button>
+    </form>
+    {% endif %}
+    {% if s == 'draft' %}
+    <form method="post" action="/payroll/{{ pp.id }}/approve"
+          onsubmit="return confirm('Approve and lock all paychecks?')">
+      <button type="submit"
+              class="px-3 py-1.5 text-sm bg-green-600 text-white rounded-md hover:bg-green-700">
+        Approve
+      </button>
+    </form>
+    {% endif %}
+    {% if s == 'approved' %}
+    <form method="post" action="/payroll/{{ pp.id }}/mark-paid"
+          onsubmit="return confirm('Mark all paychecks as paid?')">
+      <button type="submit"
+              class="px-3 py-1.5 text-sm bg-emerald-600 text-white rounded-md hover:bg-emerald-700">
+        Mark Paid
+      </button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+{# Paycheck table #}
+{% if pp.paychecks %}
+<div class="bg-white rounded-lg border border-slate-200 overflow-hidden">
+  <table class="w-full text-sm">
+    <thead class="bg-slate-50 border-b border-slate-200">
+      <tr>
+        <th class="text-left px-4 py-3 font-medium text-slate-600">Employee</th>
+        <th class="text-right px-4 py-3 font-medium text-slate-600">Gross</th>
+        <th class="text-right px-4 py-3 font-medium text-slate-600">Pre-tax Ded.</th>
+        <th class="text-right px-4 py-3 font-medium text-slate-600">Taxes</th>
+        <th class="text-right px-4 py-3 font-medium text-slate-600">Net Pay</th>
+        <th class="text-left px-4 py-3 font-medium text-slate-600">Status</th>
+        <th class="px-4 py-3"></th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-slate-100">
+      {% for pc in pp.paychecks | sort(attribute='employee.last_name') %}
+      <tr class="hover:bg-slate-50 {% if variance_flags.get(pc.id) %}bg-amber-50{% endif %}">
+        <td class="px-4 py-3">
+          <div class="flex items-center gap-2">
+            {% if variance_flags.get(pc.id) %}
+            <span title="Gross wages differ >20% from prior paycheck" class="text-amber-500 text-base">⚠</span>
+            {% endif %}
+            <span class="font-medium text-slate-800">{{ pc.employee.full_name }}</span>
+          </div>
+        </td>
+        <td class="px-4 py-3 text-right font-mono">${{ "%.2f"|format(pc.gross_wages) }}</td>
+        <td class="px-4 py-3 text-right font-mono text-slate-500">${{ "%.2f"|format(pc.total_deductions) }}</td>
+        <td class="px-4 py-3 text-right font-mono text-slate-500">${{ "%.2f"|format(pc.total_taxes_withheld) }}</td>
+        <td class="px-4 py-3 text-right font-mono font-medium">${{ "%.2f"|format(pc.net_pay) }}</td>
+        <td class="px-4 py-3">
+          {% set ps = pc.status %}
+          <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium
+            {% if ps == 'draft' %}bg-amber-100 text-amber-700
+            {% elif ps == 'approved' %}bg-green-100 text-green-700
+            {% elif ps == 'paid' %}bg-emerald-100 text-emerald-700
+            {% elif ps == 'voided' %}bg-red-100 text-red-600 line-through
+            {% endif %}">
+            {{ ps | capitalize }}
+          </span>
+        </td>
+        <td class="px-4 py-3 text-right">
+          <a href="/payroll/paychecks/{{ pc.id }}"
+             class="text-indigo-600 hover:underline text-sm">Detail</a>
+          {% if pc.status in ('draft', 'approved') %}
+          <span class="text-slate-300 mx-1">|</span>
+          <button onclick="document.getElementById('void-{{ pc.id }}').classList.remove('hidden')"
+                  class="text-red-500 hover:underline text-sm">Void</button>
+          {% endif %}
+        </td>
+      </tr>
+      {% if pc.status in ('draft', 'approved') %}
+      <tr id="void-{{ pc.id }}" class="hidden bg-red-50">
+        <td colspan="7" class="px-4 py-3">
+          <form method="post" action="/payroll/paychecks/{{ pc.id }}/void" class="flex gap-3 items-center">
+            <span class="text-sm text-red-700 font-medium">Void reason:</span>
+            <input type="text" name="reason" required placeholder="Enter reason"
+                   class="flex-1 text-sm border border-red-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-red-400">
+            <button type="submit"
+                    class="px-3 py-1 text-sm bg-red-600 text-white rounded hover:bg-red-700">
+              Confirm Void
+            </button>
+            <button type="button"
+                    onclick="document.getElementById('void-{{ pc.id }}').classList.add('hidden')"
+                    class="px-3 py-1 text-sm text-slate-600 rounded hover:bg-slate-100">
+              Cancel
+            </button>
+          </form>
+        </td>
+      </tr>
+      {% endif %}
+      {% endfor %}
+    </tbody>
+    <tfoot class="bg-slate-50 border-t border-slate-200">
+      <tr>
+        <td class="px-4 py-3 text-sm font-medium text-slate-600">Totals</td>
+        <td class="px-4 py-3 text-right font-mono font-medium">
+          ${{ "%.2f"|format(pp.paychecks | sum(attribute='gross_wages')) }}
+        </td>
+        <td class="px-4 py-3 text-right font-mono text-slate-500">
+          ${{ "%.2f"|format(pp.paychecks | sum(attribute='total_deductions')) }}
+        </td>
+        <td class="px-4 py-3 text-right font-mono text-slate-500">
+          ${{ "%.2f"|format(pp.paychecks | sum(attribute='total_taxes_withheld')) }}
+        </td>
+        <td class="px-4 py-3 text-right font-mono font-medium">
+          ${{ "%.2f"|format(pp.paychecks | sum(attribute='net_pay')) }}
+        </td>
+        <td colspan="2"></td>
+      </tr>
+    </tfoot>
+  </table>
+</div>
+{% else %}
+<div class="bg-white rounded-lg border border-slate-200 py-16 text-center">
+  <p class="text-slate-400 mb-4">No paychecks yet.</p>
+  {% if s == 'open' %}
+  <form method="post" action="/payroll/{{ pp.id }}/calculate" class="inline">
+    <button type="submit"
+            class="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-md hover:bg-indigo-700">
+      Calculate Draft
+    </button>
+  </form>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

@@ -94,8 +94,8 @@ class Paycheck(Base):
 
     employee: Mapped["Employee"] = relationship("Employee")
     pay_period: Mapped["PayPeriod"] = relationship("PayPeriod", back_populates="paychecks")
-    lines: Mapped[List["PaycheckLine"]] = relationship("PaycheckLine", back_populates="paycheck")
-    liabilities: Mapped[List["ClientLiability"]] = relationship("ClientLiability", back_populates="paycheck")
+    lines: Mapped[List["PaycheckLine"]] = relationship("PaycheckLine", back_populates="paycheck", cascade="all, delete-orphan")
+    liabilities: Mapped[List["ClientLiability"]] = relationship("ClientLiability", back_populates="paycheck", cascade="all, delete-orphan")
 
 
 class PaycheckLine(Base):

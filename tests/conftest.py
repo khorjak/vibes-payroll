@@ -91,6 +91,23 @@ def hourly_employee(db, company):
 
 
 @pytest.fixture()
+def pay_period(db, company):
+    from models.payroll import PayPeriod
+    pp = PayPeriod(
+        company_id=company.id,
+        start_date=date(2026, 5, 1),
+        end_date=date(2026, 5, 14),
+        pay_date=date(2026, 5, 20),
+        frequency="biweekly",
+        status="open",
+    )
+    db.add(pp)
+    db.commit()
+    db.refresh(pp)
+    return pp
+
+
+@pytest.fixture()
 def benefit_plan(db, company):
     plan = BenefitPlan(
         company_id=company.id,

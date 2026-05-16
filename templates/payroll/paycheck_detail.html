@@ -1,0 +1,220 @@
+{% extends "layout.html" %}
+{% block title %}Paycheck – {{ paycheck.employee.full_name }}{% endblock %}
+{% block breadcrumb %}
+  <a href="/payroll/" class="hover:underline">Pay Runs</a> /
+  <a href="/payroll/{{ paycheck.pay_period.id }}" class="hover:underline">{{ paycheck.pay_period.start_date }} – {{ paycheck.pay_period.end_date }}</a> /
+  {{ paycheck.employee.full_name }}
+{% endblock %}
+
+{% block content %}
+{% set ps = paycheck.status %}
+
+{# Header #}
+<div class="flex items-start justify-between mb-6">
+  <div>
+    <div class="flex items-center gap-3 mb-1">
+      <h1 class="text-xl font-semibold text-slate-800">{{ paycheck.employee.full_name }}</h1>
+      <span class="inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium
+        {% if ps == 'draft' %}bg-amber-100 text-amber-700
+        {% elif ps == 'approved' %}bg-green-100 text-green-700
+        {% elif ps == 'paid' %}bg-emerald-100 text-emerald-700
+        {% elif ps == 'voided' %}bg-red-100 text-red-600
+        {% endif %}">
+        {{ ps | capitalize }}
+      </span>
+    </div>
+    <p class="text-sm text-slate-500">
+      {{ paycheck.pay_period.company.name }} &nbsp;·&nbsp;
+      Pay date {{ paycheck.pay_period.pay_date }} &nbsp;·&nbsp;
+      Period {{ paycheck.pay_period.start_date }} – {{ paycheck.pay_period.end_date }}
+    </p>
+    {% if ps == 'voided' and paycheck.void_reason %}
+    <p class="text-sm text-red-600 mt-1">Void reason: {{ paycheck.void_reason }}</p>
+    {% endif %}
+  </div>
+  {% if ps in ('draft', 'approved') %}
+  <div x-data="{ showVoid: false }">
+    <button @click="showVoid = true"
+            class="px-3 py-1.5 text-sm text-red-600 border border-red-300 rounded-md hover:bg-red-50">
+      Void
+    </button>
+    <div x-show="showVoid" x-cloak
+         class="mt-2 p-3 bg-red-50 rounded-md border border-red-200">
+      <form method="post" action="/payroll/paychecks/{{ paycheck.id }}/void" class="flex gap-2 items-center">
+        <input type="text" name="reason" required placeholder="Void reason"
+               class="flex-1 text-sm border border-red-300 rounded px-2 py-1 focus:outline-none">
+        <button type="submit" class="px-3 py-1 text-sm bg-red-600 text-white rounded hover:bg-red-700">
+          Confirm
+        </button>
+        <button type="button" @click="showVoid = false"
+                class="px-3 py-1 text-sm text-slate-600 hover:bg-slate-100 rounded">
+          Cancel
+        </button>
+      </form>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<div class="grid grid-cols-3 gap-4 mb-6">
+  <div class="bg-white rounded-lg border border-slate-200 p-4">
+    <p class="text-xs text-slate-500 uppercase tracking-wide mb-1">Gross Wages</p>
+    <p class="text-2xl font-semibold font-mono">${{ "%.2f"|format(paycheck.gross_wages) }}</p>
+  </div>
+  <div class="bg-white rounded-lg border border-slate-200 p-4">
+    <p class="text-xs text-slate-500 uppercase tracking-wide mb-1">Employee Taxes + Ded.</p>
+    <p class="text-2xl font-semibold font-mono text-red-600">
+      -${{ "%.2f"|format(paycheck.total_taxes_withheld + paycheck.total_deductions) }}
+    </p>
+  </div>
+  <div class="bg-indigo-50 rounded-lg border border-indigo-200 p-4">
+    <p class="text-xs text-indigo-500 uppercase tracking-wide mb-1">Net Pay</p>
+    <p class="text-2xl font-semibold font-mono text-indigo-700">${{ "%.2f"|format(paycheck.net_pay) }}</p>
+  </div>
+</div>
+
+<div class="grid grid-cols-2 gap-4">
+
+  {# Left column: employee-side #}
+  <div class="space-y-4">
+
+    {# Earnings #}
+    <div class="bg-white rounded-lg border border-slate-200 overflow-hidden">
+      <div class="px-4 py-2.5 bg-slate-50 border-b border-slate-200">
+        <h2 class="text-sm font-semibold text-slate-700">Earnings</h2>
+      </div>
+      <table class="w-full text-sm">
+        <tbody class="divide-y divide-slate-100">
+          {% for line in earnings %}
+          <tr>
+            <td class="px-4 py-2 text-slate-700">
+              {{ line.description }}
+              {% if line.hours %}
+              <span class="text-xs text-slate-400 ml-1">{{ line.hours }} hrs @ ${{ "%.4f"|format(line.rate) }}</span>
+              {% endif %}
+            </td>
+            <td class="px-4 py-2 text-right font-mono">${{ "%.2f"|format(line.amount) }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot class="border-t border-slate-200 bg-slate-50">
+          <tr>
+            <td class="px-4 py-2 font-medium text-slate-700">Total Earnings</td>
+            <td class="px-4 py-2 text-right font-mono font-medium">${{ "%.2f"|format(paycheck.gross_wages) }}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+
+    {# Pre-tax Deductions #}
+    {% if deductions %}
+    <div class="bg-white rounded-lg border border-slate-200 overflow-hidden">
+      <div class="px-4 py-2.5 bg-slate-50 border-b border-slate-200">
+        <h2 class="text-sm font-semibold text-slate-700">Pre-tax Deductions</h2>
+      </div>
+      <table class="w-full text-sm">
+        <tbody class="divide-y divide-slate-100">
+          {% for line in deductions %}
+          <tr>
+            <td class="px-4 py-2 text-slate-700">{{ line.description }}</td>
+            <td class="px-4 py-2 text-right font-mono text-red-600">-${{ "%.2f"|format(line.amount) }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot class="border-t border-slate-200 bg-slate-50">
+          <tr>
+            <td class="px-4 py-2 font-medium text-slate-700">Total Deductions</td>
+            <td class="px-4 py-2 text-right font-mono font-medium text-red-600">
+              -${{ "%.2f"|format(paycheck.total_deductions) }}
+            </td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+    {% endif %}
+
+    {# Taxes Withheld #}
+    <div class="bg-white rounded-lg border border-slate-200 overflow-hidden">
+      <div class="px-4 py-2.5 bg-slate-50 border-b border-slate-200">
+        <h2 class="text-sm font-semibold text-slate-700">Taxes Withheld</h2>
+      </div>
+      <table class="w-full text-sm">
+        <tbody class="divide-y divide-slate-100">
+          {% for line in employee_taxes %}
+          <tr>
+            <td class="px-4 py-2 text-slate-700">{{ line.description }}</td>
+            <td class="px-4 py-2 text-right font-mono text-red-600">-${{ "%.2f"|format(line.amount) }}</td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="2" class="px-4 py-3 text-slate-400 text-center">No withholding</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot class="border-t border-slate-200 bg-slate-50">
+          <tr>
+            <td class="px-4 py-2 font-medium text-slate-700">Total Withheld</td>
+            <td class="px-4 py-2 text-right font-mono font-medium text-red-600">
+              -${{ "%.2f"|format(paycheck.total_taxes_withheld) }}
+            </td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+
+    {# Net Pay #}
+    <div class="bg-indigo-50 rounded-lg border border-indigo-200 p-4 flex justify-between items-center">
+      <span class="font-semibold text-slate-800">Net Pay</span>
+      <span class="text-xl font-bold font-mono text-indigo-700">${{ "%.2f"|format(paycheck.net_pay) }}</span>
+    </div>
+
+  </div>
+
+  {# Right column: employer costs #}
+  <div>
+    <div class="bg-white rounded-lg border border-slate-200 overflow-hidden">
+      <div class="px-4 py-2.5 bg-slate-50 border-b border-slate-200">
+        <h2 class="text-sm font-semibold text-slate-700">Employer Taxes &amp; Costs</h2>
+      </div>
+      <table class="w-full text-sm">
+        <tbody class="divide-y divide-slate-100">
+          {% for line in employer_taxes %}
+          <tr>
+            <td class="px-4 py-2 text-slate-700">{{ line.description }}</td>
+            <td class="px-4 py-2 text-right font-mono">${{ "%.2f"|format(line.amount) }}</td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="2" class="px-4 py-3 text-slate-400 text-center">No employer taxes</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot class="border-t border-slate-200 bg-slate-50">
+          <tr>
+            <td class="px-4 py-2 font-medium text-slate-700">Total Employer Cost</td>
+            <td class="px-4 py-2 text-right font-mono font-medium">
+              ${{ "%.2f"|format(paycheck.employer_fica + paycheck.employer_futa + paycheck.employer_suta + paycheck.employer_workers_comp) }}
+            </td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+
+    {# YTD Summary #}
+    <div class="mt-4 bg-white rounded-lg border border-slate-200 overflow-hidden">
+      <div class="px-4 py-2.5 bg-slate-50 border-b border-slate-200">
+        <h2 class="text-sm font-semibold text-slate-700">YTD (through this check)</h2>
+      </div>
+      <table class="w-full text-sm">
+        <tbody class="divide-y divide-slate-100">
+          <tr>
+            <td class="px-4 py-2 text-slate-600">Gross Wages</td>
+            <td class="px-4 py-2 text-right font-mono">${{ "%.2f"|format(paycheck.ytd_gross) }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

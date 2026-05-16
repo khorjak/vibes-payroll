@@ -1,0 +1,74 @@
+{% extends "layout.html" %}
+{% block title %}Pay Runs{% endblock %}
+{% block breadcrumb %}Pay Runs{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+  <h1 class="text-xl font-semibold text-slate-800">Pay Runs</h1>
+  <a href="/payroll/new"
+     class="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-md hover:bg-indigo-700">
+    New Pay Period
+  </a>
+</div>
+
+<form method="get" class="mb-5 flex gap-3 items-center">
+  <select name="company_id"
+          class="text-sm rounded-md border border-slate-300 px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+    <option value="">All Companies</option>
+    {% for co in companies %}
+    <option value="{{ co.id }}" {% if co.id|string == company_filter %}selected{% endif %}>{{ co.name }}</option>
+    {% endfor %}
+  </select>
+  <button type="submit"
+          class="px-3 py-1.5 text-sm bg-slate-100 text-slate-700 rounded-md hover:bg-slate-200">
+    Filter
+  </button>
+</form>
+
+<div class="bg-white rounded-lg border border-slate-200 overflow-hidden">
+  <table class="w-full text-sm">
+    <thead class="bg-slate-50 border-b border-slate-200">
+      <tr>
+        <th class="text-left px-4 py-3 font-medium text-slate-600">Company</th>
+        <th class="text-left px-4 py-3 font-medium text-slate-600">Pay Period</th>
+        <th class="text-left px-4 py-3 font-medium text-slate-600">Pay Date</th>
+        <th class="text-left px-4 py-3 font-medium text-slate-600">Frequency</th>
+        <th class="text-left px-4 py-3 font-medium text-slate-600">Checks</th>
+        <th class="text-left px-4 py-3 font-medium text-slate-600">Status</th>
+        <th class="px-4 py-3"></th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-slate-100">
+      {% for pp in periods %}
+      <tr class="hover:bg-slate-50">
+        <td class="px-4 py-3 font-medium text-slate-800">{{ pp.company.name }}</td>
+        <td class="px-4 py-3 text-slate-600">{{ pp.start_date }} – {{ pp.end_date }}</td>
+        <td class="px-4 py-3">{{ pp.pay_date }}</td>
+        <td class="px-4 py-3 text-slate-500 capitalize">{{ pp.frequency.replace("_", "-") }}</td>
+        <td class="px-4 py-3 text-slate-500">{{ pp.paychecks | length }}</td>
+        <td class="px-4 py-3">
+          {% set s = pp.status %}
+          <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium
+            {% if s == 'open' %}bg-sky-100 text-sky-700
+            {% elif s == 'draft' %}bg-amber-100 text-amber-700
+            {% elif s == 'approved' %}bg-green-100 text-green-700
+            {% elif s == 'paid' %}bg-emerald-100 text-emerald-700
+            {% else %}bg-slate-100 text-slate-500{% endif %}">
+            {{ s | capitalize }}
+          </span>
+        </td>
+        <td class="px-4 py-3 text-right">
+          <a href="/payroll/{{ pp.id }}" class="text-indigo-600 hover:underline text-sm">View →</a>
+        </td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="7" class="px-4 py-10 text-center text-slate-400">
+          No pay periods yet. <a href="/payroll/new" class="text-indigo-600 hover:underline">Create one.</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
