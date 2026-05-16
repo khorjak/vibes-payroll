@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <style>
+    @page {
+      size: letter;
+      margin: 1.5cm;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 9pt;
+      color: #1a1a1a;
+      line-height: 1.4;
+    }
+
+    .stub {
+      border: 1.5pt solid #94a3b8;
+      position: relative;
+    }
+
+    /* VOID watermark */
+    {% if paycheck.status == 'voided' %}
+    .stub::after {
+      content: "VOID";
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) rotate(-30deg);
+      font-size: 120pt;
+      font-weight: 900;
+      color: rgba(220, 38, 38, 0.18);
+      letter-spacing: 0.1em;
+      pointer-events: none;
+      z-index: 10;
+    }
+    {% endif %}
+
+    /* ── Header ── */
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding: 11pt 14pt;
+      background: #1e293b;
+      color: white;
+    }
+    .company-name { font-size: 13pt; font-weight: bold; }
+    .company-sub { font-size: 7.5pt; color: #94a3b8; margin-top: 3pt; }
+    .stub-label { text-align: right; }
+    .stub-title { font-size: 13pt; font-weight: bold; letter-spacing: 0.05em; }
+    .stub-meta { font-size: 7.5pt; color: #94a3b8; margin-top: 3pt; }
+    {% if paycheck.status == 'voided' %}
+    .stub-status-badge {
+      display: inline-block;
+      background: #dc2626;
+      color: white;
+      font-size: 7pt;
+      font-weight: bold;
+      padding: 1pt 5pt;
+      border-radius: 2pt;
+      margin-top: 4pt;
+    }
+    {% endif %}
+
+    /* ── Info cells ── */
+    .info-bar {
+      display: flex;
+      border-bottom: 1pt solid #cbd5e1;
+    }
+    .info-cell {
+      flex: 1;
+      padding: 7pt 12pt;
+      border-right: 1pt solid #e2e8f0;
+    }
+    .info-cell:last-child { border-right: none; }
+    .info-label {
+      font-size: 6.5pt;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #64748b;
+      margin-bottom: 2pt;
+    }
+    .info-value { font-size: 9pt; font-weight: 600; }
+    .info-value-sm { font-size: 8.5pt; font-weight: 600; }
+
+    /* ── Two-column body ── */
+    .body-columns {
+      display: flex;
+    }
+    .col-main {
+      flex: 1;
+      border-right: 1pt solid #cbd5e1;
+    }
+    .col-side {
+      width: 185pt;
+    }
+
+    /* ── Section header ── */
+    .section-head {
+      background: #f1f5f9;
+      padding: 4pt 10pt;
+      font-size: 6.5pt;
+      font-weight: bold;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #475569;
+      border-bottom: 1pt solid #e2e8f0;
+      border-top: 1pt solid #e2e8f0;
+    }
+
+    /* ── Tables ── */
+    table { width: 100%; border-collapse: collapse; }
+    td { padding: 3.5pt 10pt; }
+    td.amt { text-align: right; font-family: "Courier New", Courier, monospace; white-space: nowrap; }
+    td.neg { color: #b91c1c; }
+    tr.subtotal td {
+      background: #f8fafc;
+      border-top: 0.75pt solid #cbd5e1;
+      font-weight: 600;
+      padding-top: 4pt;
+      padding-bottom: 4pt;
+    }
+    .hours-note { font-size: 7.5pt; color: #64748b; }
+
+    /* ── Net pay ── */
+    .net-pay-row {
+      background: #1e3a8a;
+      color: white;
+      padding: 10pt 14pt;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .net-pay-label { font-size: 8pt; font-weight: bold; text-transform: uppercase; letter-spacing: 0.08em; }
+    .net-pay-amount { font-size: 18pt; font-weight: bold; font-family: "Courier New", Courier, monospace; }
+
+    /* ── Side column ── */
+    .side-section { }
+    .side-section + .side-section { border-top: 1pt solid #cbd5e1; }
+
+    /* ── Footer ── */
+    .footer {
+      border-top: 1pt solid #e2e8f0;
+      padding: 5pt 14pt;
+      font-size: 7pt;
+      color: #94a3b8;
+      display: flex;
+      justify-content: space-between;
+    }
+  </style>
+</head>
+<body>
+<div class="stub">
+
+  <!-- Header -->
+  <div class="header">
+    <div>
+      <div class="company-name">{{ paycheck.pay_period.company.name }}</div>
+      <div class="company-sub">
+        {% set co = paycheck.pay_period.company %}
+        {% if co.address %}{{ co.address }}{% if co.city %}, {{ co.city }}{% endif %}{% if co.state %}, {{ co.state }}{% endif %}{% if co.zip_code %} {{ co.zip_code }}{% endif %}{% endif %}
+        {% if co.ein %}&nbsp; &nbsp;EIN: {{ co.ein }}{% endif %}
+      </div>
+    </div>
+    <div class="stub-label">
+      <div class="stub-title">PAY STUB</div>
+      <div class="stub-meta">
+        Check #{{ paycheck.check_number or "—" }}
+        &nbsp; &nbsp;
+        Pay Date: {{ paycheck.pay_period.pay_date.strftime("%m/%d/%Y") }}
+      </div>
+      {% if paycheck.status == 'voided' %}
+      <div><span class="stub-status-badge">VOIDED</span></div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Employee info bar -->
+  <div class="info-bar">
+    <div class="info-cell">
+      <div class="info-label">Employee</div>
+      <div class="info-value">{{ paycheck.employee.full_name }}</div>
+    </div>
+    <div class="info-cell">
+      <div class="info-label">Pay Period</div>
+      <div class="info-value-sm">
+        {{ paycheck.pay_period.start_date.strftime("%m/%d/%Y") }} –
+        {{ paycheck.pay_period.end_date.strftime("%m/%d/%Y") }}
+      </div>
+    </div>
+    <div class="info-cell">
+      <div class="info-label">Pay Type</div>
+      <div class="info-value">{{ paycheck.employee.employment_type | capitalize }}</div>
+    </div>
+    <div class="info-cell">
+      <div class="info-label">Department / Title</div>
+      <div class="info-value-sm">
+        {{ paycheck.employee.department or "—" }}
+        {% if paycheck.employee.job_title %}/ {{ paycheck.employee.job_title }}{% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Body -->
+  <div class="body-columns">
+
+    <!-- Left: employee-side detail -->
+    <div class="col-main">
+
+      <!-- Earnings -->
+      <div class="section-head">Earnings</div>
+      <table>
+        <tbody>
+          {% for line in earnings %}
+          <tr>
+            <td>
+              {{ line.description }}
+              {% if line.hours %}
+              <br><span class="hours-note">{{ line.hours }} hrs @ ${{ "%.4f"|format(line.rate) }}/hr</span>
+              {% endif %}
+            </td>
+            <td class="amt">${{ "{:,.2f}".format(line.amount) }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tbody>
+          <tr class="subtotal">
+            <td>Total Earnings</td>
+            <td class="amt">${{ "{:,.2f}".format(paycheck.gross_wages) }}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- Pre-tax deductions -->
+      {% if deductions %}
+      <div class="section-head">Pre-tax Deductions</div>
+      <table>
+        <tbody>
+          {% for line in deductions %}
+          <tr>
+            <td>{{ line.description }}</td>
+            <td class="amt neg">-${{ "{:,.2f}".format(line.amount) }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tbody>
+          <tr class="subtotal">
+            <td>Total Deductions</td>
+            <td class="amt neg">-${{ "{:,.2f}".format(paycheck.total_deductions) }}</td>
+          </tr>
+        </tbody>
+      </table>
+      {% endif %}
+
+      <!-- Employee taxes -->
+      <div class="section-head">Taxes Withheld</div>
+      <table>
+        <tbody>
+          {% for line in employee_taxes %}
+          <tr>
+            <td>{{ line.description }}</td>
+            <td class="amt neg">-${{ "{:,.2f}".format(line.amount) }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="2" style="color:#94a3b8; padding: 5pt 10pt;">No withholding</td></tr>
+          {% endfor %}
+        </tbody>
+        <tbody>
+          <tr class="subtotal">
+            <td>Total Withheld</td>
+            <td class="amt neg">-${{ "{:,.2f}".format(paycheck.total_taxes_withheld) }}</td>
+          </tr>
+        </tbody>
+      </table>
+
+    </div>
+
+    <!-- Right side: YTD + employer costs -->
+    <div class="col-side">
+
+      <!-- YTD Summary -->
+      <div class="side-section">
+        <div class="section-head">Year-to-Date</div>
+        <table>
+          <tr>
+            <td style="color:#475569;">Gross Wages</td>
+            <td class="amt">${{ "{:,.2f}".format(paycheck.ytd_gross) }}</td>
+          </tr>
+        </table>
+      </div>
+
+      <!-- Employer costs -->
+      <div class="side-section">
+        <div class="section-head">Employer Costs</div>
+        <table>
+          <tbody>
+            {% for line in employer_taxes %}
+            <tr>
+              <td style="color:#475569;">{{ line.description }}</td>
+              <td class="amt">${{ "{:,.2f}".format(line.amount) }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="2" style="color:#94a3b8; padding:5pt 10pt;">None</td></tr>
+            {% endfor %}
+          </tbody>
+          <tbody>
+            {% set employer_total = paycheck.employer_fica + paycheck.employer_futa + paycheck.employer_suta + paycheck.employer_workers_comp %}
+            <tr class="subtotal">
+              <td>Total Cost</td>
+              <td class="amt">${{ "{:,.2f}".format(employer_total) }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Net pay -->
+  <div class="net-pay-row">
+    <div class="net-pay-label">Net Pay</div>
+    <div class="net-pay-amount">${{ "{:,.2f}".format(paycheck.net_pay) }}</div>
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+    <span>
+      {% if paycheck.status == 'voided' %}
+        VOIDED {{ paycheck.voided_at.strftime("%m/%d/%Y") if paycheck.voided_at else "" }}
+        {% if paycheck.void_reason %} — {{ paycheck.void_reason }}{% endif %}
+      {% else %}
+        {% if paycheck.paid_at %}Paid {{ paycheck.paid_at.strftime("%m/%d/%Y") }}{% endif %}
+      {% endif %}
+    </span>
+    <span>This is not a negotiable instrument.</span>
+  </div>
+
+</div>
+</body>
+</html>

@@ -1,7 +1,7 @@
 from datetime import date
 from decimal import Decimal
 from fastapi import APIRouter, Depends, Form, Request, HTTPException
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session, joinedload
 from database import get_db
@@ -141,6 +141,53 @@ def void_check(
         raise HTTPException(status_code=400, detail=str(e))
     return RedirectResponse(
         f"/payroll/{paycheck.pay_period_id}?flash=voided", status_code=303
+    )
+
+
+@router.get("/paychecks/{paycheck_id}/pdf")
+def paycheck_pdf(
+    paycheck_id: int,
+    db: Session = Depends(get_db),
+):
+    paycheck = (
+        db.query(Paycheck)
+        .options(
+            joinedload(Paycheck.employee),
+            joinedload(Paycheck.pay_period).joinedload(PayPeriod.company),
+            joinedload(Paycheck.lines),
+        )
+        .filter(Paycheck.id == paycheck_id)
+        .first()
+    )
+    if not paycheck:
+        raise HTTPException(status_code=404, detail="Paycheck not found")
+
+    try:
+        from weasyprint import HTML as WeasyHTML
+    except OSError:
+        raise HTTPException(
+            status_code=503,
+            detail="PDF generation unavailable: GTK runtime not installed. "
+                   "See https://doc.courtbouillon.org/weasyprint/stable/first_steps.html",
+        )
+
+    lines = sorted(paycheck.lines, key=lambda l: l.id)
+    html_str = templates.env.get_template("payroll/paystub.html").render(
+        paycheck=paycheck,
+        earnings=[l for l in lines if l.line_type == "earning"],
+        deductions=[l for l in lines if l.line_type == "deduction"],
+        employee_taxes=[l for l in lines if l.line_type == "tax"],
+        employer_taxes=[l for l in lines if l.line_type == "employer_tax"],
+    )
+    pdf_bytes = WeasyHTML(string=html_str).write_pdf()
+
+    emp = paycheck.employee
+    pay_date = paycheck.pay_period.pay_date.strftime("%Y-%m-%d")
+    filename = f"paystub_{emp.last_name}_{emp.first_name}_{pay_date}.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="{filename}"'},
     )
 
 

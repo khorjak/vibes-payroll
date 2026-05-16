@@ -596,3 +596,23 @@ class TestPayrollRoutes:
         )
         assert r.status_code == 200
         assert "ts-row-" in r.text
+
+    def test_paycheck_pdf_returns_pdf(self, client, db, company, salaried_employee, monkeypatch):
+        import sys, types
+        # Stub out weasyprint so the test works without GTK installed
+        fake_html_instance = types.SimpleNamespace(write_pdf=lambda: b"%PDF-1.4 stub")
+        fake_weasyprint = types.ModuleType("weasyprint")
+        fake_weasyprint.HTML = lambda string: fake_html_instance
+        monkeypatch.setitem(sys.modules, "weasyprint", fake_weasyprint)
+
+        pp = self._create_pp(db, company)
+        client.post(f"/payroll/{pp.id}/calculate")
+        paycheck = db.query(Paycheck).filter(Paycheck.pay_period_id == pp.id).first()
+        r = client.get(f"/payroll/paychecks/{paycheck.id}/pdf")
+        assert r.status_code == 200
+        assert r.headers["content-type"] == "application/pdf"
+        assert b"%PDF" in r.content
+
+    def test_paycheck_pdf_404_for_missing(self, client):
+        r = client.get("/payroll/paychecks/99999/pdf")
+        assert r.status_code == 404
