@@ -1,0 +1,96 @@
+{% extends "layout.html" %}
+{% block title %}Quarterly 941 Data{% endblock %}
+{% block breadcrumb %}<a href="/reports/" class="hover:underline">Reports</a> / Quarterly 941 Data{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+  <h1 class="text-xl font-semibold text-slate-800">Quarterly 941 Data</h1>
+</div>
+
+<form method="get" class="bg-white rounded-lg border border-slate-200 p-4 mb-6 flex flex-wrap gap-4 items-end">
+  <div class="flex flex-col gap-1">
+    <label class="text-xs font-medium text-slate-600">Company</label>
+    <select name="company_id"
+            class="text-sm rounded-md border border-slate-300 px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+      <option value="0">— Select Company —</option>
+      {% for co in companies %}
+      <option value="{{ co.id }}" {% if co.id == company_id %}selected{% endif %}>{{ co.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="flex flex-col gap-1">
+    <label class="text-xs font-medium text-slate-600">Year</label>
+    <input type="number" name="year" value="{{ year }}" min="2000" max="2099"
+           class="text-sm rounded-md border border-slate-300 px-3 py-1.5 w-28 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+  </div>
+
+  <div class="flex flex-col gap-1">
+    <label class="text-xs font-medium text-slate-600">Quarter</label>
+    <select name="quarter"
+            class="text-sm rounded-md border border-slate-300 px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+      <option value="0">— Select Quarter —</option>
+      <option value="1" {% if quarter == 1 %}selected{% endif %}>Q1 (Jan–Mar)</option>
+      <option value="2" {% if quarter == 2 %}selected{% endif %}>Q2 (Apr–Jun)</option>
+      <option value="3" {% if quarter == 3 %}selected{% endif %}>Q3 (Jul–Sep)</option>
+      <option value="4" {% if quarter == 4 %}selected{% endif %}>Q4 (Oct–Dec)</option>
+    </select>
+  </div>
+
+  <button type="submit"
+          class="px-4 py-1.5 text-sm bg-indigo-600 text-white rounded-md hover:bg-indigo-700">
+    Run Report
+  </button>
+</form>
+
+{% if summary %}
+<div class="max-w-xl">
+  <div class="bg-white rounded-lg border border-slate-200 overflow-hidden">
+    <div class="px-5 py-3 border-b border-slate-200 bg-slate-50">
+      <span class="text-sm font-semibold text-slate-700">
+        Form 941 Summary — Q{{ quarter }} {{ year }}
+      </span>
+    </div>
+
+    {% macro row(label, value, money=True) %}
+    <div class="flex items-center justify-between px-5 py-3 border-b border-slate-100 last:border-0">
+      <span class="text-sm text-slate-600">{{ label }}</span>
+      <span class="text-sm font-medium tabular-nums text-slate-800">
+        {% if money %}${{ "%.2f"|format(value) }}{% else %}{{ value }}{% endif %}
+      </span>
+    </div>
+    {% endmacro %}
+
+    {{ row("Number of Employees", summary.employee_count, money=False) }}
+    {{ row("1. Total Wages, Tips, Other Compensation", summary.gross) }}
+    {{ row("2. Federal Income Tax Withheld", summary.fed_tax) }}
+    {{ row("5a. Taxable Social Security Wages", summary.ss_wages) }}
+    {{ row("5c. Taxable Medicare Wages", summary.med_wages) }}
+    {{ row("5a. Social Security Tax — Employee (6.2%)", summary.ss_emp) }}
+    {{ row("5a. Social Security Tax — Employer (6.2%)", summary.ss_er) }}
+    {{ row("5c. Medicare Tax — Employee (1.45%)", summary.med_emp) }}
+    {{ row("5c. Medicare Tax — Employer (1.45%)", summary.med_er) }}
+    {{ row("Total FICA (Employee + Employer)", summary.total_fica) }}
+
+    <div class="flex items-center justify-between px-5 py-3 bg-slate-50 border-t border-slate-200">
+      <span class="text-sm font-semibold text-slate-700">Total Tax Liability (Line 12)</span>
+      <span class="text-sm font-bold tabular-nums text-slate-900">${{ "%.2f"|format(summary.total_liability) }}</span>
+    </div>
+  </div>
+
+  <p class="text-xs text-slate-400 mt-3 leading-relaxed">
+    This is a data summary. Verify against official IRS Form 941 instructions.
+  </p>
+</div>
+
+{% elif company_id and year and quarter %}
+<div class="bg-white rounded-lg border border-slate-200 px-4 py-10 text-center text-slate-400 text-sm">
+  No payroll data found for Q{{ quarter }} {{ year }}.
+</div>
+
+{% else %}
+<div class="bg-white rounded-lg border border-slate-200 px-4 py-10 text-center text-slate-400 text-sm">
+  Select a company, year, and quarter to run this report.
+</div>
+{% endif %}
+{% endblock %}

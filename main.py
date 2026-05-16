@@ -4,7 +4,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from database import engine
 from models import Base
-from routers import companies, employees, pay_periods
+from routers import companies, employees, pay_periods, reports
 
 Base.metadata.create_all(bind=engine)
 
@@ -15,6 +15,7 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 app.include_router(companies.router)
 app.include_router(employees.router)
 app.include_router(pay_periods.router)
+app.include_router(reports.router)
 
 templates = Jinja2Templates(directory="templates")
 

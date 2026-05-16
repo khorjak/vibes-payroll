@@ -1,0 +1,97 @@
+{% extends "layout.html" %}
+{% block title %}Tax Liability Summary{% endblock %}
+{% block breadcrumb %}<a href="/reports/" class="hover:underline">Reports</a> / Tax Liability Summary{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+  <h1 class="text-xl font-semibold text-slate-800">Tax Liability Summary</h1>
+</div>
+
+<form method="get" class="bg-white rounded-lg border border-slate-200 p-4 mb-6 flex flex-wrap gap-4 items-end">
+  <div class="flex flex-col gap-1">
+    <label class="text-xs font-medium text-slate-600">Company</label>
+    <select name="company_id"
+            class="text-sm rounded-md border border-slate-300 px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+      <option value="0">— Select Company —</option>
+      {% for co in companies %}
+      <option value="{{ co.id }}" {% if co.id == company_id %}selected{% endif %}>{{ co.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="flex flex-col gap-1">
+    <label class="text-xs font-medium text-slate-600">Year</label>
+    <input type="number" name="year" value="{{ year }}" min="2000" max="2099"
+           class="text-sm rounded-md border border-slate-300 px-3 py-1.5 w-28 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+  </div>
+
+  <button type="submit"
+          class="px-4 py-1.5 text-sm bg-indigo-600 text-white rounded-md hover:bg-indigo-700">
+    Run Report
+  </button>
+</form>
+
+{% if rows %}
+<div class="bg-white rounded-lg border border-slate-200 overflow-x-auto">
+  <table class="w-full text-sm whitespace-nowrap">
+    <thead class="bg-slate-50 border-b border-slate-200">
+      <tr>
+        <th class="text-left px-4 py-3 font-medium text-slate-600">Pay Date</th>
+        <th class="text-right px-4 py-3 font-medium text-slate-600">Employees</th>
+        <th class="text-right px-4 py-3 font-medium text-slate-600">Gross</th>
+        <th class="text-right px-4 py-3 font-medium text-slate-600">Federal Tax</th>
+        <th class="text-right px-4 py-3 font-medium text-slate-600">OK Tax</th>
+        <th class="text-right px-4 py-3 font-medium text-slate-600">FICA Emp</th>
+        <th class="text-right px-4 py-3 font-medium text-slate-600">FICA Er</th>
+        <th class="text-right px-4 py-3 font-medium text-slate-600">FUTA</th>
+        <th class="text-right px-4 py-3 font-medium text-slate-600">SUTA</th>
+        <th class="text-right px-4 py-3 font-medium text-slate-600">WC</th>
+        <th class="text-right px-4 py-3 font-medium text-slate-600">Total Cost</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-slate-100">
+      {% for row in rows %}
+      <tr class="hover:bg-slate-50">
+        <td class="px-4 py-3 text-slate-700">{{ row.pay_date }}</td>
+        <td class="px-4 py-3 text-right tabular-nums text-slate-500">{{ row.employee_count }}</td>
+        <td class="px-4 py-3 text-right tabular-nums">${{ "%.2f"|format(row.gross) }}</td>
+        <td class="px-4 py-3 text-right tabular-nums">${{ "%.2f"|format(row.fed) }}</td>
+        <td class="px-4 py-3 text-right tabular-nums">${{ "%.2f"|format(row.ok) }}</td>
+        <td class="px-4 py-3 text-right tabular-nums">${{ "%.2f"|format(row.fica_emp) }}</td>
+        <td class="px-4 py-3 text-right tabular-nums">${{ "%.2f"|format(row.fica_er) }}</td>
+        <td class="px-4 py-3 text-right tabular-nums">${{ "%.2f"|format(row.futa) }}</td>
+        <td class="px-4 py-3 text-right tabular-nums">${{ "%.2f"|format(row.suta) }}</td>
+        <td class="px-4 py-3 text-right tabular-nums">${{ "%.2f"|format(row.wc) }}</td>
+        <td class="px-4 py-3 text-right tabular-nums font-medium">${{ "%.2f"|format(row.total_cost) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr class="bg-slate-50 border-t border-slate-200 font-semibold">
+        <td class="px-4 py-3 text-slate-700">Year Total</td>
+        <td class="px-4 py-3 text-right tabular-nums">{{ yearly.employee_count }}</td>
+        <td class="px-4 py-3 text-right tabular-nums">${{ "%.2f"|format(yearly.gross) }}</td>
+        <td class="px-4 py-3 text-right tabular-nums">${{ "%.2f"|format(yearly.fed) }}</td>
+        <td class="px-4 py-3 text-right tabular-nums">${{ "%.2f"|format(yearly.ok) }}</td>
+        <td class="px-4 py-3 text-right tabular-nums">${{ "%.2f"|format(yearly.fica_emp) }}</td>
+        <td class="px-4 py-3 text-right tabular-nums">${{ "%.2f"|format(yearly.fica_er) }}</td>
+        <td class="px-4 py-3 text-right tabular-nums">${{ "%.2f"|format(yearly.futa) }}</td>
+        <td class="px-4 py-3 text-right tabular-nums">${{ "%.2f"|format(yearly.suta) }}</td>
+        <td class="px-4 py-3 text-right tabular-nums">${{ "%.2f"|format(yearly.wc) }}</td>
+        <td class="px-4 py-3 text-right tabular-nums">${{ "%.2f"|format(yearly.total_cost) }}</td>
+      </tr>
+    </tfoot>
+  </table>
+</div>
+
+{% elif company_id and year %}
+<div class="bg-white rounded-lg border border-slate-200 px-4 py-10 text-center text-slate-400 text-sm">
+  No payroll data found for {{ year }}.
+</div>
+
+{% else %}
+<div class="bg-white rounded-lg border border-slate-200 px-4 py-10 text-center text-slate-400 text-sm">
+  Select a company and year to run this report.
+</div>
+{% endif %}
+{% endblock %}

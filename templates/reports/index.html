@@ -1,0 +1,92 @@
+{% extends "layout.html" %}
+{% block title %}Reports{% endblock %}
+{% block breadcrumb %}Reports{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+  <h1 class="text-xl font-semibold text-slate-800">Reports</h1>
+  <p class="text-sm text-slate-500 mt-1">Payroll reporting and compliance exports.</p>
+</div>
+
+<div class="grid grid-cols-2 gap-4">
+
+  <div class="bg-white rounded-lg border border-slate-200 p-5 flex flex-col gap-3">
+    <div>
+      <h2 class="text-base font-semibold text-slate-800">Payroll Register</h2>
+      <p class="text-sm text-slate-500 mt-1">View every paycheck for a selected pay period with gross, deductions, taxes, and net pay.</p>
+    </div>
+    <div class="mt-auto">
+      <a href="/reports/payroll-register"
+         class="inline-block px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-md hover:bg-indigo-700">
+        Open Report
+      </a>
+    </div>
+  </div>
+
+  <div class="bg-white rounded-lg border border-slate-200 p-5 flex flex-col gap-3">
+    <div>
+      <h2 class="text-base font-semibold text-slate-800">Tax Liability Summary</h2>
+      <p class="text-sm text-slate-500 mt-1">Annual tax liability by pay period — federal, Oklahoma, FICA, FUTA, SUTA, and workers comp employer costs.</p>
+    </div>
+    <div class="mt-auto">
+      <a href="/reports/tax-liability"
+         class="inline-block px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-md hover:bg-indigo-700">
+        Open Report
+      </a>
+    </div>
+  </div>
+
+  <div class="bg-white rounded-lg border border-slate-200 p-5 flex flex-col gap-3">
+    <div>
+      <h2 class="text-base font-semibold text-slate-800">Quarterly 941 Data</h2>
+      <p class="text-sm text-slate-500 mt-1">Quarterly IRS Form 941 summary — wages, federal tax withheld, Social Security and Medicare totals.</p>
+    </div>
+    <div class="mt-auto">
+      <a href="/reports/quarterly-941"
+         class="inline-block px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-md hover:bg-indigo-700">
+        Open Report
+      </a>
+    </div>
+  </div>
+
+  <div class="bg-white rounded-lg border border-slate-200 p-5 flex flex-col gap-3">
+    <div>
+      <h2 class="text-base font-semibold text-slate-800">Workers' Comp Audit</h2>
+      <p class="text-sm text-slate-500 mt-1">Gross wages and estimated premium by NCCI classification code for annual workers' comp audit.</p>
+    </div>
+    <div class="mt-auto">
+      <a href="/reports/workers-comp"
+         class="inline-block px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-md hover:bg-indigo-700">
+        Open Report
+      </a>
+    </div>
+  </div>
+
+  <div class="bg-white rounded-lg border border-slate-200 p-5 flex flex-col gap-3">
+    <div>
+      <h2 class="text-base font-semibold text-slate-800">Oklahoma Withholding</h2>
+      <p class="text-sm text-slate-500 mt-1">Monthly Oklahoma income tax withholding by quarter for OTC filing support.</p>
+    </div>
+    <div class="mt-auto">
+      <a href="/reports/ok-withholding"
+         class="inline-block px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-md hover:bg-indigo-700">
+        Open Report
+      </a>
+    </div>
+  </div>
+
+  <div class="bg-white rounded-lg border border-slate-200 p-5 flex flex-col gap-3">
+    <div>
+      <h2 class="text-base font-semibold text-slate-800">W-2 Data Export</h2>
+      <p class="text-sm text-slate-500 mt-1">Download CSV with per-employee W-2 box amounts for year-end tax form preparation.</p>
+    </div>
+    <div class="mt-auto">
+      <a href="/reports/w2-export"
+         class="inline-block px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-md hover:bg-indigo-700">
+        Open Report
+      </a>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

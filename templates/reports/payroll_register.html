@@ -1,0 +1,126 @@
+{% extends "layout.html" %}
+{% block title %}Payroll Register{% endblock %}
+{% block breadcrumb %}<a href="/reports/" class="hover:underline">Reports</a> / Payroll Register{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+  <h1 class="text-xl font-semibold text-slate-800">Payroll Register</h1>
+  {% if paychecks %}
+  <button onclick="window.print()"
+          class="px-4 py-2 bg-slate-100 text-slate-700 text-sm font-medium rounded-md hover:bg-slate-200">
+    Print
+  </button>
+  {% endif %}
+</div>
+
+<form method="get" class="bg-white rounded-lg border border-slate-200 p-4 mb-6 flex flex-wrap gap-4 items-end">
+  <div class="flex flex-col gap-1">
+    <label class="text-xs font-medium text-slate-600">Company</label>
+    <select name="company_id"
+            onchange="this.form.submit()"
+            class="text-sm rounded-md border border-slate-300 px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+      <option value="0">— Select Company —</option>
+      {% for co in companies %}
+      <option value="{{ co.id }}" {% if co.id == company_id %}selected{% endif %}>{{ co.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="flex flex-col gap-1">
+    <label class="text-xs font-medium text-slate-600">Pay Period</label>
+    <select name="pay_period_id"
+            class="text-sm rounded-md border border-slate-300 px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            {% if not periods %}disabled{% endif %}>
+      <option value="0">— Select Period —</option>
+      {% for pp in periods %}
+      <option value="{{ pp.id }}" {% if pp.id == pay_period_id %}selected{% endif %}>
+        {{ pp.pay_date }} ({{ pp.start_date }} – {{ pp.end_date }})
+      </option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <button type="submit"
+          class="px-4 py-1.5 text-sm bg-indigo-600 text-white rounded-md hover:bg-indigo-700">
+    Run Report
+  </button>
+</form>
+
+{% if pay_period_id and paychecks %}
+<div class="bg-white rounded-lg border border-slate-200 overflow-hidden">
+  <div class="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
+    <span class="text-sm font-medium text-slate-700">
+      Pay Date: {{ pay_period.pay_date }}
+      &nbsp;·&nbsp;
+      Period: {{ pay_period.start_date }} – {{ pay_period.end_date }}
+    </span>
+    <span class="text-sm text-slate-500">{{ paychecks | length }} paycheck(s)</span>
+  </div>
+  <table class="w-full text-sm">
+    <thead class="bg-slate-50 border-b border-slate-200">
+      <tr>
+        <th class="text-left px-4 py-3 font-medium text-slate-600">Employee</th>
+        <th class="text-left px-4 py-3 font-medium text-slate-600">Type</th>
+        <th class="text-right px-4 py-3 font-medium text-slate-600">Gross</th>
+        <th class="text-right px-4 py-3 font-medium text-slate-600">Deductions</th>
+        <th class="text-right px-4 py-3 font-medium text-slate-600">Taxes</th>
+        <th class="text-right px-4 py-3 font-medium text-slate-600">Net Pay</th>
+        <th class="text-center px-4 py-3 font-medium text-slate-600">Status</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-slate-100">
+      {% for pc in paychecks %}
+      <tr class="hover:bg-slate-50">
+        <td class="px-4 py-3 font-medium text-slate-800">
+          <a href="/payroll/paychecks/{{ pc.id }}" class="hover:text-indigo-600">
+            {{ pc.employee.last_name }}, {{ pc.employee.first_name }}
+          </a>
+        </td>
+        <td class="px-4 py-3 text-slate-500 capitalize">{{ pc.employee.employment_type.replace("_", " ") }}</td>
+        <td class="px-4 py-3 text-right tabular-nums">${{ "%.2f"|format(pc.gross_wages) }}</td>
+        <td class="px-4 py-3 text-right tabular-nums text-slate-500">${{ "%.2f"|format(pc.total_deductions) }}</td>
+        <td class="px-4 py-3 text-right tabular-nums text-slate-500">${{ "%.2f"|format(pc.total_taxes_withheld) }}</td>
+        <td class="px-4 py-3 text-right tabular-nums font-medium">${{ "%.2f"|format(pc.net_pay) }}</td>
+        <td class="px-4 py-3 text-center">
+          {% set s = pc.status %}
+          <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium
+            {% if s == 'draft' %}bg-amber-100 text-amber-700
+            {% elif s == 'approved' %}bg-green-100 text-green-700
+            {% elif s == 'paid' %}bg-emerald-100 text-emerald-700
+            {% elif s == 'voided' %}bg-red-100 text-red-600
+            {% else %}bg-slate-100 text-slate-500{% endif %}">
+            {{ s | capitalize }}
+          </span>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr class="bg-slate-50 border-t border-slate-200 font-semibold">
+        <td class="px-4 py-3 text-slate-700" colspan="2">Totals</td>
+        <td class="px-4 py-3 text-right tabular-nums">${{ "%.2f"|format(totals.gross) }}</td>
+        <td class="px-4 py-3 text-right tabular-nums">${{ "%.2f"|format(totals.deductions) }}</td>
+        <td class="px-4 py-3 text-right tabular-nums">${{ "%.2f"|format(totals.taxes) }}</td>
+        <td class="px-4 py-3 text-right tabular-nums">${{ "%.2f"|format(totals.net) }}</td>
+        <td></td>
+      </tr>
+    </tfoot>
+  </table>
+</div>
+
+{% elif pay_period_id %}
+<div class="bg-white rounded-lg border border-slate-200 px-4 py-10 text-center text-slate-400 text-sm">
+  No paychecks found for this pay period.
+</div>
+
+{% elif company_id %}
+<div class="bg-white rounded-lg border border-slate-200 px-4 py-10 text-center text-slate-400 text-sm">
+  Select a pay period to view the register.
+</div>
+
+{% else %}
+<div class="bg-white rounded-lg border border-slate-200 px-4 py-10 text-center text-slate-400 text-sm">
+  Select a company and pay period to run this report.
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,79 @@
+{% extends "layout.html" %}
+{% block title %}Workers' Comp Audit{% endblock %}
+{% block breadcrumb %}<a href="/reports/" class="hover:underline">Reports</a> / Workers' Comp Audit{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+  <h1 class="text-xl font-semibold text-slate-800">Workers' Comp Audit</h1>
+</div>
+
+<form method="get" class="bg-white rounded-lg border border-slate-200 p-4 mb-6 flex flex-wrap gap-4 items-end">
+  <div class="flex flex-col gap-1">
+    <label class="text-xs font-medium text-slate-600">Company</label>
+    <select name="company_id"
+            class="text-sm rounded-md border border-slate-300 px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+      <option value="0">— Select Company —</option>
+      {% for co in companies %}
+      <option value="{{ co.id }}" {% if co.id == company_id %}selected{% endif %}>{{ co.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="flex flex-col gap-1">
+    <label class="text-xs font-medium text-slate-600">Year</label>
+    <input type="number" name="year" value="{{ year }}" min="2000" max="2099"
+           class="text-sm rounded-md border border-slate-300 px-3 py-1.5 w-28 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+  </div>
+
+  <button type="submit"
+          class="px-4 py-1.5 text-sm bg-indigo-600 text-white rounded-md hover:bg-indigo-700">
+    Run Report
+  </button>
+</form>
+
+{% if rows %}
+<div class="bg-white rounded-lg border border-slate-200 overflow-hidden">
+  <table class="w-full text-sm">
+    <thead class="bg-slate-50 border-b border-slate-200">
+      <tr>
+        <th class="text-left px-4 py-3 font-medium text-slate-600">NCCI Code</th>
+        <th class="text-left px-4 py-3 font-medium text-slate-600">Description</th>
+        <th class="text-right px-4 py-3 font-medium text-slate-600">Rate/$100</th>
+        <th class="text-right px-4 py-3 font-medium text-slate-600">Gross Wages</th>
+        <th class="text-right px-4 py-3 font-medium text-slate-600">Est. Premium</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-slate-100">
+      {% for row in rows %}
+      <tr class="hover:bg-slate-50">
+        <td class="px-4 py-3 font-mono text-slate-700">{{ row.ncci_code }}</td>
+        <td class="px-4 py-3 text-slate-700">{{ row.description }}</td>
+        <td class="px-4 py-3 text-right tabular-nums text-slate-600">
+          {% if row.rate %}${{ "%.4f"|format(row.rate) }}{% else %}—{% endif %}
+        </td>
+        <td class="px-4 py-3 text-right tabular-nums">${{ "%.2f"|format(row.gross) }}</td>
+        <td class="px-4 py-3 text-right tabular-nums font-medium">${{ "%.2f"|format(row.premium) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr class="bg-slate-50 border-t border-slate-200 font-semibold">
+        <td class="px-4 py-3 text-slate-700" colspan="3">Totals</td>
+        <td class="px-4 py-3 text-right tabular-nums">${{ "%.2f"|format(totals.gross) }}</td>
+        <td class="px-4 py-3 text-right tabular-nums">${{ "%.2f"|format(totals.premium) }}</td>
+      </tr>
+    </tfoot>
+  </table>
+</div>
+
+{% elif company_id and year %}
+<div class="bg-white rounded-lg border border-slate-200 px-4 py-10 text-center text-slate-400 text-sm">
+  No payroll data found for {{ year }}.
+</div>
+
+{% else %}
+<div class="bg-white rounded-lg border border-slate-200 px-4 py-10 text-center text-slate-400 text-sm">
+  Select a company and year to run this report.
+</div>
+{% endif %}
+{% endblock %}
