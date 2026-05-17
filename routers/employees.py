@@ -1,7 +1,6 @@
 from datetime import date
 from fastapi import APIRouter, Depends, Form, Request, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session, joinedload
 from database import get_db
 from models.company import Company
@@ -12,9 +11,14 @@ from models.employee import (
 from models.workers_comp import WorkersCompCode
 from models.benefit import BenefitPlan, EmployeeBenefitEnrollment
 from utils.crypto import encrypt, decrypt
+from routers.auth import AdminUser, get_current_user
+from utils.csrf import CsrfProtect
+from services.audit import log_change
 
-router = APIRouter(prefix="/employees", tags=["employees"])
-templates = Jinja2Templates(directory="templates")
+from app_templates import templates
+
+router = APIRouter(prefix="/employees", tags=["employees"],
+                   dependencies=[Depends(get_current_user)])
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -73,6 +77,8 @@ def new_employee(request: Request, db: Session = Depends(get_db)):
 @router.post("/new")
 def create_employee(
     request: Request,
+    current_user: AdminUser,
+    _csrf: CsrfProtect,
     db: Session = Depends(get_db),
     company_id: int = Form(...),
     first_name: str = Form(...),
@@ -139,6 +145,11 @@ def create_employee(
     db.add(employee)
     db.commit()
     db.refresh(employee)
+    log_change(db, "employees", employee.id, "insert",
+               changed_by=current_user.username,
+               new_values={"first_name": employee.first_name, "last_name": employee.last_name,
+                           "employment_type": employee.employment_type, "status": employee.status})
+    db.commit()
     return RedirectResponse(f"/employees/{employee.id}?flash=created", status_code=303)
 
 
@@ -198,6 +209,8 @@ def edit_employee(request: Request, employee_id: int, db: Session = Depends(get_
 @router.post("/{employee_id}/edit")
 def update_employee(
     request: Request,
+    current_user: AdminUser,
+    _csrf: CsrfProtect,
     employee_id: int,
     db: Session = Depends(get_db),
     company_id: int = Form(...),
@@ -243,6 +256,10 @@ def update_employee(
     employee.state = state.strip() or "OK"
     employee.zip_code = zip_code.strip() or None
     employee.workers_comp_code_id = int(workers_comp_code_id) if workers_comp_code_id else None
+    log_change(db, "employees", employee_id, "update",
+               changed_by=current_user.username,
+               new_values={"first_name": employee.first_name, "last_name": employee.last_name,
+                           "status": employee.status, "pay_rate": str(employee.pay_rate)})
     db.commit()
     return RedirectResponse(f"/employees/{employee_id}?flash=updated", status_code=303)
 
@@ -264,6 +281,8 @@ def new_w4(request: Request, employee_id: int, db: Session = Depends(get_db)):
 
 @router.post("/{employee_id}/w4/new")
 def create_w4(
+    _: AdminUser,
+    _csrf: CsrfProtect,
     employee_id: int,
     db: Session = Depends(get_db),
     effective_date: str = Form(...),
@@ -306,6 +325,8 @@ def new_ok_withholding(request: Request, employee_id: int, db: Session = Depends
 
 @router.post("/{employee_id}/ok-withholding/new")
 def create_ok_withholding(
+    _: AdminUser,
+    _csrf: CsrfProtect,
     employee_id: int,
     db: Session = Depends(get_db),
     effective_date: str = Form(...),
@@ -329,6 +350,8 @@ def create_ok_withholding(
 
 @router.post("/{employee_id}/benefits/enroll")
 def enroll_benefit(
+    _: AdminUser,
+    _csrf: CsrfProtect,
     employee_id: int,
     db: Session = Depends(get_db),
     benefit_plan_id: int = Form(...),
@@ -348,6 +371,8 @@ def enroll_benefit(
 
 @router.post("/{employee_id}/benefits/{enrollment_id}/terminate")
 def terminate_enrollment(
+    _: AdminUser,
+    _csrf: CsrfProtect,
     employee_id: int,
     enrollment_id: int,
     db: Session = Depends(get_db),

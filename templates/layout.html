@@ -83,7 +83,15 @@
     <!-- Top bar -->
     <header class="bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between shrink-0">
       <div id="page-title" class="text-sm text-slate-500">{% block breadcrumb %}{% endblock %}</div>
-      <div class="text-xs text-slate-400">Oklahoma</div>
+      <div class="flex items-center gap-4">
+        <span class="text-xs text-slate-500">{{ request.session.get("username", "") }}</span>
+        <form method="post" action="/auth/logout" class="inline">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+          <button type="submit" class="text-xs text-slate-400 hover:text-slate-700 transition-colors">
+            Sign out
+          </button>
+        </form>
+      </div>
     </header>
 
     <!-- Flash messages -->

@@ -50,6 +50,7 @@
     <div x-show="showVoid" x-cloak
          class="mt-2 p-3 bg-red-50 rounded-md border border-red-200">
       <form method="post" action="/payroll/paychecks/{{ paycheck.id }}/void" class="flex gap-2 items-center">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
         <input type="text" name="reason" required placeholder="Void reason"
                class="flex-1 text-sm border border-red-300 rounded px-2 py-1 focus:outline-none">
         <button type="submit" class="px-3 py-1 text-sm bg-red-600 text-white rounded hover:bg-red-700">

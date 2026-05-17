@@ -2,7 +2,6 @@ from datetime import date
 from decimal import Decimal
 from fastapi import APIRouter, Depends, Form, Request, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
-from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session, joinedload
 from database import get_db
 from models.company import Company
@@ -14,9 +13,14 @@ from services.payroll_service import (
     mark_period_paid,
     void_paycheck,
 )
+from routers.auth import AdminUser, get_current_user
+from utils.csrf import CsrfProtect
+from services.audit import log_change
 
-router = APIRouter(prefix="/payroll", tags=["payroll"])
-templates = Jinja2Templates(directory="templates")
+from app_templates import templates
+
+router = APIRouter(prefix="/payroll", tags=["payroll"],
+                   dependencies=[Depends(get_current_user)])
 
 _FREQUENCIES = ["weekly", "biweekly", "semi_monthly", "monthly"]
 
@@ -55,6 +59,8 @@ def new_pay_period(request: Request, db: Session = Depends(get_db)):
 @router.post("/new")
 def create_pay_period(
     request: Request,
+    _: AdminUser,
+    _csrf: CsrfProtect,
     db: Session = Depends(get_db),
     company_id: int = Form(...),
     start_date: str = Form(...),
@@ -128,6 +134,8 @@ def paycheck_detail(
 
 @router.post("/paychecks/{paycheck_id}/void")
 def void_check(
+    current_user: AdminUser,
+    _csrf: CsrfProtect,
     paycheck_id: int,
     db: Session = Depends(get_db),
     reason: str = Form(...),
@@ -135,13 +143,17 @@ def void_check(
     paycheck = db.query(Paycheck).filter(Paycheck.id == paycheck_id).first()
     if not paycheck:
         raise HTTPException(status_code=404, detail="Paycheck not found")
+    period_id = paycheck.pay_period_id
     try:
         void_paycheck(paycheck, reason, db)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    return RedirectResponse(
-        f"/payroll/{paycheck.pay_period_id}?flash=voided", status_code=303
-    )
+    log_change(db, "paychecks", paycheck_id, "update",
+               changed_by=current_user.username,
+               old_values={"status": "approved"},
+               new_values={"status": "voided", "void_reason": reason})
+    db.commit()
+    return RedirectResponse(f"/payroll/{period_id}?flash=voided", status_code=303)
 
 
 @router.get("/paychecks/{paycheck_id}/pdf")
@@ -284,6 +296,8 @@ def timesheet_grid(
 @router.post("/{period_id}/timesheets/{employee_id}")
 def save_timesheet_row(
     request: Request,
+    _: AdminUser,
+    _csrf: CsrfProtect,
     period_id: int,
     employee_id: int,
     db: Session = Depends(get_db),
@@ -338,6 +352,8 @@ def save_timesheet_row(
 
 @router.post("/{period_id}/calculate")
 def calculate_draft(
+    _: AdminUser,
+    _csrf: CsrfProtect,
     period_id: int,
     db: Session = Depends(get_db),
 ):
@@ -360,6 +376,8 @@ def calculate_draft(
 
 @router.post("/{period_id}/approve")
 def approve_period(
+    current_user: AdminUser,
+    _csrf: CsrfProtect,
     period_id: int,
     db: Session = Depends(get_db),
 ):
@@ -375,11 +393,18 @@ def approve_period(
         approve_payroll_run(pp, db)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    log_change(db, "pay_periods", period_id, "update",
+               changed_by=current_user.username,
+               old_values={"status": "draft"},
+               new_values={"status": "approved"})
+    db.commit()
     return RedirectResponse(f"/payroll/{period_id}?flash=approved", status_code=303)
 
 
 @router.post("/{period_id}/mark-paid")
 def mark_paid_period(
+    _: AdminUser,
+    _csrf: CsrfProtect,
     period_id: int,
     db: Session = Depends(get_db),
 ):

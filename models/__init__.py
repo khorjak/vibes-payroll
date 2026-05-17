@@ -5,6 +5,7 @@ from .employee import Employee, W4Election, OKWithholdingElection
 from .benefit import BenefitPlan, EmployeeBenefitEnrollment
 from .payroll import PayPeriod, Timesheet, Paycheck, PaycheckLine, ClientLiability
 from .audit import AuditLog
+from .user import User
 
 __all__ = [
     "Base",
@@ -21,4 +22,5 @@ __all__ = [
     "PaycheckLine",
     "ClientLiability",
     "AuditLog",
+    "User",
 ]

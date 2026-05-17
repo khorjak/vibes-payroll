@@ -4,6 +4,7 @@
     hx-include="find input"
     hx-target="#ts-row-{{ employee.id }}"
     hx-swap="outerHTML">
+  <td style="display:none"><input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}"></td>
   <td class="px-4 py-2 font-medium text-slate-800">{{ employee.full_name }}</td>
 
   {% set inp_cls = "w-20 text-sm text-center rounded border border-slate-200 px-2 py-1.5 focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-300" %}

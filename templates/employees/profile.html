@@ -135,6 +135,7 @@
       <form x-show="open" x-cloak method="POST"
             action="/employees/{{ employee.id }}/benefits/enroll"
             class="mb-4 p-4 bg-slate-50 rounded-md ring-1 ring-slate-200 space-y-3">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
         <div class="grid grid-cols-2 gap-3">
           <div>
             <label class="text-xs font-medium text-slate-700">Benefit Plan</label>
@@ -200,6 +201,7 @@
               <form x-show="terminating" x-cloak method="POST"
                     action="/employees/{{ employee.id }}/benefits/{{ enrollment.id }}/terminate"
                     class="mt-2 flex gap-2 items-center">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
                 <input type="date" name="end_date" required
                        class="rounded border border-slate-300 px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500">
                 <button type="submit"

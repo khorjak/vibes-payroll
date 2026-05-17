@@ -7,7 +7,6 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, StreamingResponse
-from fastapi.templating import Jinja2Templates
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
@@ -16,9 +15,11 @@ from models.company import Company
 from models.employee import Employee
 from models.payroll import PayPeriod, Paycheck, PaycheckLine
 from models.workers_comp import WorkersCompCode
+from routers.auth import get_current_user
+from app_templates import templates
 
-router = APIRouter(prefix="/reports", tags=["reports"])
-templates = Jinja2Templates(directory="templates")
+router = APIRouter(prefix="/reports", tags=["reports"],
+                   dependencies=[Depends(get_current_user)])
 
 _QUARTER_MONTHS = {1: (1, 3), 2: (4, 6), 3: (7, 9), 4: (10, 12)}
 _MONTH_NAMES = {

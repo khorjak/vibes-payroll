@@ -15,6 +15,7 @@
   <form method="POST"
         action="{{ '/companies/' + company.id|string + '/edit' if company else '/companies/new' }}"
         class="bg-white rounded-lg ring-1 ring-slate-200 divide-y divide-slate-100">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
 
     <div class="p-6 space-y-4">
       <h2 class="text-sm font-semibold text-slate-700">Company Info</h2>

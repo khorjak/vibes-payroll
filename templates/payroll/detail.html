@@ -36,6 +36,7 @@
       Timesheets
     </a>
     <form method="post" action="/payroll/{{ pp.id }}/calculate">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
       <button type="submit"
               class="px-3 py-1.5 text-sm bg-indigo-600 text-white rounded-md hover:bg-indigo-700">
         {% if s == 'draft' %}Recalculate{% else %}Calculate Draft{% endif %}
@@ -45,6 +46,7 @@
     {% if s == 'draft' %}
     <form method="post" action="/payroll/{{ pp.id }}/approve"
           onsubmit="return confirm('Approve and lock all paychecks?')">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
       <button type="submit"
               class="px-3 py-1.5 text-sm bg-green-600 text-white rounded-md hover:bg-green-700">
         Approve
@@ -54,6 +56,7 @@
     {% if s == 'approved' %}
     <form method="post" action="/payroll/{{ pp.id }}/mark-paid"
           onsubmit="return confirm('Mark all paychecks as paid?')">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
       <button type="submit"
               class="px-3 py-1.5 text-sm bg-emerald-600 text-white rounded-md hover:bg-emerald-700">
         Mark Paid
@@ -118,6 +121,7 @@
       <tr id="void-{{ pc.id }}" class="hidden bg-red-50">
         <td colspan="7" class="px-4 py-3">
           <form method="post" action="/payroll/paychecks/{{ pc.id }}/void" class="flex gap-3 items-center">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
             <span class="text-sm text-red-700 font-medium">Void reason:</span>
             <input type="text" name="reason" required placeholder="Enter reason"
                    class="flex-1 text-sm border border-red-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-red-400">
@@ -161,6 +165,7 @@
   <p class="text-slate-400 mb-4">No paychecks yet.</p>
   {% if s == 'open' %}
   <form method="post" action="/payroll/{{ pp.id }}/calculate" class="inline">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
     <button type="submit"
             class="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-md hover:bg-indigo-700">
       Calculate Draft

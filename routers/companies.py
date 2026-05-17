@@ -1,14 +1,17 @@
 from fastapi import APIRouter, Depends, Form, Request, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from database import get_db
 from models.company import Company, PAY_FREQUENCIES
 from models.workers_comp import WorkersCompCode
 from models.benefit import BenefitPlan, BENEFIT_TYPES
+from routers.auth import AdminUser, get_current_user
+from utils.csrf import CsrfProtect
 
-router = APIRouter(prefix="/companies", tags=["companies"])
-templates = Jinja2Templates(directory="templates")
+from app_templates import templates
+
+router = APIRouter(prefix="/companies", tags=["companies"],
+                   dependencies=[Depends(get_current_user)])
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -33,6 +36,8 @@ def new_company(request: Request):
 @router.post("/new")
 def create_company(
     request: Request,
+    _: AdminUser,
+    _csrf: CsrfProtect,
     db: Session = Depends(get_db),
     name: str = Form(...),
     ein: str = Form(""),
@@ -106,6 +111,8 @@ def edit_company(request: Request, company_id: int, db: Session = Depends(get_db
 @router.post("/{company_id}/edit")
 def update_company(
     request: Request,
+    _: AdminUser,
+    _csrf: CsrfProtect,
     company_id: int,
     db: Session = Depends(get_db),
     name: str = Form(...),
@@ -139,6 +146,8 @@ def update_company(
 
 @router.post("/{company_id}/wc-codes/new")
 def create_wc_code(
+    _: AdminUser,
+    _csrf: CsrfProtect,
     company_id: int,
     db: Session = Depends(get_db),
     ncci_code: str = Form(...),
@@ -159,6 +168,8 @@ def create_wc_code(
 
 @router.post("/{company_id}/benefits/new")
 def create_benefit_plan(
+    _: AdminUser,
+    _csrf: CsrfProtect,
     company_id: int,
     db: Session = Depends(get_db),
     name: str = Form(...),

@@ -10,6 +10,9 @@ from models.base import Base
 from models.company import Company
 from models.employee import Employee
 from models.benefit import BenefitPlan
+from models.user import User
+from routers.auth import get_current_user, require_admin
+from utils.csrf import _csrf_dep
 from main import app
 
 
@@ -32,12 +35,18 @@ def db():
         Base.metadata.drop_all(engine)
 
 
+_fake_admin = User(id=1, username="test_admin", role="admin", is_active=True)
+
+
 @pytest.fixture()
 def client(db):
     def override_get_db():
         yield db
 
     app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_current_user] = lambda: _fake_admin
+    app.dependency_overrides[require_admin] = lambda: _fake_admin
+    app.dependency_overrides[_csrf_dep] = lambda: None
     with TestClient(app, follow_redirects=False) as c:
         yield c
     app.dependency_overrides.clear()

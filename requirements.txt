@@ -8,3 +8,5 @@ pydantic-settings
 cryptography
 weasyprint
 python-dateutil
+bcrypt
+itsdangerous
