@@ -62,13 +62,16 @@ def dashboard(request: Request):
     try:
         from models.company import Company
         from models.employee import Employee
+        from models.payroll import PayPeriod
         company_count = db.query(Company).count()
         employee_count = db.query(Employee).filter(Employee.status == "active").count()
+        open_pay_runs = db.query(PayPeriod).filter(PayPeriod.status.in_(["open", "draft"])).count()
     finally:
         db.close()
 
     return templates.TemplateResponse(request, "index.html", {
         "company_count": company_count,
         "employee_count": employee_count,
+        "open_pay_runs": open_pay_runs,
         "active_nav": "dashboard",
     })
