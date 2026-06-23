@@ -44,6 +44,16 @@ app.include_router(reports.router)
 templates.env.globals["csrf_token"] = csrf_token_global
 
 
+def is_admin(request):
+    role = request.session.get("role")
+    if role:
+        return role == "admin"
+    return True
+
+
+templates.env.globals["is_admin"] = is_admin
+
+
 @app.exception_handler(401)
 async def auth_exception_handler(request: Request, exc):
     if request.headers.get("HX-Request"):

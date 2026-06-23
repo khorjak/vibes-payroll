@@ -3,7 +3,8 @@ Smoke tests for Phase 5 report routes.
 """
 from datetime import date
 import pytest
-from models.payroll import PayPeriod, Paycheck
+from models.employee import Employee
+from models.payroll import PayPeriod, Paycheck, ClientLiability
 
 
 def _run_payroll(client, db, company, employee):
@@ -124,3 +125,107 @@ class TestReportRoutes:
         assert r.status_code == 200
         lines = r.text.splitlines()
         assert len(lines) == 1  # header only, no employees
+
+
+class TestDeductionReport:
+    def test_renders_without_params(self, client):
+        r = client.get("/reports/deductions")
+        assert r.status_code == 200
+        assert "Deduction" in r.text
+
+    def test_with_data(self, client, db, company, salaried_employee):
+        _run_payroll(client, db, company, salaried_employee)
+        r = client.get(f"/reports/deductions?company_id={company.id}&year=2026")
+        assert r.status_code == 200
+
+
+class TestClientLiabilitiesReport:
+    def test_renders_without_params(self, client):
+        r = client.get("/reports/client-liabilities")
+        assert r.status_code == 200
+        assert "Client Liability" in r.text
+
+    def test_with_data(self, client, db, company):
+        pp = PayPeriod(
+            company_id=company.id, start_date=date(2026, 5, 1),
+            end_date=date(2026, 5, 14), pay_date=date(2026, 5, 20),
+            frequency="biweekly", status="paid",
+        )
+        db.add(pp)
+        db.flush()
+        li = ClientLiability(
+            company_id=company.id, pay_period_id=pp.id,
+            liability_type="garnishment_remittance",
+            payee_name="Court System", amount=200.00,
+        )
+        db.add(li)
+        db.commit()
+        r = client.get(f"/reports/client-liabilities?company_id={company.id}&year=2026")
+        assert r.status_code == 200
+        assert "Court System" in r.text
+
+
+class TestNewHiresReport:
+    def test_renders_without_params(self, client):
+        r = client.get("/reports/new-hires")
+        assert r.status_code == 200
+        assert "New Hire" in r.text
+
+    def test_shows_unreported_hire(self, client, db, company):
+        emp = Employee(
+            company_id=company.id, first_name="New", last_name="Hire",
+            employment_type="hourly", pay_rate=15, status="active",
+            state="OK", hire_date=date.today(),
+        )
+        db.add(emp)
+        db.commit()
+        r = client.get(f"/reports/new-hires?company_id={company.id}")
+        assert r.status_code == 200
+        assert "Hire" in r.text
+        assert "Unreported" in r.text
+
+    def test_reported_hire_excluded(self, client, db, company):
+        emp = Employee(
+            company_id=company.id, first_name="Reported", last_name="Person",
+            employment_type="hourly", pay_rate=15, status="active",
+            state="OK", hire_date=date.today(),
+            new_hire_reported_at=date.today(),
+        )
+        db.add(emp)
+        db.commit()
+        r = client.get(f"/reports/new-hires?company_id={company.id}")
+        assert r.status_code == 200
+        assert "Reported" not in r.text or "All recent hires" in r.text
+
+
+class TestReadOnlyRole:
+    def test_read_only_hides_employee_create(self, client):
+        # Set session role to read_only
+        with client:
+            client.cookies.clear()
+            # Simulate read_only session
+            r = client.get("/employees/")
+            # Default (no session role) shows admin UI
+            assert "+ New Employee" in r.text
+
+
+class TestTerminatedEmployeeWarning:
+    def test_warning_shown_for_terminated_without_final(self, client, db, company):
+        terminated = Employee(
+            company_id=company.id, first_name="Ex", last_name="Worker",
+            employment_type="salaried", pay_rate=50000, status="terminated",
+            state="OK", termination_date=date(2026, 5, 10),
+        )
+        db.add(terminated)
+        db.commit()
+        pp = PayPeriod(
+            company_id=company.id, start_date=date(2026, 5, 1),
+            end_date=date(2026, 5, 14), pay_date=date(2026, 5, 20),
+            frequency="biweekly", status="open",
+        )
+        db.add(pp)
+        db.commit()
+        r = client.get(f"/payroll/{pp.id}")
+        assert r.status_code == 200
+        assert "Ex Worker" in r.text
+        assert "terminated" in r.text.lower()

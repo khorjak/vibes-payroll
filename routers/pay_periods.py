@@ -349,10 +349,39 @@ def pay_period_detail(
                 pct = abs(paycheck.gross_wages - prior.gross_wages) / prior.gross_wages
                 variance_flags[paycheck.id] = pct > Decimal("0.20")
 
+    terminated_needing_final = []
+    terminated_employees = (
+        db.query(Employee)
+        .filter(
+            Employee.company_id == pp.company_id,
+            Employee.status == "terminated",
+            Employee.termination_date.isnot(None),
+            Employee.termination_date <= pp.pay_date,
+        )
+        .all()
+    )
+    paid_emp_ids = {pc.employee_id for pc in pp.paychecks}
+    for emp in terminated_employees:
+        if emp.id in paid_emp_ids:
+            continue
+        has_final = (
+            db.query(Paycheck)
+            .join(PayPeriod, Paycheck.pay_period_id == PayPeriod.id)
+            .filter(
+                Paycheck.employee_id == emp.id,
+                Paycheck.status.in_(["approved", "paid"]),
+                PayPeriod.pay_date >= emp.termination_date,
+            )
+            .first()
+        )
+        if not has_final:
+            terminated_needing_final.append(emp)
+
     return templates.TemplateResponse(request, "payroll/detail.html", {
         "pp": pp,
         "flash": flash,
         "variance_flags": variance_flags,
+        "terminated_needing_final": terminated_needing_final,
         "active_nav": "payroll",
     })
 

@@ -66,6 +66,17 @@
   </div>
 </div>
 
+{% if terminated_needing_final %}
+<div class="mb-4 px-4 py-3 rounded-md bg-amber-50 ring-1 ring-amber-200">
+  <p class="text-sm font-medium text-amber-800">Terminated employees needing final paycheck:</p>
+  <ul class="mt-1 text-sm text-amber-700 list-disc list-inside">
+    {% for emp in terminated_needing_final %}
+    <li><a href="/employees/{{ emp.id }}" class="underline">{{ emp.full_name }}</a> — terminated {{ emp.termination_date }}</li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+
 {# Paycheck table #}
 {% if pp.paychecks %}
 <div class="bg-white rounded-lg border border-slate-200 overflow-hidden">

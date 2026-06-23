@@ -11,10 +11,12 @@
     <h1 class="text-2xl font-bold text-slate-900">{{ company.name }}</h1>
     {% if company.ein %}<p class="text-sm text-slate-500 mt-0.5">EIN {{ company.ein }}</p>{% endif %}
   </div>
+  {% if is_admin(request) %}
   <a href="/companies/{{ company.id }}/edit"
      class="px-4 py-2 text-sm font-medium bg-white text-slate-700 rounded-md ring-1 ring-slate-300 hover:bg-slate-50 transition-colors">
     Edit
   </a>
+  {% endif %}
 </div>
 
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">

@@ -23,10 +23,12 @@
       {% endif %}
     </div>
   </div>
+  {% if is_admin(request) %}
   <a href="/employees/{{ employee.id }}/edit"
      class="px-4 py-2 text-sm font-medium bg-white text-slate-700 rounded-md ring-1 ring-slate-300 hover:bg-slate-50 transition-colors">
     Edit
   </a>
+  {% endif %}
 </div>
 
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">

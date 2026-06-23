@@ -1,7 +1,7 @@
 import io
 import csv
 import re
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 from typing import Optional
 
@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session, joinedload
 from database import get_db
 from models.company import Company
 from models.employee import Employee
-from models.payroll import PayPeriod, Paycheck, PaycheckLine
+from models.payroll import PayPeriod, Paycheck, PaycheckLine, ClientLiability
 from models.workers_comp import WorkersCompCode
 from routers.auth import get_current_user
 from app_templates import templates
@@ -480,3 +480,142 @@ def w2_export(
         media_type="text/csv",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+@router.get("/deductions", response_class=HTMLResponse)
+def deductions_report(
+    request: Request,
+    db: Session = Depends(get_db),
+    company_id: int = 0,
+    year: int = 0,
+    quarter: int = 0,
+):
+    companies = db.query(Company).order_by(Company.name).all()
+    if not year:
+        year = date.today().year
+
+    rows = []
+    totals = {}
+
+    if company_id and year:
+        paychecks = _load_paychecks(db, company_id, year, quarter)
+
+        by_type: dict[str, dict] = {}
+        for pc in paychecks:
+            for line in pc.lines:
+                if line.line_type != "deduction":
+                    continue
+                key = line.description
+                if key not in by_type:
+                    by_type[key] = {
+                        "description": key,
+                        "pre_tax": line.is_pre_tax,
+                        "total": Decimal("0"),
+                        "count": 0,
+                    }
+                by_type[key]["total"] += Decimal(str(line.amount))
+                by_type[key]["count"] += 1
+
+        rows = sorted(by_type.values(), key=lambda r: r["description"])
+        totals = {
+            "total": sum(r["total"] for r in rows),
+            "count": sum(r["count"] for r in rows),
+        }
+
+    return templates.TemplateResponse(request, "reports/deductions.html", {
+        "active_nav": "reports",
+        "companies": companies,
+        "company_id": company_id,
+        "year": year,
+        "quarter": quarter,
+        "rows": rows,
+        "totals": totals,
+    })
+
+
+@router.get("/client-liabilities", response_class=HTMLResponse)
+def client_liabilities_report(
+    request: Request,
+    db: Session = Depends(get_db),
+    company_id: int = 0,
+    year: int = 0,
+):
+    companies = db.query(Company).order_by(Company.name).all()
+    if not year:
+        year = date.today().year
+
+    rows = []
+    totals = {}
+
+    if company_id and year:
+        liabilities = (
+            db.query(ClientLiability)
+            .join(PayPeriod, ClientLiability.pay_period_id == PayPeriod.id)
+            .filter(
+                PayPeriod.company_id == company_id,
+                func.strftime("%Y", PayPeriod.pay_date) == str(year),
+            )
+            .all()
+        )
+
+        by_payee: dict[str, dict] = {}
+        for li in liabilities:
+            key = li.payee_name
+            if key not in by_payee:
+                by_payee[key] = {
+                    "payee_name": key,
+                    "liability_type": li.liability_type,
+                    "total": Decimal("0"),
+                    "remitted": Decimal("0"),
+                    "count": 0,
+                }
+            by_payee[key]["total"] += Decimal(str(li.amount))
+            if li.remitted_at:
+                by_payee[key]["remitted"] += Decimal(str(li.amount))
+            by_payee[key]["count"] += 1
+
+        rows = sorted(by_payee.values(), key=lambda r: r["payee_name"])
+        totals = {
+            "total": sum(r["total"] for r in rows),
+            "remitted": sum(r["remitted"] for r in rows),
+        }
+
+    return templates.TemplateResponse(request, "reports/client_liabilities.html", {
+        "active_nav": "reports",
+        "companies": companies,
+        "company_id": company_id,
+        "year": year,
+        "rows": rows,
+        "totals": totals,
+    })
+
+
+@router.get("/new-hires", response_class=HTMLResponse)
+def new_hires_report(
+    request: Request,
+    db: Session = Depends(get_db),
+    company_id: int = 0,
+):
+    companies = db.query(Company).order_by(Company.name).all()
+    employees = []
+    cutoff = date.today() - timedelta(days=20)
+
+    if company_id:
+        employees = (
+            db.query(Employee)
+            .filter(
+                Employee.company_id == company_id,
+                Employee.hire_date >= cutoff,
+                Employee.new_hire_reported_at.is_(None),
+            )
+            .order_by(Employee.hire_date.desc())
+            .all()
+        )
+
+    return templates.TemplateResponse(request, "reports/new_hires.html", {
+        "active_nav": "reports",
+        "companies": companies,
+        "company_id": company_id,
+        "employees": employees,
+        "cutoff": cutoff,
+    })

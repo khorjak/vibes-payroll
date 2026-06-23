@@ -5,6 +5,7 @@
 {% block content %}
 <div class="flex items-center justify-between mb-6">
   <h1 class="text-xl font-semibold text-slate-800">Pay Runs</h1>
+  {% if is_admin(request) %}
   <div class="flex gap-3">
     <a href="/payroll/off-cycle/new"
        class="px-4 py-2 bg-white text-slate-700 text-sm font-medium rounded-md ring-1 ring-slate-300 hover:bg-slate-50">
@@ -15,6 +16,7 @@
       New Pay Period
     </a>
   </div>
+  {% endif %}
 </div>
 
 <form method="get" class="mb-5 flex gap-3 items-center">

@@ -43,6 +43,7 @@ class Employee(Base, TimestampMixin):
     workers_comp_code_id: Mapped[Optional[int]] = mapped_column(ForeignKey("workers_comp_codes.id"))
     routing_number_encrypted: Mapped[Optional[str]] = mapped_column(Text)
     account_number_encrypted: Mapped[Optional[str]] = mapped_column(Text)
+    new_hire_reported_at: Mapped[Optional[date]] = mapped_column(Date)
 
     company: Mapped["Company"] = relationship("Company", back_populates="employees")
     w4_elections: Mapped[List["W4Election"]] = relationship(
