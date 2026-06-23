@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from decimal import Decimal
-from typing import Optional
+from typing import List, Optional
 
 PAY_PERIOD_FACTORS: dict[str, int] = {
     "weekly": 52,
@@ -28,6 +28,24 @@ class OKWithholdingInput:
 
 
 @dataclass
+class GarnishmentInputItem:
+    garnishment_type: str
+    amount: Decimal = field(default_factory=lambda: Decimal("0"))
+    percent: Decimal = field(default_factory=lambda: Decimal("0"))
+    amount_type: str = "fixed"
+    max_total: Decimal = field(default_factory=lambda: Decimal("0"))
+    ytd_withheld: Decimal = field(default_factory=lambda: Decimal("0"))
+    order_id: int = 0
+
+
+@dataclass
+class GarnishmentResultItem:
+    order_id: int
+    garnishment_type: str
+    amount: Decimal
+
+
+@dataclass
 class PaycheckInput:
     gross_wages: Decimal
     pay_frequency: str  # weekly | biweekly | semi_monthly | monthly
@@ -41,11 +59,16 @@ class PaycheckInput:
     # Section 125 / cafeteria-plan deductions (reduce federal, state, and FICA taxable wages)
     pre_tax_deductions: Decimal = field(default_factory=lambda: Decimal("0"))
 
+    # Post-tax deductions (Roth 401k, voluntary after-tax deductions)
+    post_tax_deductions: Decimal = field(default_factory=lambda: Decimal("0"))
+
     w4: Optional[W4Input] = None
     ok_withholding: Optional[OKWithholdingInput] = None
 
     suta_rate: Decimal = field(default_factory=lambda: Decimal("0.027"))
     workers_comp_rate: Decimal = field(default_factory=lambda: Decimal("0"))  # rate per $100 wages
+
+    garnishments: List["GarnishmentInputItem"] = field(default_factory=list)
 
     is_supplemental: bool = False  # True for bonuses — uses flat 22% federal rate
 
@@ -67,8 +90,15 @@ class TaxResult:
 class PaycheckResult:
     gross_wages: Decimal
     pre_tax_deductions: Decimal
+    post_tax_deductions: Decimal
     taxable_wages: Decimal  # gross - pre_tax_deductions (used for income tax and FICA)
     taxes: TaxResult
+    garnishment_total: Decimal = field(default_factory=lambda: Decimal("0"))
+    garnishment_results: List[GarnishmentResultItem] = field(default_factory=list)
+
+    @property
+    def total_deductions(self) -> Decimal:
+        return self.pre_tax_deductions + self.post_tax_deductions + self.garnishment_total
 
     @property
     def total_employee_taxes(self) -> Decimal:
@@ -82,4 +112,4 @@ class PaycheckResult:
 
     @property
     def net_pay(self) -> Decimal:
-        return self.gross_wages - self.pre_tax_deductions - self.total_employee_taxes
+        return self.gross_wages - self.pre_tax_deductions - self.total_employee_taxes - self.post_tax_deductions - self.garnishment_total

@@ -177,6 +177,30 @@
       </div>
     </div>
 
+    <!-- Direct Deposit -->
+    <div class="bg-white rounded-lg ring-1 ring-slate-200 p-5">
+      <h2 class="text-sm font-semibold text-slate-700 mb-4">Direct Deposit</h2>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Routing Number</label>
+          <input type="password" name="routing_number" maxlength="9" autocomplete="off"
+                 placeholder="9 digits"
+                 class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          {% if employee and employee.routing_number_encrypted %}
+            <p class="text-xs text-slate-400 mt-1">On file — leave blank to keep unchanged.</p>
+          {% endif %}
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Account Number</label>
+          <input type="password" name="account_number" maxlength="17" autocomplete="off"
+                 class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          {% if employee and employee.account_number_encrypted %}
+            <p class="text-xs text-slate-400 mt-1">On file — leave blank to keep unchanged.</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
     <!-- Pay -->
     <div class="bg-white rounded-lg ring-1 ring-slate-200 p-5">
       <h2 class="text-sm font-semibold text-slate-700 mb-4">Pay</h2>

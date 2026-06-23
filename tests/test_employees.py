@@ -2,6 +2,8 @@ import pytest
 from datetime import date
 from models.employee import Employee, W4Election, OKWithholdingElection
 from models.benefit import EmployeeBenefitEnrollment
+from models.audit import AuditLog
+from utils.crypto import decrypt
 
 
 class TestEmployeeList:
@@ -401,3 +403,176 @@ class TestBenefitEnrollments:
             data={"end_date": "2026-12-31"},
         )
         assert r.status_code == 303  # silently ignored, still redirects
+
+
+class TestMinimumWageValidation:
+    def test_hourly_below_min_wage_rejected(self, client, company):
+        r = client.post("/employees/new", data={
+            "company_id": company.id,
+            "first_name": "Low",
+            "last_name": "Paid",
+            "employment_type": "hourly",
+            "pay_rate": "5.00",
+            "state": "OK",
+        })
+        assert r.status_code == 422
+        assert "7.25" in r.text
+
+    def test_part_time_below_min_wage_rejected(self, client, company):
+        r = client.post("/employees/new", data={
+            "company_id": company.id,
+            "first_name": "Part",
+            "last_name": "Timer",
+            "employment_type": "part_time",
+            "pay_rate": "6.00",
+            "state": "OK",
+        })
+        assert r.status_code == 422
+
+    def test_salaried_no_min_wage_check(self, client, company):
+        r = client.post("/employees/new", data={
+            "company_id": company.id,
+            "first_name": "Salary",
+            "last_name": "Worker",
+            "employment_type": "salaried",
+            "pay_rate": "5.00",
+            "state": "OK",
+        })
+        assert r.status_code == 303
+
+    def test_hourly_at_min_wage_accepted(self, client, company):
+        r = client.post("/employees/new", data={
+            "company_id": company.id,
+            "first_name": "Min",
+            "last_name": "Wage",
+            "employment_type": "hourly",
+            "pay_rate": "7.25",
+            "state": "OK",
+        })
+        assert r.status_code == 303
+
+    def test_update_below_min_wage_rejected(self, client, db, hourly_employee):
+        r = client.post(f"/employees/{hourly_employee.id}/edit", data={
+            "company_id": hourly_employee.company_id,
+            "first_name": "Bob",
+            "last_name": "Jones",
+            "employment_type": "hourly",
+            "pay_rate": "3.00",
+            "state": "OK",
+        })
+        assert r.status_code == 422
+        assert "7.25" in r.text
+
+
+class TestBankingInfo:
+    @pytest.fixture(autouse=True)
+    def _enable_encryption(self, monkeypatch):
+        from cryptography.fernet import Fernet
+        key = Fernet.generate_key().decode()
+        fake = type("S", (), {"encryption_key": key})()
+        monkeypatch.setattr("utils.crypto.settings", fake)
+
+    def test_create_with_banking_info(self, client, db, company):
+        r = client.post("/employees/new", data={
+            "company_id": company.id,
+            "first_name": "Bank",
+            "last_name": "Test",
+            "employment_type": "hourly",
+            "pay_rate": "20.00",
+            "state": "OK",
+            "routing_number": "123456789",
+            "account_number": "9876543210",
+        })
+        assert r.status_code == 303
+        emp = db.query(Employee).filter(Employee.last_name == "Test").first()
+        assert emp.routing_number_encrypted is not None
+        assert emp.account_number_encrypted is not None
+        assert decrypt(emp.routing_number_encrypted) == "123456789"
+        assert decrypt(emp.account_number_encrypted) == "9876543210"
+
+    def test_update_banking_info(self, client, db, salaried_employee):
+        r = client.post(f"/employees/{salaried_employee.id}/edit", data={
+            "company_id": salaried_employee.company_id,
+            "first_name": "Jane",
+            "last_name": "Smith",
+            "employment_type": "salaried",
+            "pay_rate": "65000",
+            "state": "OK",
+            "routing_number": "111222333",
+            "account_number": "444555666",
+        })
+        assert r.status_code == 303
+        db.refresh(salaried_employee)
+        assert decrypt(salaried_employee.routing_number_encrypted) == "111222333"
+
+    def test_blank_banking_preserves_existing(self, client, db, salaried_employee):
+        from utils.crypto import encrypt
+        salaried_employee.routing_number_encrypted = encrypt("999888777")
+        db.commit()
+        client.post(f"/employees/{salaried_employee.id}/edit", data={
+            "company_id": salaried_employee.company_id,
+            "first_name": "Jane",
+            "last_name": "Smith",
+            "employment_type": "salaried",
+            "pay_rate": "65000",
+            "state": "OK",
+            "routing_number": "",
+            "account_number": "",
+        })
+        db.refresh(salaried_employee)
+        assert decrypt(salaried_employee.routing_number_encrypted) == "999888777"
+
+
+class TestAuditLogExpansion:
+    def test_w4_creation_logged(self, client, db, salaried_employee):
+        client.post(f"/employees/{salaried_employee.id}/w4/new", data={
+            "effective_date": "2026-06-01",
+            "filing_status": "single",
+        })
+        log = db.query(AuditLog).filter(
+            AuditLog.table_name == "w4_elections",
+        ).first()
+        assert log is not None
+        assert log.action == "insert"
+
+    def test_ok_withholding_creation_logged(self, client, db, salaried_employee):
+        client.post(f"/employees/{salaried_employee.id}/ok-withholding/new", data={
+            "effective_date": "2026-06-01",
+            "filing_status": "single",
+            "allowances": "1",
+        })
+        log = db.query(AuditLog).filter(
+            AuditLog.table_name == "ok_withholding_elections",
+        ).first()
+        assert log is not None
+        assert log.action == "insert"
+
+    def test_benefit_enrollment_logged(self, client, db, salaried_employee, benefit_plan):
+        client.post(f"/employees/{salaried_employee.id}/benefits/enroll", data={
+            "benefit_plan_id": benefit_plan.id,
+            "effective_date": "2026-06-01",
+        })
+        log = db.query(AuditLog).filter(
+            AuditLog.table_name == "employee_benefit_enrollments",
+            AuditLog.action == "insert",
+        ).first()
+        assert log is not None
+
+    def test_benefit_termination_logged(self, client, db, salaried_employee, benefit_plan):
+        enrollment = EmployeeBenefitEnrollment(
+            employee_id=salaried_employee.id,
+            benefit_plan_id=benefit_plan.id,
+            effective_date=date(2026, 1, 1),
+        )
+        db.add(enrollment)
+        db.commit()
+        db.refresh(enrollment)
+        client.post(
+            f"/employees/{salaried_employee.id}/benefits/{enrollment.id}/terminate",
+            data={"end_date": "2026-12-31"},
+        )
+        log = db.query(AuditLog).filter(
+            AuditLog.table_name == "employee_benefit_enrollments",
+            AuditLog.action == "update",
+        ).first()
+        assert log is not None

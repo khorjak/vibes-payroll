@@ -130,6 +130,42 @@ class TestYTDWageBases:
         assert result.taxes.suta == Decimal("0.00")
 
 
+class TestPostTaxDeductions:
+    def test_post_tax_reduces_net_pay(self):
+        inp = make_input(gross_wages=Decimal("2000"), post_tax_deductions=Decimal("100"))
+        result = calculate_paycheck(inp)
+        expected_net = Decimal("2000") - result.total_employee_taxes - Decimal("100")
+        assert result.net_pay == expected_net
+
+    def test_post_tax_does_not_affect_taxable_wages(self):
+        inp_no = make_input(gross_wages=Decimal("2000"), post_tax_deductions=Decimal("0"))
+        inp_with = make_input(gross_wages=Decimal("2000"), post_tax_deductions=Decimal("200"))
+        r1 = calculate_paycheck(inp_no)
+        r2 = calculate_paycheck(inp_with)
+        assert r1.taxable_wages == r2.taxable_wages
+        assert r1.taxes.ss_employee == r2.taxes.ss_employee
+
+    def test_post_tax_stored_in_result(self):
+        inp = make_input(post_tax_deductions=Decimal("75"))
+        result = calculate_paycheck(inp)
+        assert result.post_tax_deductions == Decimal("75")
+
+    def test_total_deductions_sums_both(self):
+        inp = make_input(pre_tax_deductions=Decimal("150"), post_tax_deductions=Decimal("100"))
+        result = calculate_paycheck(inp)
+        assert result.total_deductions == Decimal("250")
+
+    def test_combined_pre_and_post_tax_net_pay(self):
+        inp = make_input(
+            gross_wages=Decimal("3000"),
+            pre_tax_deductions=Decimal("200"),
+            post_tax_deductions=Decimal("100"),
+        )
+        result = calculate_paycheck(inp)
+        expected = Decimal("3000") - Decimal("200") - result.total_employee_taxes - Decimal("100")
+        assert result.net_pay == expected
+
+
 class TestTotals:
     def test_total_employee_taxes_sums_correctly(self):
         result = calculate_paycheck(make_input())

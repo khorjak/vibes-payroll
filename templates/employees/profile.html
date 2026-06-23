@@ -302,6 +302,29 @@
       {% endif %}
     </div>
 
+    <!-- Garnishments -->
+    <div class="bg-white rounded-lg ring-1 ring-slate-200 p-5">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-sm font-semibold text-slate-700">Garnishments</h2>
+        <a href="/employees/{{ employee.id }}/garnishments"
+           class="text-xs font-medium text-indigo-600 hover:text-indigo-800">Manage</a>
+      </div>
+      {% if active_garnishments %}
+      <dl class="space-y-2 text-sm">
+        {% for g in active_garnishments %}
+        <div class="flex justify-between">
+          <dt class="text-slate-500">{{ g.garnishment_type | replace("_", " ") | title }}</dt>
+          <dd class="text-slate-900 tabular-nums">
+            {% if g.amount_type == 'percent' %}{{ "%.2f"|format(g.percent) }}%{% else %}${{ "%.2f"|format(g.amount) }}{% endif %}
+          </dd>
+        </div>
+        {% endfor %}
+      </dl>
+      {% else %}
+      <p class="text-sm text-slate-400">No active garnishments.</p>
+      {% endif %}
+    </div>
+
   </div>
 </div>
 {% endblock %}

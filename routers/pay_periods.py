@@ -59,7 +59,7 @@ def new_pay_period(request: Request, db: Session = Depends(get_db)):
 @router.post("/new")
 def create_pay_period(
     request: Request,
-    _: AdminUser,
+    current_user: AdminUser,
     _csrf: CsrfProtect,
     db: Session = Depends(get_db),
     company_id: int = Form(...),
@@ -97,6 +97,11 @@ def create_pay_period(
     db.add(pp)
     db.commit()
     db.refresh(pp)
+    log_change(db, "pay_periods", pp.id, "insert",
+               changed_by=current_user.username,
+               new_values={"start_date": start_date, "end_date": end_date,
+                           "pay_date": pay_date, "frequency": frequency})
+    db.commit()
     return RedirectResponse(f"/payroll/{pp.id}", status_code=303)
 
 
@@ -397,6 +402,12 @@ def approve_period(
                changed_by=current_user.username,
                old_values={"status": "draft"},
                new_values={"status": "approved"})
+    for paycheck in pp.paychecks:
+        if paycheck.status == "approved":
+            log_change(db, "paychecks", paycheck.id, "update",
+                       changed_by=current_user.username,
+                       old_values={"status": "draft"},
+                       new_values={"status": "approved"})
     db.commit()
     return RedirectResponse(f"/payroll/{period_id}?flash=approved", status_code=303)
 

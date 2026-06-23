@@ -10,8 +10,9 @@ from sqlalchemy import func
 from models.employee import Employee
 from models.payroll import PayPeriod, Timesheet, Paycheck, PaycheckLine
 from models.benefit import EmployeeBenefitEnrollment
+from models.garnishment import GarnishmentOrder
 from models.company import Company
-from tax_engine.models import PAY_PERIOD_FACTORS, PaycheckInput, W4Input, OKWithholdingInput
+from tax_engine.models import PAY_PERIOD_FACTORS, PaycheckInput, W4Input, OKWithholdingInput, GarnishmentInputItem
 from tax_engine.calculator import calculate_paycheck
 
 _TWO = Decimal("0.01")
@@ -66,6 +67,44 @@ def get_employee_pre_tax_deductions(employee: Employee) -> Decimal:
         )
         total += amount
     return total
+
+
+def get_employee_post_tax_deductions(employee: Employee) -> Decimal:
+    """Sum fixed post-tax benefit deductions per pay period from active enrollments."""
+    total = Decimal("0")
+    for enrollment in employee.benefit_enrollments:
+        if enrollment.end_date:
+            continue
+        plan = enrollment.plan
+        if plan.pre_tax or not plan.active:
+            continue
+        if plan.employee_contribution_type != "fixed":
+            continue
+        amount = (
+            Decimal(str(enrollment.employee_override_amount))
+            if enrollment.employee_override_amount is not None
+            else Decimal(str(plan.employee_contribution_amount))
+        )
+        total += amount
+    return total
+
+
+def get_active_garnishments(employee: Employee) -> list[GarnishmentInputItem]:
+    """Build garnishment inputs from active orders."""
+    items = []
+    for order in getattr(employee, "garnishment_orders", []):
+        if not order.active or order.end_date:
+            continue
+        items.append(GarnishmentInputItem(
+            garnishment_type=order.garnishment_type,
+            amount=Decimal(str(order.amount or 0)),
+            percent=Decimal(str(order.percent or 0)),
+            amount_type=order.amount_type,
+            max_total=Decimal(str(order.max_total or 0)),
+            ytd_withheld=Decimal(str(order.ytd_withheld or 0)),
+            order_id=order.id,
+        ))
+    return items
 
 
 def get_ytd_prior(employee_id: int, pay_period: PayPeriod, db: Session) -> dict:
@@ -181,6 +220,43 @@ def _create_paycheck_lines(
             )
         )
 
+    # Post-tax deductions
+    for enrollment in employee.benefit_enrollments:
+        if enrollment.end_date or enrollment.plan.pre_tax or not enrollment.plan.active:
+            continue
+        if enrollment.plan.employee_contribution_type != "fixed":
+            continue
+        amt = (
+            Decimal(str(enrollment.employee_override_amount))
+            if enrollment.employee_override_amount is not None
+            else Decimal(str(enrollment.plan.employee_contribution_amount))
+        )
+        lines.append(
+            PaycheckLine(
+                paycheck_id=paycheck.id,
+                line_type="deduction",
+                description=enrollment.plan.name,
+                amount=amt,
+                is_pre_tax=False,
+                is_taxable=False,
+            )
+        )
+
+    # Garnishment lines
+    for gr in getattr(result, "garnishment_results", []):
+        if gr.amount > 0:
+            label = gr.garnishment_type.replace("_", " ").title()
+            lines.append(
+                PaycheckLine(
+                    paycheck_id=paycheck.id,
+                    line_type="deduction",
+                    description=f"Garnishment - {label}",
+                    amount=gr.amount,
+                    is_pre_tax=False,
+                    is_taxable=False,
+                )
+            )
+
     t = result.taxes
     for desc, amount in [
         ("Federal Income Tax", t.federal_income_tax),
@@ -248,6 +324,8 @@ def draft_paycheck(
     gross = calc_employee_gross(employee, timesheet, frequency)
     ytd = get_ytd_prior(employee.id, pay_period, db)
     pre_tax = get_employee_pre_tax_deductions(employee)
+    post_tax = get_employee_post_tax_deductions(employee)
+    garnishment_items = get_active_garnishments(employee)
 
     w4 = None
     if employee.active_w4:
@@ -283,6 +361,8 @@ def draft_paycheck(
         ytd_futa_wages_prior=ytd["futa_wages"],
         ytd_suta_wages_prior=ytd["suta_wages"],
         pre_tax_deductions=pre_tax,
+        post_tax_deductions=post_tax,
+        garnishments=garnishment_items,
         w4=w4,
         ok_withholding=ok_w,
         suta_rate=suta_rate,
@@ -297,7 +377,7 @@ def draft_paycheck(
         pay_period_id=pay_period.id,
         status="draft",
         gross_wages=result.gross_wages,
-        total_deductions=result.pre_tax_deductions,
+        total_deductions=result.total_deductions,
         total_taxes_withheld=result.total_employee_taxes,
         net_pay=result.net_pay,
         employer_fica=t.ss_employer + t.medicare_employer,
@@ -322,6 +402,7 @@ def calculate_payroll_run(pay_period: PayPeriod, db: Session) -> list:
             joinedload(Employee.ok_withholding_elections),
             joinedload(Employee.benefit_enrollments).joinedload(EmployeeBenefitEnrollment.plan),
             joinedload(Employee.workers_comp_code),
+            joinedload(Employee.garnishment_orders),
         )
         .filter(
             Employee.company_id == pay_period.company_id,

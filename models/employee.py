@@ -10,6 +10,7 @@ if TYPE_CHECKING:
     from .benefit import EmployeeBenefitEnrollment
     from .workers_comp import WorkersCompCode
     from .payroll import Timesheet, Paycheck
+    from .garnishment import GarnishmentOrder
 
 EMPLOYMENT_TYPES = ["salaried", "hourly", "part_time"]
 EMPLOYEE_STATUSES = ["active", "terminated", "on_leave"]
@@ -54,6 +55,9 @@ class Employee(Base, TimestampMixin):
         "EmployeeBenefitEnrollment", back_populates="employee"
     )
     workers_comp_code: Mapped[Optional["WorkersCompCode"]] = relationship("WorkersCompCode")
+    garnishment_orders: Mapped[List["GarnishmentOrder"]] = relationship(
+        "GarnishmentOrder", back_populates="employee", order_by="GarnishmentOrder.effective_date"
+    )
 
     @property
     def full_name(self) -> str:

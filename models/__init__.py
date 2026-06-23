@@ -4,6 +4,7 @@ from .workers_comp import WorkersCompCode
 from .employee import Employee, W4Election, OKWithholdingElection
 from .benefit import BenefitPlan, EmployeeBenefitEnrollment
 from .payroll import PayPeriod, Timesheet, Paycheck, PaycheckLine, ClientLiability
+from .garnishment import GarnishmentOrder
 from .audit import AuditLog
 from .user import User
 
@@ -21,6 +22,7 @@ __all__ = [
     "Paycheck",
     "PaycheckLine",
     "ClientLiability",
+    "GarnishmentOrder",
     "AuditLog",
     "User",
 ]

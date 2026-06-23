@@ -8,10 +8,12 @@ from sqlalchemy.orm import joinedload
 
 from models.employee import Employee, W4Election, OKWithholdingElection
 from models.benefit import BenefitPlan, EmployeeBenefitEnrollment
+from models.garnishment import GarnishmentOrder
 from models.payroll import PayPeriod, Paycheck, Timesheet, PaycheckLine
 from services.payroll_service import (
     calc_employee_gross,
     get_employee_pre_tax_deductions,
+    get_employee_post_tax_deductions,
     get_ytd_prior,
     draft_paycheck,
     calculate_payroll_run,
@@ -47,6 +49,7 @@ def _load_employee(db, employee_id):
             joinedload(Employee.ok_withholding_elections),
             joinedload(Employee.benefit_enrollments).joinedload(EmployeeBenefitEnrollment.plan),
             joinedload(Employee.workers_comp_code),
+            joinedload(Employee.garnishment_orders),
         )
         .filter(Employee.id == employee_id)
         .one()
@@ -158,6 +161,37 @@ class TestGetPreTaxDeductions:
         db.commit()
         emp = _load_employee(db, salaried_employee.id)
         assert get_employee_pre_tax_deductions(emp) == Decimal("0")
+
+    def test_post_tax_plan_returned(self, db, salaried_employee, company):
+        roth_plan = BenefitPlan(
+            company_id=company.id,
+            name="Roth 401k",
+            benefit_type="roth_401k",
+            employee_contribution_type="fixed",
+            employee_contribution_amount=100.00,
+            pre_tax=False,
+            active=True,
+        )
+        db.add(roth_plan)
+        db.flush()
+        db.add(EmployeeBenefitEnrollment(
+            employee_id=salaried_employee.id,
+            benefit_plan_id=roth_plan.id,
+            effective_date=date(2026, 1, 1),
+        ))
+        db.commit()
+        emp = _load_employee(db, salaried_employee.id)
+        assert get_employee_post_tax_deductions(emp) == Decimal("100.00")
+
+    def test_post_tax_excludes_pre_tax(self, db, salaried_employee, benefit_plan):
+        db.add(EmployeeBenefitEnrollment(
+            employee_id=salaried_employee.id,
+            benefit_plan_id=benefit_plan.id,
+            effective_date=date(2026, 1, 1),
+        ))
+        db.commit()
+        emp = _load_employee(db, salaried_employee.id)
+        assert get_employee_post_tax_deductions(emp) == Decimal("0")
 
     def test_override_amount_used(self, db, salaried_employee, benefit_plan):
         enrollment = EmployeeBenefitEnrollment(
@@ -354,6 +388,69 @@ class TestDraftPaycheck:
             PaycheckLine.description == "Social Security (Employee)",
         ).all()
         assert ss_lines[0].amount == Decimal("145.70")
+
+    def test_post_tax_deduction_reduces_net_pay(self, db, salaried_employee, company, pay_period):
+        roth_plan = BenefitPlan(
+            company_id=company.id,
+            name="Roth 401k",
+            benefit_type="roth_401k",
+            employee_contribution_type="fixed",
+            employee_contribution_amount=100.00,
+            pre_tax=False,
+            active=True,
+        )
+        db.add(roth_plan)
+        db.flush()
+        db.add(EmployeeBenefitEnrollment(
+            employee_id=salaried_employee.id,
+            benefit_plan_id=roth_plan.id,
+            effective_date=date(2026, 1, 1),
+        ))
+        db.commit()
+        emp = _load_employee(db, salaried_employee.id)
+        pp = _load_pay_period(db, pay_period.id)
+        paycheck = draft_paycheck(emp, pp, None, db)
+        assert paycheck.total_deductions == Decimal("100.00")
+        # Verify post-tax deduction line exists
+        post_tax_lines = db.query(PaycheckLine).filter(
+            PaycheckLine.paycheck_id == paycheck.id,
+            PaycheckLine.line_type == "deduction",
+            PaycheckLine.is_pre_tax == False,
+        ).all()
+        assert len(post_tax_lines) == 1
+        assert post_tax_lines[0].description == "Roth 401k"
+        assert post_tax_lines[0].amount == Decimal("100.00")
+        # Net pay should be less than gross minus taxes
+        no_deduction_emp = _load_employee(db, salaried_employee.id)
+        assert paycheck.net_pay < paycheck.gross_wages - paycheck.total_taxes_withheld
+
+    def test_garnishment_deducted_from_paycheck(self, db, salaried_employee, pay_period):
+        from datetime import date as d
+        order = GarnishmentOrder(
+            employee_id=salaried_employee.id,
+            garnishment_type="creditor",
+            payee_name="Collections Inc",
+            amount=Decimal("200.00"),
+            amount_type="fixed",
+            effective_date=d(2026, 1, 1),
+            active=True,
+        )
+        db.add(order)
+        db.commit()
+        emp = _load_employee(db, salaried_employee.id)
+        pp = _load_pay_period(db, pay_period.id)
+        paycheck = draft_paycheck(emp, pp, None, db)
+        # Garnishment line exists
+        garn_lines = db.query(PaycheckLine).filter(
+            PaycheckLine.paycheck_id == paycheck.id,
+            PaycheckLine.description.like("Garnishment%"),
+        ).all()
+        assert len(garn_lines) == 1
+        assert garn_lines[0].amount == Decimal("200.00")
+        # total_deductions includes garnishment
+        assert paycheck.total_deductions >= Decimal("200.00")
+        # net_pay reduced
+        assert paycheck.net_pay < paycheck.gross_wages - paycheck.total_taxes_withheld
 
     def test_hourly_with_timesheet(self, db, hourly_employee, pay_period):
         ts = Timesheet(
@@ -616,3 +713,50 @@ class TestPayrollRoutes:
     def test_paycheck_pdf_404_for_missing(self, client):
         r = client.get("/payroll/paychecks/99999/pdf")
         assert r.status_code == 404
+
+
+# ── Garnishment route tests ─────────────────────────────────────────────────
+
+class TestGarnishmentRoutes:
+    def test_garnishment_list_page(self, client, salaried_employee):
+        r = client.get(f"/employees/{salaried_employee.id}/garnishments")
+        assert r.status_code == 200
+        assert "Garnishment" in r.text
+
+    def test_create_garnishment(self, client, db, salaried_employee):
+        r = client.post(f"/employees/{salaried_employee.id}/garnishments/new", data={
+            "garnishment_type": "creditor",
+            "payee_name": "Collections Inc",
+            "amount": "200",
+            "amount_type": "fixed",
+            "effective_date": "2026-01-01",
+        })
+        assert r.status_code == 303
+        order = db.query(GarnishmentOrder).filter(
+            GarnishmentOrder.employee_id == salaried_employee.id,
+        ).first()
+        assert order is not None
+        assert order.payee_name == "Collections Inc"
+        assert float(order.amount) == 200.0
+
+    def test_deactivate_garnishment(self, client, db, salaried_employee):
+        from datetime import date as d
+        order = GarnishmentOrder(
+            employee_id=salaried_employee.id,
+            garnishment_type="creditor",
+            payee_name="Test Co",
+            amount=100,
+            amount_type="fixed",
+            effective_date=d(2026, 1, 1),
+            active=True,
+        )
+        db.add(order)
+        db.commit()
+        db.refresh(order)
+        r = client.post(f"/employees/{salaried_employee.id}/garnishments/{order.id}/deactivate", data={
+            "end_date": "2026-06-01",
+        })
+        assert r.status_code == 303
+        db.refresh(order)
+        assert order.active is False
+        assert order.end_date == d(2026, 6, 1)
