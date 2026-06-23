@@ -1,0 +1,76 @@
+{% extends "layout.html" %}
+{% block title %}Edit {{ plan.name }} — {{ company.name }}{% endblock %}
+{% block breadcrumb %}
+  <a href="/companies" class="hover:text-slate-700">Companies</a>
+  <span class="mx-1">/</span>
+  <a href="/companies/{{ company.id }}" class="hover:text-slate-700">{{ company.name }}</a>
+  <span class="mx-1">/</span>
+  <a href="/companies/{{ company.id }}/benefits" class="hover:text-slate-700">Benefits</a>
+  <span class="mx-1">/</span>Edit
+{% endblock %}
+
+{% block content %}
+<div class="max-w-lg">
+  <h1 class="text-2xl font-bold text-slate-900 mb-6">Edit Benefit Plan</h1>
+
+  <form method="POST" action="/companies/{{ company.id }}/benefits/{{ plan.id }}/edit"
+        class="bg-white rounded-lg ring-1 ring-slate-200 p-6 space-y-4">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+
+    <div>
+      <label class="block text-sm font-medium text-slate-700 mb-1">Plan Name <span class="text-red-500">*</span></label>
+      <input type="text" name="name" value="{{ plan.name }}" required
+             class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+    </div>
+    <div>
+      <label class="block text-sm font-medium text-slate-700 mb-1">Type</label>
+      <select name="benefit_type"
+              class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        {% for bt in benefit_types %}
+        <option value="{{ bt }}" {{ 'selected' if plan.benefit_type == bt }}>{{ bt | replace("_", " ") | title }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="block text-sm font-medium text-slate-700 mb-1">Employee Contribution</label>
+      <div class="flex gap-2">
+        <select name="employee_contribution_type"
+                class="rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          <option value="fixed" {{ 'selected' if plan.employee_contribution_type == 'fixed' }}>$ Fixed</option>
+          <option value="percent" {{ 'selected' if plan.employee_contribution_type == 'percent' }}>% Percent</option>
+        </select>
+        <input type="number" name="employee_contribution_amount" step="0.01" min="0"
+               value="{{ plan.employee_contribution_amount }}"
+               class="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+      </div>
+    </div>
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1">Employer Match %</label>
+        <input type="number" name="employer_match_percent" step="0.01" min="0" max="100"
+               value="{{ plan.employer_match_percent or '' }}"
+               class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1">Match Cap %</label>
+        <input type="number" name="employer_match_cap_percent" step="0.01" min="0" max="100"
+               value="{{ plan.employer_match_cap_percent or '' }}"
+               class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+      </div>
+    </div>
+    <div class="flex items-center gap-2">
+      <input type="checkbox" name="pre_tax" id="pre_tax_edit" {{ 'checked' if plan.pre_tax }}
+             class="rounded border-slate-300 text-indigo-600">
+      <label for="pre_tax_edit" class="text-sm text-slate-700">Pre-tax</label>
+    </div>
+
+    <div class="pt-2 flex items-center gap-3">
+      <button type="submit"
+              class="px-5 py-2 text-sm font-medium bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors">
+        Save Changes
+      </button>
+      <a href="/companies/{{ company.id }}/benefits" class="text-sm text-slate-600 hover:text-slate-900">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

@@ -196,3 +196,122 @@ class TestBenefitPlans:
         plan = db.query(BenefitPlan).filter(BenefitPlan.name == "Roth 401k").first()
         assert plan is not None
         assert plan.pre_tax is False
+
+
+class TestBenefitPlanManagement:
+    def _make_plan(self, db, company):
+        plan = BenefitPlan(
+            company_id=company.id, name="Dental", benefit_type="dental",
+            employee_contribution_type="fixed", employee_contribution_amount=50,
+            pre_tax=True, active=True,
+        )
+        db.add(plan)
+        db.commit()
+        db.refresh(plan)
+        return plan
+
+    def test_list_page_renders(self, client, company):
+        r = client.get(f"/companies/{company.id}/benefits")
+        assert r.status_code == 200
+        assert "Benefit Plans" in r.text
+
+    def test_edit_page_renders(self, client, db, company):
+        plan = self._make_plan(db, company)
+        r = client.get(f"/companies/{company.id}/benefits/{plan.id}/edit")
+        assert r.status_code == 200
+        assert "Dental" in r.text
+
+    def test_update_plan(self, client, db, company):
+        plan = self._make_plan(db, company)
+        r = client.post(f"/companies/{company.id}/benefits/{plan.id}/edit", data={
+            "name": "Dental Plus",
+            "benefit_type": "dental",
+            "employee_contribution_type": "fixed",
+            "employee_contribution_amount": "75",
+        })
+        assert r.status_code == 303
+        db.refresh(plan)
+        assert plan.name == "Dental Plus"
+        assert float(plan.employee_contribution_amount) == 75.0
+
+    def test_toggle_deactivates(self, client, db, company):
+        plan = self._make_plan(db, company)
+        assert plan.active is True
+        r = client.post(f"/companies/{company.id}/benefits/{plan.id}/toggle")
+        assert r.status_code == 303
+        db.refresh(plan)
+        assert plan.active is False
+
+    def test_toggle_reactivates(self, client, db, company):
+        plan = self._make_plan(db, company)
+        plan.active = False
+        db.commit()
+        r = client.post(f"/companies/{company.id}/benefits/{plan.id}/toggle")
+        assert r.status_code == 303
+        db.refresh(plan)
+        assert plan.active is True
+
+
+class TestWCCodeManagement:
+    def _make_code(self, db):
+        code = WorkersCompCode(ncci_code="8810", description="Clerical Office", rate_per_100_wages=0.45)
+        db.add(code)
+        db.commit()
+        db.refresh(code)
+        return code
+
+    def test_list_page_renders(self, client, company):
+        r = client.get(f"/companies/{company.id}/wc-codes")
+        assert r.status_code == 200
+        assert "Workers Comp" in r.text
+
+    def test_edit_page_renders(self, client, db, company):
+        code = self._make_code(db)
+        r = client.get(f"/companies/{company.id}/wc-codes/{code.id}/edit")
+        assert r.status_code == 200
+        assert "8810" in r.text
+
+    def test_update_wc_code(self, client, db, company):
+        code = self._make_code(db)
+        r = client.post(f"/companies/{company.id}/wc-codes/{code.id}/edit", data={
+            "ncci_code": "8810",
+            "description": "Clerical Updated",
+            "rate_per_100_wages": "0.55",
+        })
+        assert r.status_code == 303
+        db.refresh(code)
+        assert code.description == "Clerical Updated"
+        assert float(code.rate_per_100_wages) == pytest.approx(0.55)
+
+
+class TestOffCyclePayroll:
+    def test_off_cycle_form_renders(self, client):
+        r = client.get("/payroll/off-cycle/new")
+        assert r.status_code == 200
+        assert "Off-Cycle" in r.text
+
+    def test_create_off_cycle(self, client, db, company, salaried_employee):
+        from models.payroll import PayPeriod, Paycheck
+        r = client.post("/payroll/off-cycle/new", data={
+            "company_id": company.id,
+            "employee_id": salaried_employee.id,
+            "pay_date": "2026-06-15",
+            "frequency": "biweekly",
+            "gross_amount": "1000",
+            "description": "Bonus",
+        })
+        assert r.status_code == 303
+        pp = db.query(PayPeriod).order_by(PayPeriod.id.desc()).first()
+        assert pp.status == "draft"
+        paycheck = db.query(Paycheck).filter(Paycheck.pay_period_id == pp.id).first()
+        assert paycheck is not None
+
+    def test_off_cycle_missing_amount_returns_422(self, client, company, salaried_employee):
+        r = client.post("/payroll/off-cycle/new", data={
+            "company_id": company.id,
+            "employee_id": salaried_employee.id,
+            "pay_date": "2026-06-15",
+            "frequency": "biweekly",
+            "gross_amount": "0",
+        })
+        assert r.status_code == 422

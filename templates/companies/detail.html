@@ -53,10 +53,14 @@
     <div class="bg-white rounded-lg ring-1 ring-slate-200 p-5" x-data="{ open: false }">
       <div class="flex items-center justify-between mb-4">
         <h2 class="text-sm font-semibold text-slate-700">Benefit Plans</h2>
-        <button @click="open = !open"
-                class="text-xs font-medium text-indigo-600 hover:text-indigo-800">
-          + Add Plan
-        </button>
+        <div class="flex gap-3">
+          <a href="/companies/{{ company.id }}/benefits"
+             class="text-xs font-medium text-indigo-600 hover:text-indigo-800">Manage</a>
+          <button @click="open = !open"
+                  class="text-xs font-medium text-indigo-600 hover:text-indigo-800">
+            + Add
+          </button>
+        </div>
       </div>
 
       <!-- Add plan form -->
@@ -179,8 +183,12 @@
     <div class="bg-white rounded-lg ring-1 ring-slate-200 p-5" x-data="{ open: false }">
       <div class="flex items-center justify-between mb-3">
         <h2 class="text-sm font-semibold text-slate-700">WC Codes</h2>
-        <button @click="open = !open"
-                class="text-xs font-medium text-indigo-600 hover:text-indigo-800">+ Add</button>
+        <div class="flex gap-3">
+          <a href="/companies/{{ company.id }}/wc-codes"
+             class="text-xs font-medium text-indigo-600 hover:text-indigo-800">Manage</a>
+          <button @click="open = !open"
+                  class="text-xs font-medium text-indigo-600 hover:text-indigo-800">+ Add</button>
+        </div>
       </div>
 
       <form x-show="open" x-cloak method="POST"

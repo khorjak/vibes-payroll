@@ -1,0 +1,78 @@
+{% extends "layout.html" %}
+{% block title %}Workers Comp Codes — {{ company.name }}{% endblock %}
+{% block breadcrumb %}
+  <a href="/companies" class="hover:text-slate-700">Companies</a>
+  <span class="mx-1">/</span>
+  <a href="/companies/{{ company.id }}" class="hover:text-slate-700">{{ company.name }}</a>
+  <span class="mx-1">/</span>WC Codes
+{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl">
+  <div class="flex items-center justify-between mb-6">
+    <h1 class="text-2xl font-bold text-slate-900">Workers Comp Codes</h1>
+  </div>
+
+  {% if wc_codes %}
+  <div class="bg-white rounded-lg ring-1 ring-slate-200 overflow-hidden mb-8">
+    <table class="min-w-full divide-y divide-slate-200">
+      <thead class="bg-slate-50">
+        <tr>
+          <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">NCCI Code</th>
+          <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Description</th>
+          <th class="px-4 py-3 text-right text-xs font-medium text-slate-500 uppercase">Rate / $100</th>
+          <th class="px-4 py-3 text-right text-xs font-medium text-slate-500 uppercase">Action</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-200">
+        {% for code in wc_codes %}
+        <tr>
+          <td class="px-4 py-3 text-sm font-mono font-semibold text-slate-900">{{ code.ncci_code }}</td>
+          <td class="px-4 py-3 text-sm text-slate-700">{{ code.description }}</td>
+          <td class="px-4 py-3 text-sm text-slate-900 text-right tabular-nums">
+            {% if code.rate_per_100_wages %}${{ "%.4f"|format(code.rate_per_100_wages) }}{% else %}—{% endif %}
+          </td>
+          <td class="px-4 py-3 text-right">
+            <a href="/companies/{{ company.id }}/wc-codes/{{ code.id }}/edit"
+               class="text-xs font-medium text-indigo-600 hover:text-indigo-800">Edit</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="text-sm text-slate-500 mb-8">No workers comp codes added.</p>
+  {% endif %}
+
+  <h2 class="text-lg font-semibold text-slate-900 mb-4">Add WC Code</h2>
+  <form method="POST" action="/companies/{{ company.id }}/wc-codes/new"
+        class="bg-white rounded-lg ring-1 ring-slate-200 p-6 space-y-4">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1">NCCI Code <span class="text-red-500">*</span></label>
+        <input type="text" name="ncci_code" required maxlength="10"
+               class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1">Description <span class="text-red-500">*</span></label>
+        <input type="text" name="description" required
+               class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1">Rate per $100</label>
+        <input type="number" name="rate_per_100_wages" step="0.0001" min="0"
+               class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+      </div>
+    </div>
+    <div class="pt-2 flex items-center gap-3">
+      <button type="submit"
+              class="px-5 py-2 text-sm font-medium bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors">
+        Add Code
+      </button>
+      <a href="/companies/{{ company.id }}" class="text-sm text-slate-600 hover:text-slate-900">Back</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

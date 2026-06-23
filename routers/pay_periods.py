@@ -105,6 +105,106 @@ def create_pay_period(
     return RedirectResponse(f"/payroll/{pp.id}", status_code=303)
 
 
+# ── Off-Cycle Payroll (BEFORE /{period_id} to avoid route shadowing) ──────────
+
+@router.get("/off-cycle/new", response_class=HTMLResponse)
+def new_off_cycle(request: Request, db: Session = Depends(get_db)):
+    companies = db.query(Company).order_by(Company.name).all()
+    employees = (
+        db.query(Employee)
+        .filter(Employee.status == "active")
+        .order_by(Employee.last_name, Employee.first_name)
+        .all()
+    )
+    return templates.TemplateResponse(request, "payroll/off_cycle.html", {
+        "companies": companies,
+        "employees": employees,
+        "frequencies": _FREQUENCIES,
+        "today": date.today().isoformat(),
+        "errors": {},
+        "active_nav": "payroll",
+    })
+
+
+@router.post("/off-cycle/new")
+def create_off_cycle(
+    request: Request,
+    current_user: AdminUser,
+    _csrf: CsrfProtect,
+    db: Session = Depends(get_db),
+    company_id: int = Form(...),
+    employee_id: int = Form(...),
+    pay_date: str = Form(...),
+    frequency: str = Form("biweekly"),
+    gross_amount: str = Form(...),
+    description: str = Form("Off-Cycle Payment"),
+):
+    errors = {}
+    if not pay_date:
+        errors["pay_date"] = "Required."
+    if not gross_amount or float(gross_amount) <= 0:
+        errors["gross_amount"] = "Must be greater than zero."
+
+    if errors:
+        companies = db.query(Company).order_by(Company.name).all()
+        employees = db.query(Employee).filter(Employee.status == "active").order_by(Employee.last_name).all()
+        return templates.TemplateResponse(request, "payroll/off_cycle.html", {
+            "companies": companies,
+            "employees": employees,
+            "frequencies": _FREQUENCIES,
+            "today": date.today().isoformat(),
+            "errors": errors,
+            "active_nav": "payroll",
+        }, status_code=422)
+
+    pay_dt = date.fromisoformat(pay_date)
+    pp = PayPeriod(
+        company_id=company_id,
+        start_date=pay_dt,
+        end_date=pay_dt,
+        pay_date=pay_dt,
+        frequency=frequency,
+        status="open",
+    )
+    db.add(pp)
+    db.flush()
+
+    from models.benefit import EmployeeBenefitEnrollment
+    from models.garnishment import GarnishmentOrder
+    from services.payroll_service import draft_paycheck
+
+    employee = (
+        db.query(Employee)
+        .options(
+            joinedload(Employee.w4_elections),
+            joinedload(Employee.ok_withholding_elections),
+            joinedload(Employee.benefit_enrollments).joinedload(EmployeeBenefitEnrollment.plan),
+            joinedload(Employee.workers_comp_code),
+            joinedload(Employee.garnishment_orders),
+        )
+        .filter(Employee.id == employee_id)
+        .one()
+    )
+
+    ts = Timesheet(
+        employee_id=employee_id,
+        pay_period_id=pp.id,
+        regular_hours=0,
+    )
+    db.add(ts)
+    db.flush()
+
+    paycheck = draft_paycheck(employee, pp, ts, db)
+
+    pp.status = "draft"
+    log_change(db, "pay_periods", pp.id, "insert",
+               changed_by=current_user.username,
+               new_values={"type": "off-cycle", "employee_id": employee_id,
+                           "pay_date": pay_date})
+    db.commit()
+    return RedirectResponse(f"/payroll/{pp.id}?flash=off_cycle_created", status_code=303)
+
+
 # ── Paycheck routes (defined BEFORE /{period_id} to avoid route shadowing) ──
 
 @router.get("/paychecks/{paycheck_id}", response_class=HTMLResponse)
@@ -432,3 +532,5 @@ def mark_paid_period(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     return RedirectResponse(f"/payroll/{period_id}?flash=paid", status_code=303)
+
+

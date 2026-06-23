@@ -1,0 +1,46 @@
+{% extends "layout.html" %}
+{% block title %}Edit WC Code {{ code.ncci_code }}{% endblock %}
+{% block breadcrumb %}
+  <a href="/companies" class="hover:text-slate-700">Companies</a>
+  <span class="mx-1">/</span>
+  <a href="/companies/{{ company.id }}" class="hover:text-slate-700">{{ company.name }}</a>
+  <span class="mx-1">/</span>
+  <a href="/companies/{{ company.id }}/wc-codes" class="hover:text-slate-700">WC Codes</a>
+  <span class="mx-1">/</span>Edit
+{% endblock %}
+
+{% block content %}
+<div class="max-w-lg">
+  <h1 class="text-2xl font-bold text-slate-900 mb-6">Edit WC Code</h1>
+
+  <form method="POST" action="/companies/{{ company.id }}/wc-codes/{{ code.id }}/edit"
+        class="bg-white rounded-lg ring-1 ring-slate-200 p-6 space-y-4">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+
+    <div>
+      <label class="block text-sm font-medium text-slate-700 mb-1">NCCI Code <span class="text-red-500">*</span></label>
+      <input type="text" name="ncci_code" value="{{ code.ncci_code }}" required maxlength="10"
+             class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+    </div>
+    <div>
+      <label class="block text-sm font-medium text-slate-700 mb-1">Description <span class="text-red-500">*</span></label>
+      <input type="text" name="description" value="{{ code.description }}" required
+             class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+    </div>
+    <div>
+      <label class="block text-sm font-medium text-slate-700 mb-1">Rate per $100 Wages</label>
+      <input type="number" name="rate_per_100_wages" step="0.0001" min="0"
+             value="{{ code.rate_per_100_wages or '' }}"
+             class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+    </div>
+
+    <div class="pt-2 flex items-center gap-3">
+      <button type="submit"
+              class="px-5 py-2 text-sm font-medium bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors">
+        Save Changes
+      </button>
+      <a href="/companies/{{ company.id }}/wc-codes" class="text-sm text-slate-600 hover:text-slate-900">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

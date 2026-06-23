@@ -1,0 +1,80 @@
+{% extends "layout.html" %}
+{% block title %}Off-Cycle Payroll{% endblock %}
+{% block breadcrumb %}<a href="/payroll/" class="hover:underline">Pay Runs</a> / Off-Cycle{% endblock %}
+
+{% block content %}
+<div class="max-w-lg">
+  <h1 class="text-xl font-semibold text-slate-800 mb-2">Off-Cycle Payroll</h1>
+  <p class="text-sm text-slate-500 mb-6">Run a single employee through the normal payroll calculation outside a regular pay period.</p>
+
+  <form method="post" action="/payroll/off-cycle/new" class="space-y-5 bg-white rounded-lg border border-slate-200 p-6">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+
+    <div>
+      <label class="block text-sm font-medium text-slate-700 mb-1">Company</label>
+      <select name="company_id" required
+              class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        {% for co in companies %}
+        <option value="{{ co.id }}">{{ co.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium text-slate-700 mb-1">Employee</label>
+      <select name="employee_id" required
+              class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        {% for emp in employees %}
+        <option value="{{ emp.id }}">{{ emp.full_name }} ({{ emp.employment_type | replace("_", " ") | title }})</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium text-slate-700 mb-1">Pay Frequency</label>
+      <select name="frequency" required
+              class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        {% for f in frequencies %}
+        <option value="{{ f }}">{{ f | replace("_", "-") | capitalize }}</option>
+        {% endfor %}
+      </select>
+      <p class="text-xs text-slate-400 mt-1">Affects tax bracket calculation for this check.</p>
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium text-slate-700 mb-1">Pay Date</label>
+      <input type="date" name="pay_date" required value="{{ today }}"
+             class="w-full rounded-md border {% if errors.pay_date %}border-red-400{% else %}border-slate-300{% endif %} px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+      {% if errors.pay_date %}<p class="text-xs text-red-600 mt-1">{{ errors.pay_date }}</p>{% endif %}
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium text-slate-700 mb-1">Description</label>
+      <input type="text" name="description" value="Off-Cycle Payment"
+             class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium text-slate-700 mb-1">Gross Amount Override</label>
+      <div class="relative">
+        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">$</span>
+        <input type="number" name="gross_amount" step="0.01" min="0" value="0"
+               class="w-full rounded-md border {% if errors.gross_amount %}border-red-400{% else %}border-slate-300{% endif %} pl-7 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+      </div>
+      {% if errors.gross_amount %}<p class="text-xs text-red-600 mt-1">{{ errors.gross_amount }}</p>{% endif %}
+      <p class="text-xs text-slate-400 mt-1">Enter 0 to use employee's standard pay rate.</p>
+    </div>
+
+    <div class="flex gap-3 pt-2">
+      <button type="submit"
+              class="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-md hover:bg-indigo-700">
+        Create Off-Cycle Run
+      </button>
+      <a href="/payroll/"
+         class="px-4 py-2 text-sm text-slate-600 rounded-md hover:bg-slate-100">
+        Cancel
+      </a>
+    </div>
+  </form>
+</div>
+{% endblock %}
