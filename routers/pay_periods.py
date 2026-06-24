@@ -183,13 +183,21 @@ def create_off_cycle(
             joinedload(Employee.garnishment_orders),
         )
         .filter(Employee.id == employee_id)
-        .one()
+        .first()
     )
+    if not employee:
+        raise HTTPException(status_code=404, detail="Employee not found")
+
+    gross_val = float(gross_amount)
+    if employee.employment_type != "salaried" and employee.pay_rate:
+        regular_hours = gross_val / float(employee.pay_rate)
+    else:
+        regular_hours = 0
 
     ts = Timesheet(
         employee_id=employee_id,
         pay_period_id=pp.id,
-        regular_hours=0,
+        regular_hours=regular_hours,
     )
     db.add(ts)
     db.flush()

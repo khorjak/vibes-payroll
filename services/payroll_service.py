@@ -115,6 +115,13 @@ def get_ytd_prior(employee_id: int, pay_period: PayPeriod, db: Session) -> dict:
     year = pay_period.pay_date.year
     year_start = date(year, 1, 1)
 
+    prior_filter = [
+        Paycheck.employee_id == employee_id,
+        Paycheck.status != "voided",
+        PayPeriod.pay_date < pay_period.pay_date,
+        PayPeriod.pay_date >= year_start,
+    ]
+
     row = (
         db.query(
             func.coalesce(func.sum(Paycheck.gross_wages), 0).label("gross"),
@@ -123,22 +130,46 @@ def get_ytd_prior(employee_id: int, pay_period: PayPeriod, db: Session) -> dict:
             ).label("taxable"),
         )
         .join(PayPeriod, Paycheck.pay_period_id == PayPeriod.id)
-        .filter(
-            Paycheck.employee_id == employee_id,
-            Paycheck.status != "voided",
-            PayPeriod.pay_date < pay_period.pay_date,
-            PayPeriod.pay_date >= year_start,
-        )
+        .filter(*prior_filter)
         .one()
     )
 
+    tax_sums = (
+        db.query(
+            PaycheckLine.description,
+            func.coalesce(func.sum(PaycheckLine.amount), 0).label("total"),
+        )
+        .join(Paycheck, PaycheckLine.paycheck_id == Paycheck.id)
+        .join(PayPeriod, Paycheck.pay_period_id == PayPeriod.id)
+        .filter(
+            *prior_filter,
+            PaycheckLine.line_type.in_(["tax", "employer_tax"]),
+        )
+        .group_by(PaycheckLine.description)
+        .all()
+    )
+    tax_map = {r.description: Decimal(str(r.total)) for r in tax_sums}
+
     gross = Decimal(str(row.gross))
     taxable = Decimal(str(row.taxable))
+    zero = Decimal("0")
     return {
         "gross": gross,
         "ss_wages": taxable,
         "futa_wages": taxable,
         "suta_wages": taxable,
+        "federal_tax": tax_map.get("Federal Income Tax", zero),
+        "state_tax": tax_map.get("Oklahoma Income Tax", zero),
+        "fica_employee": (
+            tax_map.get("Social Security (Employee)", zero)
+            + tax_map.get("Medicare (Employee)", zero)
+        ),
+        "fica_employer": (
+            tax_map.get("Social Security (Employer)", zero)
+            + tax_map.get("Medicare (Employer)", zero)
+        ),
+        "futa": tax_map.get("FUTA", zero),
+        "suta": tax_map.get("SUTA", zero),
     }
 
 
@@ -385,6 +416,12 @@ def draft_paycheck(
         employer_suta=t.suta,
         employer_workers_comp=t.workers_comp,
         ytd_gross=ytd["gross"] + result.gross_wages,
+        ytd_federal_tax=ytd["federal_tax"] + t.federal_income_tax,
+        ytd_state_tax=ytd["state_tax"] + t.ok_income_tax,
+        ytd_fica_employee=ytd["fica_employee"] + t.ss_employee + t.medicare_employee,
+        ytd_fica_employer=ytd["fica_employer"] + t.ss_employer + t.medicare_employer,
+        ytd_futa=ytd["futa"] + t.futa,
+        ytd_suta=ytd["suta"] + t.suta,
     )
     db.add(paycheck)
     db.flush()
