@@ -11,13 +11,14 @@ def keyed_settings(monkeypatch):
     return fake
 
 
-def test_encrypt_returns_none_for_empty_string():
-    assert encrypt("") is None
+def test_encrypt_returns_empty_for_empty_string():
+    assert encrypt("") == ""
 
 
-def test_encrypt_returns_none_when_no_key_configured(monkeypatch):
+def test_encrypt_raises_when_no_key_configured(monkeypatch):
     monkeypatch.setattr("utils.crypto.settings", type("S", (), {"encryption_key": ""})())
-    assert encrypt("123456789") is None
+    with pytest.raises(RuntimeError, match="ENCRYPTION_KEY is not configured"):
+        encrypt("123456789")
 
 
 def test_encrypt_produces_ciphertext_different_from_plaintext(keyed_settings):

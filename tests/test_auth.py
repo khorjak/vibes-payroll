@@ -119,7 +119,11 @@ class TestLoginLogout:
             "password": "secret123",
             "next": "/",
         })
-        auth_client.post("/auth/logout")
+        page = auth_client.get("/companies/")
+        import re
+        m = re.search(r'name="csrf_token"\s+value="([^"]+)"', page.text)
+        csrf = m.group(1) if m else ""
+        auth_client.post("/auth/logout", data={"csrf_token": csrf})
         r = auth_client.get("/companies/")
         assert r.status_code == 302
         assert "/auth/login" in r.headers["location"]

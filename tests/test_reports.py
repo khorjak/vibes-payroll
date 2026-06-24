@@ -199,14 +199,15 @@ class TestNewHiresReport:
 
 
 class TestReadOnlyRole:
-    def test_read_only_hides_employee_create(self, client):
-        # Set session role to read_only
-        with client:
-            client.cookies.clear()
-            # Simulate read_only session
+    def test_no_role_hides_admin_ui(self, client):
+        from app_templates import templates
+        original = templates.env.globals["is_admin"]
+        templates.env.globals["is_admin"] = lambda request: False
+        try:
             r = client.get("/employees/")
-            # Default (no session role) shows admin UI
-            assert "+ New Employee" in r.text
+            assert "+ New Employee" not in r.text
+        finally:
+            templates.env.globals["is_admin"] = original
 
 
 class TestTerminatedEmployeeWarning:

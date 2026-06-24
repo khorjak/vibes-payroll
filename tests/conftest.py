@@ -43,6 +43,10 @@ def client(db):
     def override_get_db():
         yield db
 
+    from app_templates import templates
+    _original_is_admin = templates.env.globals.get("is_admin")
+    templates.env.globals["is_admin"] = lambda request: True
+
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_current_user] = lambda: _fake_admin
     app.dependency_overrides[require_admin] = lambda: _fake_admin
@@ -50,6 +54,8 @@ def client(db):
     with TestClient(app, follow_redirects=False) as c:
         yield c
     app.dependency_overrides.clear()
+    if _original_is_admin:
+        templates.env.globals["is_admin"] = _original_is_admin
 
 
 @pytest.fixture()

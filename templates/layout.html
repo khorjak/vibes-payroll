@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}Payroll{% endblock %}</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://unpkg.com/htmx.org@1.9.12" crossorigin="anonymous"></script>
-  <script src="https://unpkg.com/alpinejs@3.14.1/dist/cdn.min.js" defer></script>
+  <script src="https://unpkg.com/htmx.org@1.9.12" integrity="sha384-SDoiYpX0Rds2uJxGagpIgvo8MRGg5n25bu3kbfNTWBJfryGubn1FzSa+q15lOiTt" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/alpinejs@3.14.1/dist/cdn.min.js" integrity="sha384-l8f0VcPi/M1iHPv8egOnY/15TDwqgbOR1anMIJWvU6nLRgZVLTLSaNqi/TOoT5Fh" crossorigin="anonymous" defer></script>
   <style>
     [x-cloak] { display: none !important; }
     .htmx-indicator { opacity: 0; transition: opacity 200ms ease-in; }
@@ -116,7 +116,7 @@
         {% elif flash == 'approved' %}Payroll run approved.
         {% elif flash == 'paid' %}Pay period marked as paid.
         {% elif flash == 'voided' %}Paycheck voided.
-        {% else %}{{ flash }}
+        {% else %}An action was completed.
         {% endif %}
       </span>
       <button @click="show = false" class="ml-4 opacity-60 hover:opacity-100">&#x2715;</button>

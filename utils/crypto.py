@@ -8,10 +8,15 @@ def _fernet() -> Fernet | None:
     return Fernet(settings.encryption_key.encode())
 
 
-def encrypt(value: str) -> str | None:
+def encrypt(value: str) -> str:
+    if not value:
+        return ""
     f = _fernet()
-    if not f or not value:
-        return None
+    if not f:
+        raise RuntimeError(
+            "ENCRYPTION_KEY is not configured. "
+            "Set ENCRYPTION_KEY in your .env file before storing sensitive data."
+        )
     return f.encrypt(value.encode()).decode()
 
 

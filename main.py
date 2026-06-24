@@ -2,6 +2,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
+from starlette.responses import Response
 from database import engine, SessionLocal
 from models import Base
 from config import settings
@@ -24,13 +25,13 @@ with SessionLocal() as _db:
         ))
         _db.commit()
 
-app = FastAPI(title="Payroll", docs_url="/api/docs")
+app = FastAPI(title="Payroll", docs_url="/api/docs" if settings.debug else None)
 
 app.add_middleware(
     SessionMiddleware,
     secret_key=settings.secret_key,
     same_site="lax",
-    https_only=False,
+    https_only=settings.session_https_only,
 )
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -41,14 +42,27 @@ app.include_router(employees.router)
 app.include_router(pay_periods.router)
 app.include_router(reports.router)
 
+@app.middleware("http")
+async def security_headers(request: Request, call_next) -> Response:
+    response = await call_next(request)
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; "
+        "script-src 'self' https://cdn.tailwindcss.com https://unpkg.com 'unsafe-inline'; "
+        "style-src 'self' 'unsafe-inline'"
+    )
+    if not settings.debug:
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    return response
+
+
 templates.env.globals["csrf_token"] = csrf_token_global
 
 
 def is_admin(request):
-    role = request.session.get("role")
-    if role:
-        return role == "admin"
-    return True
+    return request.session.get("role") == "admin"
 
 
 templates.env.globals["is_admin"] = is_admin
