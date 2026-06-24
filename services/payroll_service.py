@@ -411,16 +411,16 @@ def calculate_payroll_run(pay_period: PayPeriod, db: Session) -> list:
         .all()
     )
 
+    timesheets_by_emp = {
+        ts.employee_id: ts
+        for ts in db.query(Timesheet).filter(
+            Timesheet.pay_period_id == pay_period.id,
+        ).all()
+    }
+
     paychecks = []
     for employee in employees:
-        timesheet = (
-            db.query(Timesheet)
-            .filter(
-                Timesheet.employee_id == employee.id,
-                Timesheet.pay_period_id == pay_period.id,
-            )
-            .first()
-        )
+        timesheet = timesheets_by_emp.get(employee.id)
         paycheck = draft_paycheck(employee, pay_period, timesheet, db)
         paychecks.append(paycheck)
 

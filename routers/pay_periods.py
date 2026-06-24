@@ -331,23 +331,40 @@ def pay_period_detail(
 
     variance_flags: dict[int, bool] = {}
     if pp.status == "draft":
-        for paycheck in pp.paychecks:
-            if paycheck.status != "draft":
-                continue
-            prior = (
-                db.query(Paycheck)
+        draft_checks = [pc for pc in pp.paychecks if pc.status == "draft"]
+        draft_emp_ids = [pc.employee_id for pc in draft_checks]
+        if draft_emp_ids:
+            from sqlalchemy import func as sa_func, and_
+            latest_date_sq = (
+                db.query(
+                    Paycheck.employee_id,
+                    sa_func.max(PayPeriod.pay_date).label("max_date"),
+                )
                 .join(PayPeriod, Paycheck.pay_period_id == PayPeriod.id)
                 .filter(
-                    Paycheck.employee_id == paycheck.employee_id,
+                    Paycheck.employee_id.in_(draft_emp_ids),
                     Paycheck.status.in_(["approved", "paid"]),
                     PayPeriod.pay_date < pp.pay_date,
                 )
-                .order_by(PayPeriod.pay_date.desc())
-                .first()
+                .group_by(Paycheck.employee_id)
+                .subquery()
             )
-            if prior and prior.gross_wages > 0:
-                pct = abs(paycheck.gross_wages - prior.gross_wages) / prior.gross_wages
-                variance_flags[paycheck.id] = pct > Decimal("0.20")
+            priors = (
+                db.query(Paycheck)
+                .join(PayPeriod, Paycheck.pay_period_id == PayPeriod.id)
+                .join(latest_date_sq, and_(
+                    Paycheck.employee_id == latest_date_sq.c.employee_id,
+                    PayPeriod.pay_date == latest_date_sq.c.max_date,
+                ))
+                .filter(Paycheck.status.in_(["approved", "paid"]))
+                .all()
+            )
+            prior_map = {pc.employee_id: pc for pc in priors}
+            for paycheck in draft_checks:
+                prior = prior_map.get(paycheck.employee_id)
+                if prior and prior.gross_wages > 0:
+                    pct = abs(paycheck.gross_wages - prior.gross_wages) / prior.gross_wages
+                    variance_flags[paycheck.id] = pct > Decimal("0.20")
 
     terminated_needing_final = []
     terminated_employees = (
@@ -361,21 +378,22 @@ def pay_period_detail(
         .all()
     )
     paid_emp_ids = {pc.employee_id for pc in pp.paychecks}
-    for emp in terminated_employees:
-        if emp.id in paid_emp_ids:
-            continue
-        has_final = (
-            db.query(Paycheck)
+    candidates = [emp for emp in terminated_employees if emp.id not in paid_emp_ids]
+    if candidates:
+        candidate_ids = [emp.id for emp in candidates]
+        has_final_ids = set(
+            row[0] for row in db.query(Paycheck.employee_id)
             .join(PayPeriod, Paycheck.pay_period_id == PayPeriod.id)
+            .join(Employee, Paycheck.employee_id == Employee.id)
             .filter(
-                Paycheck.employee_id == emp.id,
+                Paycheck.employee_id.in_(candidate_ids),
                 Paycheck.status.in_(["approved", "paid"]),
-                PayPeriod.pay_date >= emp.termination_date,
+                PayPeriod.pay_date >= Employee.termination_date,
             )
-            .first()
+            .distinct()
+            .all()
         )
-        if not has_final:
-            terminated_needing_final.append(emp)
+        terminated_needing_final = [emp for emp in candidates if emp.id not in has_final_ids]
 
     return templates.TemplateResponse(request, "payroll/detail.html", {
         "pp": pp,
