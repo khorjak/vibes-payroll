@@ -11,14 +11,18 @@ Self-hosted payroll application for small businesses operating in Oklahoma. Hand
 ## Features
 
 - Employee management with W-4 and Oklahoma withholding elections
-- Benefit plan enrollment (health, dental, 401k, FSA/HSA)
+- Benefit plan enrollment (health, dental, 401k, FSA/HSA) with pre-tax and post-tax deductions
+- Garnishment order management (child support, creditor, tax levy, student loan)
 - Full payroll run workflow: open → draft → approve → paid
+- Off-cycle payroll for individual employees
 - Timesheet entry for hourly and part-time employees
 - Tax engine: federal (IRS Pub 15), Oklahoma (OTC tables), FICA, FUTA, SUTA, workers comp
 - Pay stub PDF generation
-- Reports: payroll register, tax liability, quarterly 941, workers comp audit, Oklahoma withholding, W-2 CSV export
+- Reports: payroll register, tax liability, quarterly 941, workers comp audit, Oklahoma withholding, deduction/benefit summary, client liability remittance, new hire reporting, W-2 CSV export
+- Terminated employee warnings (final paycheck tracking)
 - Session authentication with role-based access (admin / read-only)
-- CSRF protection on all mutating routes
+- Login rate limiting and security headers (CSP, HSTS, X-Frame-Options)
+- CSRF protection on all mutating routes including logout
 - SSN and banking info encrypted at rest (Fernet)
 - Audit log for sensitive field changes
 
@@ -38,7 +42,7 @@ The database is created automatically on first run. A default admin user (`admin
 ## Tests
 
 ```bash
-pytest                                        # all 240 tests
+pytest                                        # all 299 tests
 pytest tests/test_auth.py                    # single file
 pytest tests/test_auth.py::TestLoginLogout   # single class
 ```
