@@ -21,7 +21,7 @@ class Employee(Base, TimestampMixin):
     __tablename__ = "employees"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), nullable=False)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), nullable=False, index=True)
     first_name: Mapped[str] = mapped_column(String(100))
     last_name: Mapped[str] = mapped_column(String(100))
     ssn_encrypted: Mapped[Optional[str]] = mapped_column(Text)
@@ -33,7 +33,7 @@ class Employee(Base, TimestampMixin):
     phone: Mapped[Optional[str]] = mapped_column(String(20))
     hire_date: Mapped[Optional[date]] = mapped_column(Date)
     termination_date: Mapped[Optional[date]] = mapped_column(Date)
-    status: Mapped[str] = mapped_column(String(20), default="active")
+    status: Mapped[str] = mapped_column(String(20), default="active", index=True)
     employment_type: Mapped[str] = mapped_column(String(20))
     flsa_exempt: Mapped[bool] = mapped_column(Boolean, default=False)
     pay_rate: Mapped[Decimal] = mapped_column(Numeric(12, 4))

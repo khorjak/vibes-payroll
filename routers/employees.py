@@ -12,6 +12,7 @@ from models.workers_comp import WorkersCompCode
 from models.benefit import BenefitPlan, EmployeeBenefitEnrollment
 from models.garnishment import GarnishmentOrder, GARNISHMENT_TYPES
 from utils.crypto import encrypt, decrypt
+from utils.forms import safe_float
 from routers.auth import AdminUser, get_current_user
 from utils.csrf import CsrfProtect
 from services.audit import log_change
@@ -110,7 +111,7 @@ def create_employee(
         errors["last_name"] = "Last name is required."
     if not pay_rate:
         errors["pay_rate"] = "Pay rate is required."
-    elif employment_type in ("hourly", "part_time") and float(pay_rate) < 7.25:
+    elif employment_type in ("hourly", "part_time") and safe_float(pay_rate, "pay_rate") < 7.25:
         errors["pay_rate"] = "Pay rate must be at least $7.25/hr (federal minimum wage)."
 
     if errors:
@@ -134,7 +135,7 @@ def create_employee(
         routing_number_encrypted=encrypt(routing_number.strip()) if routing_number.strip() else None,
         account_number_encrypted=encrypt(account_number.strip()) if account_number.strip() else None,
         employment_type=employment_type,
-        pay_rate=float(pay_rate),
+        pay_rate=safe_float(pay_rate, "pay_rate"),
         pay_frequency=pay_frequency or None,
         hire_date=date.fromisoformat(hire_date) if hire_date else None,
         status=status,
@@ -249,7 +250,7 @@ def update_employee(
     if not employee:
         raise HTTPException(status_code=404, detail="Employee not found")
 
-    if employment_type in ("hourly", "part_time") and pay_rate and float(pay_rate) < 7.25:
+    if employment_type in ("hourly", "part_time") and pay_rate and safe_float(pay_rate, "pay_rate") < 7.25:
         companies = db.query(Company).order_by(Company.name).all()
         wc_codes = db.query(WorkersCompCode).order_by(WorkersCompCode.ncci_code).all()
         return templates.TemplateResponse(request, "employees/form.html", {
@@ -266,7 +267,7 @@ def update_employee(
     employee.first_name = first_name.strip()
     employee.last_name = last_name.strip()
     employee.employment_type = employment_type
-    employee.pay_rate = float(pay_rate)
+    employee.pay_rate = safe_float(pay_rate, "pay_rate")
     employee.pay_frequency = pay_frequency or None
     employee.hire_date = date.fromisoformat(hire_date) if hire_date else None
     employee.termination_date = date.fromisoformat(termination_date) if termination_date else None
@@ -327,10 +328,10 @@ def create_w4(
         effective_date=date.fromisoformat(effective_date),
         filing_status=filing_status,
         multiple_jobs=(multiple_jobs == "on"),
-        dependents_amount=float(dependents_amount or 0),
-        other_income=float(other_income or 0),
-        deductions_amount=float(deductions_amount or 0),
-        extra_withholding=float(extra_withholding or 0),
+        dependents_amount=safe_float(dependents_amount or "0", "dependents_amount"),
+        other_income=safe_float(other_income or "0", "other_income"),
+        deductions_amount=safe_float(deductions_amount or "0", "deductions_amount"),
+        extra_withholding=safe_float(extra_withholding or "0", "extra_withholding"),
     )
     db.add(election)
     db.flush()
@@ -373,7 +374,7 @@ def create_ok_withholding(
         effective_date=date.fromisoformat(effective_date),
         filing_status=filing_status,
         allowances=int(allowances or 0),
-        extra_withholding=float(extra_withholding or 0),
+        extra_withholding=safe_float(extra_withholding or "0", "extra_withholding"),
     )
     db.add(election)
     db.flush()
@@ -401,7 +402,7 @@ def enroll_benefit(
         employee_id=employee_id,
         benefit_plan_id=benefit_plan_id,
         effective_date=date.fromisoformat(effective_date),
-        employee_override_amount=float(employee_override_amount) if employee_override_amount else None,
+        employee_override_amount=safe_float(employee_override_amount, "override_amount") if employee_override_amount else None,
     )
     db.add(enrollment)
     db.flush()
@@ -477,10 +478,10 @@ def create_garnishment(
         employee_id=employee_id,
         garnishment_type=garnishment_type,
         payee_name=payee_name.strip(),
-        amount=float(amount or 0),
-        percent=float(percent or 0),
+        amount=safe_float(amount or "0", "amount"),
+        percent=safe_float(percent or "0", "percent"),
         amount_type=amount_type,
-        max_total=float(max_total) if max_total else None,
+        max_total=safe_float(max_total, "max_total") if max_total else None,
         effective_date=date.fromisoformat(effective_date),
         case_number=case_number.strip() or None,
         notes=notes.strip() or None,

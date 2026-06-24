@@ -49,14 +49,13 @@ def calc_employee_gross(
     return _round2(regular + overtime + double_time + pto + sick + holiday)
 
 
-def get_employee_pre_tax_deductions(employee: Employee) -> Decimal:
-    """Sum fixed pre-tax benefit deductions per pay period from active enrollments."""
+def _sum_employee_deductions(employee: Employee, pre_tax: bool) -> Decimal:
     total = Decimal("0")
     for enrollment in employee.benefit_enrollments:
         if enrollment.end_date:
             continue
         plan = enrollment.plan
-        if not plan.pre_tax or not plan.active:
+        if plan.pre_tax != pre_tax or not plan.active:
             continue
         if plan.employee_contribution_type != "fixed":
             continue
@@ -67,26 +66,14 @@ def get_employee_pre_tax_deductions(employee: Employee) -> Decimal:
         )
         total += amount
     return total
+
+
+def get_employee_pre_tax_deductions(employee: Employee) -> Decimal:
+    return _sum_employee_deductions(employee, pre_tax=True)
 
 
 def get_employee_post_tax_deductions(employee: Employee) -> Decimal:
-    """Sum fixed post-tax benefit deductions per pay period from active enrollments."""
-    total = Decimal("0")
-    for enrollment in employee.benefit_enrollments:
-        if enrollment.end_date:
-            continue
-        plan = enrollment.plan
-        if plan.pre_tax or not plan.active:
-            continue
-        if plan.employee_contribution_type != "fixed":
-            continue
-        amount = (
-            Decimal(str(enrollment.employee_override_amount))
-            if enrollment.employee_override_amount is not None
-            else Decimal(str(plan.employee_contribution_amount))
-        )
-        total += amount
-    return total
+    return _sum_employee_deductions(employee, pre_tax=False)
 
 
 def get_active_garnishments(employee: Employee) -> list[GarnishmentInputItem]:

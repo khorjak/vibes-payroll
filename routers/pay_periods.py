@@ -15,6 +15,7 @@ from services.payroll_service import (
 )
 from routers.auth import AdminUser, get_current_user
 from utils.csrf import CsrfProtect
+from utils.forms import safe_float
 from services.audit import log_change
 
 from app_templates import templates
@@ -142,7 +143,7 @@ def create_off_cycle(
     errors = {}
     if not pay_date:
         errors["pay_date"] = "Required."
-    if not gross_amount or float(gross_amount) <= 0:
+    if not gross_amount or safe_float(gross_amount, "gross_amount") <= 0:
         errors["gross_amount"] = "Must be greater than zero."
 
     if errors:
@@ -188,9 +189,9 @@ def create_off_cycle(
     if not employee:
         raise HTTPException(status_code=404, detail="Employee not found")
 
-    gross_val = float(gross_amount)
+    gross_val = safe_float(gross_amount, "gross_amount")
     if employee.employment_type != "salaried" and employee.pay_rate:
-        regular_hours = gross_val / float(employee.pay_rate)
+        regular_hours = gross_val / safe_float(str(employee.pay_rate), "pay_rate")
     else:
         regular_hours = 0
 

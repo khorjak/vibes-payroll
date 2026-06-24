@@ -7,6 +7,7 @@ from models.workers_comp import WorkersCompCode
 from models.benefit import BenefitPlan, BENEFIT_TYPES, CONTRIBUTION_TYPES
 from routers.auth import AdminUser, get_current_user
 from utils.csrf import CsrfProtect
+from utils.forms import safe_float
 
 from app_templates import templates
 
@@ -69,7 +70,7 @@ def create_company(
         state=state.strip() or "OK",
         zip_code=zip_code.strip() or None,
         pay_frequency=pay_frequency,
-        suta_rate=float(suta_rate) if suta_rate else None,
+        suta_rate=safe_float(suta_rate, "suta_rate") if suta_rate else None,
         workers_comp_policy=workers_comp_policy.strip() or None,
     )
     db.add(company)
@@ -136,7 +137,7 @@ def update_company(
     company.state = state.strip() or "OK"
     company.zip_code = zip_code.strip() or None
     company.pay_frequency = pay_frequency
-    company.suta_rate = float(suta_rate) if suta_rate else None
+    company.suta_rate = safe_float(suta_rate, "suta_rate") if suta_rate else None
     company.workers_comp_policy = workers_comp_policy.strip() or None
     db.commit()
     return RedirectResponse(f"/companies/{company_id}?flash=updated", status_code=303)
@@ -157,7 +158,7 @@ def create_wc_code(
     code = WorkersCompCode(
         ncci_code=ncci_code.strip(),
         description=description.strip(),
-        rate_per_100_wages=float(rate_per_100_wages) if rate_per_100_wages else None,
+        rate_per_100_wages=safe_float(rate_per_100_wages, "rate_per_100_wages") if rate_per_100_wages else None,
     )
     db.add(code)
     db.commit()
@@ -185,9 +186,9 @@ def create_benefit_plan(
         name=name.strip(),
         benefit_type=benefit_type,
         employee_contribution_type=employee_contribution_type,
-        employee_contribution_amount=float(employee_contribution_amount or 0),
-        employer_match_percent=float(employer_match_percent) if employer_match_percent else None,
-        employer_match_cap_percent=float(employer_match_cap_percent) if employer_match_cap_percent else None,
+        employee_contribution_amount=safe_float(employee_contribution_amount or "0", "employee_contribution_amount"),
+        employer_match_percent=safe_float(employer_match_percent, "employer_match_percent") if employer_match_percent else None,
+        employer_match_cap_percent=safe_float(employer_match_cap_percent, "employer_match_cap_percent") if employer_match_cap_percent else None,
         pre_tax=pre_tax == "on",
     )
     db.add(plan)
@@ -255,9 +256,9 @@ def update_benefit_plan(
     plan.name = name.strip()
     plan.benefit_type = benefit_type
     plan.employee_contribution_type = employee_contribution_type
-    plan.employee_contribution_amount = float(employee_contribution_amount or 0)
-    plan.employer_match_percent = float(employer_match_percent) if employer_match_percent else None
-    plan.employer_match_cap_percent = float(employer_match_cap_percent) if employer_match_cap_percent else None
+    plan.employee_contribution_amount = safe_float(employee_contribution_amount or "0", "employee_contribution_amount")
+    plan.employer_match_percent = safe_float(employer_match_percent, "employer_match_percent") if employer_match_percent else None
+    plan.employer_match_cap_percent = safe_float(employer_match_cap_percent, "employer_match_cap_percent") if employer_match_cap_percent else None
     plan.pre_tax = pre_tax == "on"
     db.commit()
     return RedirectResponse(f"/companies/{company_id}/benefits?flash=updated", status_code=303)
@@ -333,6 +334,6 @@ def update_wc_code(
         raise HTTPException(status_code=404, detail="WC code not found")
     code.ncci_code = ncci_code.strip()
     code.description = description.strip()
-    code.rate_per_100_wages = float(rate_per_100_wages) if rate_per_100_wages else None
+    code.rate_per_100_wages = safe_float(rate_per_100_wages, "rate_per_100_wages") if rate_per_100_wages else None
     db.commit()
     return RedirectResponse(f"/companies/{company_id}/wc-codes?flash=updated", status_code=303)

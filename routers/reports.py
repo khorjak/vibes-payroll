@@ -7,7 +7,6 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, StreamingResponse
-from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
 from database import get_db
@@ -29,6 +28,14 @@ _MONTH_NAMES = {
 }
 
 
+def _sum_lines(paychecks: list) -> dict[str, Decimal]:
+    totals: dict[str, Decimal] = {}
+    for pc in paychecks:
+        for line in pc.lines:
+            totals[line.description] = totals.get(line.description, Decimal("0")) + Decimal(str(line.amount))
+    return totals
+
+
 def _sum_line(paychecks: list, description: str) -> Decimal:
     total = Decimal("0")
     for pc in paychecks:
@@ -44,6 +51,8 @@ def _load_paychecks(
     year: int,
     quarter: int = 0,
 ) -> list:
+    year_start = date(year, 1, 1)
+    year_end = date(year + 1, 1, 1)
     q = (
         db.query(Paycheck)
         .join(PayPeriod, Paycheck.pay_period_id == PayPeriod.id)
@@ -55,14 +64,17 @@ def _load_paychecks(
         .filter(
             PayPeriod.company_id == company_id,
             Paycheck.status != "voided",
-            func.strftime("%Y", PayPeriod.pay_date) == str(year),
+            PayPeriod.pay_date >= year_start,
+            PayPeriod.pay_date < year_end,
         )
     )
     if quarter and quarter in _QUARTER_MONTHS:
         m_start, m_end = _QUARTER_MONTHS[quarter]
+        q_start = date(year, m_start, 1)
+        q_end = date(year, m_end + 1, 1) if m_end < 12 else date(year + 1, 1, 1)
         q = q.filter(
-            func.strftime("%m", PayPeriod.pay_date) >= f"{m_start:02d}",
-            func.strftime("%m", PayPeriod.pay_date) <= f"{m_end:02d}",
+            PayPeriod.pay_date >= q_start,
+            PayPeriod.pay_date < q_end,
         )
     return q.all()
 
@@ -158,15 +170,17 @@ def tax_liability(
             pcs = by_period[pid]
             pp = periods_map[pid]
             gross = sum(Decimal(str(pc.gross_wages)) for pc in pcs)
-            fed = _sum_line(pcs, "Federal Income Tax")
-            ok = _sum_line(pcs, "Oklahoma Income Tax")
-            ss_emp = _sum_line(pcs, "Social Security (Employee)")
-            ss_er = _sum_line(pcs, "Social Security (Employer)")
-            med_emp = _sum_line(pcs, "Medicare (Employee)")
-            med_er = _sum_line(pcs, "Medicare (Employer)")
-            futa = _sum_line(pcs, "FUTA")
-            suta = _sum_line(pcs, "SUTA")
-            wc = _sum_line(pcs, "Workers Comp")
+            s = _sum_lines(pcs)
+            zero = Decimal("0")
+            fed = s.get("Federal Income Tax", zero)
+            ok = s.get("Oklahoma Income Tax", zero)
+            ss_emp = s.get("Social Security (Employee)", zero)
+            ss_er = s.get("Social Security (Employer)", zero)
+            med_emp = s.get("Medicare (Employee)", zero)
+            med_er = s.get("Medicare (Employer)", zero)
+            futa = s.get("FUTA", zero)
+            suta = s.get("SUTA", zero)
+            wc = s.get("Workers Comp", zero)
             total_cost = (
                 gross + ss_er + med_er + futa + suta + wc
             )
@@ -236,11 +250,13 @@ def quarterly_941(
         paychecks = _load_paychecks(db, company_id, year, quarter)
 
         gross = sum(Decimal(str(pc.gross_wages)) for pc in paychecks)
-        fed_tax = _sum_line(paychecks, "Federal Income Tax")
-        ss_emp = _sum_line(paychecks, "Social Security (Employee)")
-        ss_er = _sum_line(paychecks, "Social Security (Employer)")
-        med_emp = _sum_line(paychecks, "Medicare (Employee)")
-        med_er = _sum_line(paychecks, "Medicare (Employer)")
+        s = _sum_lines(paychecks)
+        zero = Decimal("0")
+        fed_tax = s.get("Federal Income Tax", zero)
+        ss_emp = s.get("Social Security (Employee)", zero)
+        ss_er = s.get("Social Security (Employer)", zero)
+        med_emp = s.get("Medicare (Employee)", zero)
+        med_er = s.get("Medicare (Employer)", zero)
 
         ss_wages = (ss_emp / Decimal("0.062")).quantize(Decimal("0.01")) if ss_emp else Decimal("0")
         med_wages = (med_emp / Decimal("0.0145")).quantize(Decimal("0.01")) if med_emp else Decimal("0")
@@ -375,7 +391,7 @@ def ok_withholding(
             )
             gross = sum(Decimal(str(pc.gross_wages)) for pc in pcs)
             ok_wages = gross - pre_tax_total
-            ok_tax = _sum_line(pcs, "Oklahoma Income Tax")
+            ok_tax = _sum_lines(pcs).get("Oklahoma Income Tax", Decimal("0"))
             rows.append({
                 "month": m,
                 "month_name": _MONTH_NAMES[m],
@@ -445,10 +461,12 @@ def w2_export(
 
         gross = sum(Decimal(str(pc.gross_wages)) for pc in pcs)
         deductions = sum(Decimal(str(pc.total_deductions)) for pc in pcs)
-        fed_tax = _sum_line(pcs, "Federal Income Tax")
-        ss_emp = _sum_line(pcs, "Social Security (Employee)")
-        med_emp = _sum_line(pcs, "Medicare (Employee)")
-        ok_tax = _sum_line(pcs, "Oklahoma Income Tax")
+        s = _sum_lines(pcs)
+        zero = Decimal("0")
+        fed_tax = s.get("Federal Income Tax", zero)
+        ss_emp = s.get("Social Security (Employee)", zero)
+        med_emp = s.get("Medicare (Employee)", zero)
+        ok_tax = s.get("Oklahoma Income Tax", zero)
 
         box1 = (gross - deductions).quantize(Decimal("0.01"))
         box3 = (ss_emp / Decimal("0.062")).quantize(Decimal("0.01")) if ss_emp else Decimal("0")
@@ -553,7 +571,8 @@ def client_liabilities_report(
             .join(PayPeriod, ClientLiability.pay_period_id == PayPeriod.id)
             .filter(
                 PayPeriod.company_id == company_id,
-                func.strftime("%Y", PayPeriod.pay_date) == str(year),
+                PayPeriod.pay_date >= date(year, 1, 1),
+                PayPeriod.pay_date < date(year + 1, 1, 1),
             )
             .all()
         )

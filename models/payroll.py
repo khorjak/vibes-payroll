@@ -29,12 +29,12 @@ class PayPeriod(Base):
     __tablename__ = "pay_periods"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), nullable=False)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), nullable=False, index=True)
     start_date: Mapped[date] = mapped_column(Date)
     end_date: Mapped[date] = mapped_column(Date)
-    pay_date: Mapped[date] = mapped_column(Date)
+    pay_date: Mapped[date] = mapped_column(Date, index=True)
     frequency: Mapped[str] = mapped_column(String(20))
-    status: Mapped[str] = mapped_column(String(20), default="open")
+    status: Mapped[str] = mapped_column(String(20), default="open", index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     company: Mapped["Company"] = relationship("Company", back_populates="pay_periods")
@@ -46,8 +46,8 @@ class Timesheet(Base):
     __tablename__ = "timesheets"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    employee_id: Mapped[int] = mapped_column(ForeignKey("employees.id"), nullable=False)
-    pay_period_id: Mapped[int] = mapped_column(ForeignKey("pay_periods.id"), nullable=False)
+    employee_id: Mapped[int] = mapped_column(ForeignKey("employees.id"), nullable=False, index=True)
+    pay_period_id: Mapped[int] = mapped_column(ForeignKey("pay_periods.id"), nullable=False, index=True)
     regular_hours: Mapped[Decimal] = mapped_column(Numeric(6, 2), default=0)
     overtime_hours: Mapped[Decimal] = mapped_column(Numeric(6, 2), default=0)
     double_time_hours: Mapped[Decimal] = mapped_column(Numeric(6, 2), default=0)
@@ -66,9 +66,9 @@ class Paycheck(Base):
     __tablename__ = "paychecks"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    employee_id: Mapped[int] = mapped_column(ForeignKey("employees.id"), nullable=False)
-    pay_period_id: Mapped[int] = mapped_column(ForeignKey("pay_periods.id"), nullable=False)
-    status: Mapped[str] = mapped_column(String(20), default="draft")
+    employee_id: Mapped[int] = mapped_column(ForeignKey("employees.id"), nullable=False, index=True)
+    pay_period_id: Mapped[int] = mapped_column(ForeignKey("pay_periods.id"), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(20), default="draft", index=True)
     gross_wages: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=0)
     total_deductions: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=0)
     total_taxes_withheld: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=0)
@@ -102,7 +102,7 @@ class PaycheckLine(Base):
     __tablename__ = "paycheck_lines"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    paycheck_id: Mapped[int] = mapped_column(ForeignKey("paychecks.id"), nullable=False)
+    paycheck_id: Mapped[int] = mapped_column(ForeignKey("paychecks.id"), nullable=False, index=True)
     line_type: Mapped[str] = mapped_column(String(20))  # earning, deduction, tax, employer_tax
     description: Mapped[str] = mapped_column(String(200))
     amount: Mapped[Decimal] = mapped_column(Numeric(12, 2))
@@ -118,9 +118,9 @@ class ClientLiability(Base):
     __tablename__ = "client_liabilities"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), nullable=False)
-    pay_period_id: Mapped[Optional[int]] = mapped_column(ForeignKey("pay_periods.id"))
-    paycheck_id: Mapped[Optional[int]] = mapped_column(ForeignKey("paychecks.id"))
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), nullable=False, index=True)
+    pay_period_id: Mapped[Optional[int]] = mapped_column(ForeignKey("pay_periods.id"), index=True)
+    paycheck_id: Mapped[Optional[int]] = mapped_column(ForeignKey("paychecks.id"), index=True)
     liability_type: Mapped[str] = mapped_column(String(40))
     payee_name: Mapped[str] = mapped_column(String(200))
     amount: Mapped[Decimal] = mapped_column(Numeric(12, 2))
