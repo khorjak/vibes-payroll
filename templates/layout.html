@@ -53,6 +53,17 @@
         Companies
       </a>
 
+      {% if has_role(request, 'admin') %}
+      <a href="/users/"
+         class="{{ nav_base }} {{ nav_active if active_nav == 'users' else nav_idle }}">
+        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M12 15a3 3 0 100-6 3 3 0 000 6zM12 15v4m0-13a4 4 0 100 8 4 4 0 000-8zM5 20a7 7 0 0114 0"/>
+        </svg>
+        Users
+      </a>
+      {% endif %}
+
       <div class="pt-4 pb-1 px-3">
         <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Payroll</p>
       </div>
@@ -98,7 +109,7 @@
     {% if flash %}
     <div x-data="{ show: true }" x-show="show" x-cloak
          class="mx-6 mt-4 px-4 py-3 rounded-md text-sm flex items-center justify-between
-                {% if flash in ['created','updated','w4_updated','ok_updated','enrolled','enrollment_ended','wc_added','benefit_added','calculated','approved','paid','voided'] %}
+                {% if flash in ['created','updated','w4_updated','ok_updated','enrolled','enrollment_ended','wc_added','benefit_added','calculated','approved','paid','voided','password_reset'] %}
                   bg-green-50 text-green-800 ring-1 ring-green-200
                 {% else %}
                   bg-red-50 text-red-800 ring-1 ring-red-200
@@ -116,6 +127,7 @@
         {% elif flash == 'approved' %}Payroll run approved.
         {% elif flash == 'paid' %}Pay period marked as paid.
         {% elif flash == 'voided' %}Paycheck voided.
+        {% elif flash == 'password_reset' %}Password reset.
         {% else %}An action was completed.
         {% endif %}
       </span>

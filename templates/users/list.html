@@ -1,0 +1,59 @@
+{% extends "layout.html" %}
+{% block title %}Users — Payroll{% endblock %}
+{% block breadcrumb %}Users{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+  <h1 class="text-2xl font-bold text-slate-900">Users</h1>
+  <a href="/users/new"
+     class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors">
+    + New User
+  </a>
+</div>
+
+<div class="bg-white rounded-lg border border-slate-200 overflow-hidden">
+  <table class="w-full text-sm">
+    <thead class="bg-slate-50 border-b border-slate-200">
+      <tr>
+        <th class="text-left px-4 py-3 font-medium text-slate-600">Username</th>
+        <th class="text-left px-4 py-3 font-medium text-slate-600">Role</th>
+        <th class="text-left px-4 py-3 font-medium text-slate-600">Status</th>
+        <th class="text-left px-4 py-3 font-medium text-slate-600">Created</th>
+        <th class="px-4 py-3"></th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-slate-100">
+      {% for u in users %}
+      <tr class="hover:bg-slate-50">
+        <td class="px-4 py-3 font-medium text-slate-800">
+          {{ u.username }}
+          {% if u.id == current_user_id %}<span class="text-xs text-slate-400">(you)</span>{% endif %}
+        </td>
+        <td class="px-4 py-3">
+          <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600">
+            {{ u.role | replace("_", " ") | title }}
+          </span>
+        </td>
+        <td class="px-4 py-3">
+          {% if u.is_active %}
+          <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700">Active</span>
+          {% else %}
+          <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-700">Inactive</span>
+          {% endif %}
+        </td>
+        <td class="px-4 py-3 text-slate-500">{{ u.created_at.strftime('%m/%d/%Y') if u.created_at else '—' }}</td>
+        <td class="px-4 py-3 text-right">
+          <a href="/users/{{ u.id }}/edit" class="text-indigo-600 hover:underline text-sm">Edit</a>
+          <span class="text-slate-300 mx-1">|</span>
+          <a href="/users/{{ u.id }}/reset-password" class="text-indigo-600 hover:underline text-sm">Reset Password</a>
+        </td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="5" class="px-4 py-10 text-center text-slate-400">No users yet.</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

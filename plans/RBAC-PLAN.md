@@ -1,6 +1,6 @@
 # RBAC Plan: 4-Role System (admin / preparer / approver / read_only)
 
-> Status: **Approved, not yet implemented.** This document is the reference plan for the work; update it if the design changes during implementation, and update `CLAUDE.md`'s Auth & CSRF section once it ships (see §8).
+> Status: **Implemented.** `CLAUDE.md`'s Auth & CSRF section has been updated per §8. This document remains the reference for the design rationale.
 
 ## Context
 

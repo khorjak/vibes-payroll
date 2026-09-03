@@ -7,7 +7,7 @@ from database import engine, SessionLocal
 from models import Base
 from config import settings
 from app_templates import templates
-from routers import companies, employees, pay_periods, reports
+from routers import companies, employees, pay_periods, reports, users
 from routers.auth import router as auth_router, hash_password
 from utils.csrf import csrf_token_global
 
@@ -41,6 +41,7 @@ app.include_router(companies.router)
 app.include_router(employees.router)
 app.include_router(pay_periods.router)
 app.include_router(reports.router)
+app.include_router(users.router)
 
 @app.middleware("http")
 async def security_headers(request: Request, call_next) -> Response:
@@ -61,10 +62,15 @@ async def security_headers(request: Request, call_next) -> Response:
 templates.env.globals["csrf_token"] = csrf_token_global
 
 
+def has_role(request, *roles):
+    return request.session.get("role") in roles or request.session.get("role") == "admin"
+
+
 def is_admin(request):
-    return request.session.get("role") == "admin"
+    return has_role(request, "admin")
 
 
+templates.env.globals["has_role"] = has_role
 templates.env.globals["is_admin"] = is_admin
 
 

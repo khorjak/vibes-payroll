@@ -1,75 +1,10 @@
 """
 Tests for Phase 6 authentication and authorization.
+
+auth_db/auth_client/admin_user/readonly_user/preparer_user/approver_user
+fixtures live in conftest.py (shared with tests/test_users.py).
 """
-import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
-
-from main import app
-from database import get_db
-from models.base import Base
-from models.user import User
 from routers.auth import hash_password
-
-
-@pytest.fixture()
-def auth_db():
-    """Isolated DB for auth tests — no dependency overrides so auth runs real."""
-    engine = create_engine(
-        "sqlite://",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
-    Base.metadata.create_all(engine)
-    Session = sessionmaker(bind=engine)
-    session = Session()
-    try:
-        yield session
-    finally:
-        session.close()
-        Base.metadata.drop_all(engine)
-
-
-@pytest.fixture()
-def auth_client(auth_db):
-    """TestClient with real auth (no overrides)."""
-    def override_get_db():
-        yield auth_db
-
-    app.dependency_overrides[get_db] = override_get_db
-    with TestClient(app, follow_redirects=False) as c:
-        yield c
-    app.dependency_overrides.clear()
-
-
-@pytest.fixture()
-def admin_user(auth_db):
-    user = User(
-        username="admin",
-        hashed_password=hash_password("secret123"),
-        role="admin",
-        is_active=True,
-    )
-    auth_db.add(user)
-    auth_db.commit()
-    auth_db.refresh(user)
-    return user
-
-
-@pytest.fixture()
-def readonly_user(auth_db):
-    user = User(
-        username="viewer",
-        hashed_password=hash_password("viewpass"),
-        role="read_only",
-        is_active=True,
-    )
-    auth_db.add(user)
-    auth_db.commit()
-    auth_db.refresh(user)
-    return user
 
 
 class TestLoginLogout:
@@ -174,6 +109,105 @@ class TestRoleEnforcement:
         # Redirect on success (303) or CSRF failure (403) — CSRF is active here
         # For role test we just confirm not 403 "Admin access required"
         assert r.status_code != 403 or "Admin" not in r.text
+
+    def test_preparer_can_post_employee(self, auth_client, preparer_user):
+        auth_client.post("/auth/login", data={
+            "username": "preparer",
+            "password": "preppass",
+            "next": "/",
+        })
+        r = auth_client.post("/employees/new", data={
+            "company_id": "1",
+            "first_name": "Jane",
+            "last_name": "Doe",
+            "employment_type": "salaried",
+            "pay_rate": "50000",
+            "csrf_token": "",
+        })
+        # Role check must pass — any remaining 403 is CSRF/validation, not role.
+        assert r.status_code != 403 or "Requires role" not in r.text
+
+    def test_approver_cannot_post_employee(self, auth_client, approver_user):
+        auth_client.post("/auth/login", data={
+            "username": "approver",
+            "password": "approvepass",
+            "next": "/",
+        })
+        r = auth_client.post("/employees/new", data={
+            "company_id": "1",
+            "first_name": "Jane",
+            "last_name": "Doe",
+            "employment_type": "salaried",
+            "pay_rate": "50000",
+        })
+        assert r.status_code == 403
+        assert "Requires role: preparer" in r.text
+
+    def test_readonly_cannot_post_employee(self, auth_client, readonly_user):
+        auth_client.post("/auth/login", data={
+            "username": "viewer",
+            "password": "viewpass",
+            "next": "/",
+        })
+        r = auth_client.post("/employees/new", data={
+            "company_id": "1",
+            "first_name": "Jane",
+            "last_name": "Doe",
+            "employment_type": "salaried",
+            "pay_rate": "50000",
+        })
+        assert r.status_code == 403
+        assert "Requires role: preparer" in r.text
+
+    def test_preparer_cannot_approve_payroll(self, auth_client, preparer_user):
+        auth_client.post("/auth/login", data={
+            "username": "preparer",
+            "password": "preppass",
+            "next": "/",
+        })
+        r = auth_client.post("/payroll/999/approve", data={"csrf_token": ""})
+        assert r.status_code == 403
+        assert "Requires role: approver" in r.text
+
+    def test_approver_can_pass_approve_role_check(self, auth_client, approver_user):
+        auth_client.post("/auth/login", data={
+            "username": "approver",
+            "password": "approvepass",
+            "next": "/",
+        })
+        r = auth_client.post("/payroll/999/approve", data={"csrf_token": ""})
+        # Role check must pass — any remaining 403 is CSRF, not role.
+        assert r.status_code != 403 or "Requires role" not in r.text
+
+    def test_readonly_cannot_approve_payroll(self, auth_client, readonly_user):
+        auth_client.post("/auth/login", data={
+            "username": "viewer",
+            "password": "viewpass",
+            "next": "/",
+        })
+        r = auth_client.post("/payroll/999/approve", data={"csrf_token": ""})
+        assert r.status_code == 403
+        assert "Requires role: approver" in r.text
+
+    def test_preparer_cannot_post_companies(self, auth_client, preparer_user):
+        auth_client.post("/auth/login", data={
+            "username": "preparer",
+            "password": "preppass",
+            "next": "/",
+        })
+        r = auth_client.post("/companies/new", data={"name": "Test Co"})
+        assert r.status_code == 403
+        assert "Requires role: admin" in r.text
+
+    def test_approver_cannot_post_companies(self, auth_client, approver_user):
+        auth_client.post("/auth/login", data={
+            "username": "approver",
+            "password": "approvepass",
+            "next": "/",
+        })
+        r = auth_client.post("/companies/new", data={"name": "Test Co"})
+        assert r.status_code == 403
+        assert "Requires role: admin" in r.text
 
 
 class TestHashPassword:

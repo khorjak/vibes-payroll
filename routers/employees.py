@@ -13,7 +13,7 @@ from models.benefit import BenefitPlan, EmployeeBenefitEnrollment
 from models.garnishment import GarnishmentOrder, GARNISHMENT_TYPES
 from utils.crypto import encrypt, decrypt
 from utils.forms import safe_float
-from routers.auth import AdminUser, get_current_user
+from routers.auth import PreparerUser, get_current_user
 from utils.csrf import CsrfProtect
 from services.audit import log_change
 
@@ -79,7 +79,7 @@ def new_employee(request: Request, db: Session = Depends(get_db)):
 @router.post("/new")
 def create_employee(
     request: Request,
-    current_user: AdminUser,
+    current_user: PreparerUser,
     _csrf: CsrfProtect,
     db: Session = Depends(get_db),
     company_id: int = Form(...),
@@ -220,7 +220,7 @@ def edit_employee(request: Request, employee_id: int, db: Session = Depends(get_
 @router.post("/{employee_id}/edit")
 def update_employee(
     request: Request,
-    current_user: AdminUser,
+    current_user: PreparerUser,
     _csrf: CsrfProtect,
     employee_id: int,
     db: Session = Depends(get_db),
@@ -311,7 +311,7 @@ def new_w4(request: Request, employee_id: int, db: Session = Depends(get_db)):
 
 @router.post("/{employee_id}/w4/new")
 def create_w4(
-    current_user: AdminUser,
+    current_user: PreparerUser,
     _csrf: CsrfProtect,
     employee_id: int,
     db: Session = Depends(get_db),
@@ -360,7 +360,7 @@ def new_ok_withholding(request: Request, employee_id: int, db: Session = Depends
 
 @router.post("/{employee_id}/ok-withholding/new")
 def create_ok_withholding(
-    current_user: AdminUser,
+    current_user: PreparerUser,
     _csrf: CsrfProtect,
     employee_id: int,
     db: Session = Depends(get_db),
@@ -390,7 +390,7 @@ def create_ok_withholding(
 
 @router.post("/{employee_id}/benefits/enroll")
 def enroll_benefit(
-    current_user: AdminUser,
+    current_user: PreparerUser,
     _csrf: CsrfProtect,
     employee_id: int,
     db: Session = Depends(get_db),
@@ -416,7 +416,7 @@ def enroll_benefit(
 
 @router.post("/{employee_id}/benefits/{enrollment_id}/terminate")
 def terminate_enrollment(
-    current_user: AdminUser,
+    current_user: PreparerUser,
     _csrf: CsrfProtect,
     employee_id: int,
     enrollment_id: int,
@@ -456,7 +456,7 @@ def list_garnishments(request: Request, employee_id: int, db: Session = Depends(
 
 @router.post("/{employee_id}/garnishments/new")
 def create_garnishment(
-    current_user: AdminUser,
+    current_user: PreparerUser,
     _csrf: CsrfProtect,
     employee_id: int,
     db: Session = Depends(get_db),
@@ -494,7 +494,7 @@ def create_garnishment(
 
 @router.post("/{employee_id}/garnishments/{order_id}/deactivate")
 def deactivate_garnishment(
-    current_user: AdminUser,
+    current_user: PreparerUser,
     _csrf: CsrfProtect,
     employee_id: int,
     order_id: int,

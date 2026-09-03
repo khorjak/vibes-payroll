@@ -201,13 +201,16 @@ class TestNewHiresReport:
 class TestReadOnlyRole:
     def test_no_role_hides_admin_ui(self, client):
         from app_templates import templates
-        original = templates.env.globals["is_admin"]
+        original_is_admin = templates.env.globals["is_admin"]
+        original_has_role = templates.env.globals["has_role"]
         templates.env.globals["is_admin"] = lambda request: False
+        templates.env.globals["has_role"] = lambda request, *roles: False
         try:
             r = client.get("/employees/")
             assert "+ New Employee" not in r.text
         finally:
-            templates.env.globals["is_admin"] = original
+            templates.env.globals["is_admin"] = original_is_admin
+            templates.env.globals["has_role"] = original_has_role
 
 
 class TestTerminatedEmployeeWarning:

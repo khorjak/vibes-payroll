@@ -23,7 +23,7 @@
       {% endif %}
     </div>
   </div>
-  {% if is_admin(request) %}
+  {% if has_role(request, 'preparer') %}
   <a href="/employees/{{ employee.id }}/edit"
      class="px-4 py-2 text-sm font-medium bg-white text-slate-700 rounded-md ring-1 ring-slate-300 hover:bg-slate-50 transition-colors">
     Edit

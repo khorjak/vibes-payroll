@@ -13,7 +13,7 @@ from services.payroll_service import (
     mark_period_paid,
     void_paycheck,
 )
-from routers.auth import AdminUser, get_current_user
+from routers.auth import PreparerUser, ApproverUser, get_current_user
 from utils.csrf import CsrfProtect
 from utils.forms import safe_float
 from services.audit import log_change
@@ -60,7 +60,7 @@ def new_pay_period(request: Request, db: Session = Depends(get_db)):
 @router.post("/new")
 def create_pay_period(
     request: Request,
-    current_user: AdminUser,
+    current_user: PreparerUser,
     _csrf: CsrfProtect,
     db: Session = Depends(get_db),
     company_id: int = Form(...),
@@ -130,7 +130,7 @@ def new_off_cycle(request: Request, db: Session = Depends(get_db)):
 @router.post("/off-cycle/new")
 def create_off_cycle(
     request: Request,
-    current_user: AdminUser,
+    current_user: PreparerUser,
     _csrf: CsrfProtect,
     db: Session = Depends(get_db),
     company_id: int = Form(...),
@@ -248,7 +248,7 @@ def paycheck_detail(
 
 @router.post("/paychecks/{paycheck_id}/void")
 def void_check(
-    current_user: AdminUser,
+    current_user: ApproverUser,
     _csrf: CsrfProtect,
     paycheck_id: int,
     db: Session = Depends(get_db),
@@ -457,7 +457,7 @@ def timesheet_grid(
 @router.post("/{period_id}/timesheets/{employee_id}")
 def save_timesheet_row(
     request: Request,
-    _: AdminUser,
+    _: PreparerUser,
     _csrf: CsrfProtect,
     period_id: int,
     employee_id: int,
@@ -513,7 +513,7 @@ def save_timesheet_row(
 
 @router.post("/{period_id}/calculate")
 def calculate_draft(
-    _: AdminUser,
+    _: PreparerUser,
     _csrf: CsrfProtect,
     period_id: int,
     db: Session = Depends(get_db),
@@ -537,7 +537,7 @@ def calculate_draft(
 
 @router.post("/{period_id}/approve")
 def approve_period(
-    current_user: AdminUser,
+    current_user: ApproverUser,
     _csrf: CsrfProtect,
     period_id: int,
     db: Session = Depends(get_db),
@@ -570,7 +570,7 @@ def approve_period(
 
 @router.post("/{period_id}/mark-paid")
 def mark_paid_period(
-    _: AdminUser,
+    _: ApproverUser,
     _csrf: CsrfProtect,
     period_id: int,
     db: Session = Depends(get_db),

@@ -11,7 +11,7 @@ from models.company import Company
 from models.employee import Employee
 from models.benefit import BenefitPlan
 from models.user import User
-from routers.auth import get_current_user, require_admin
+from routers.auth import get_current_user, require_admin, require_preparer, require_approver, hash_password
 from utils.csrf import _csrf_dep
 from main import app
 
@@ -45,17 +45,109 @@ def client(db):
 
     from app_templates import templates
     _original_is_admin = templates.env.globals.get("is_admin")
+    _original_has_role = templates.env.globals.get("has_role")
     templates.env.globals["is_admin"] = lambda request: True
+    templates.env.globals["has_role"] = lambda request, *roles: True
 
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_current_user] = lambda: _fake_admin
     app.dependency_overrides[require_admin] = lambda: _fake_admin
+    app.dependency_overrides[require_preparer] = lambda: _fake_admin
+    app.dependency_overrides[require_approver] = lambda: _fake_admin
     app.dependency_overrides[_csrf_dep] = lambda: None
     with TestClient(app, follow_redirects=False) as c:
         yield c
     app.dependency_overrides.clear()
     if _original_is_admin:
         templates.env.globals["is_admin"] = _original_is_admin
+    if _original_has_role:
+        templates.env.globals["has_role"] = _original_has_role
+
+
+@pytest.fixture()
+def auth_db():
+    """Isolated DB for auth/role tests — no dependency overrides so auth runs real."""
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(engine)
+    Session = sessionmaker(bind=engine)
+    session = Session()
+    try:
+        yield session
+    finally:
+        session.close()
+        Base.metadata.drop_all(engine)
+
+
+@pytest.fixture()
+def auth_client(auth_db):
+    """TestClient with real auth (no overrides)."""
+    def override_get_db():
+        yield auth_db
+
+    app.dependency_overrides[get_db] = override_get_db
+    with TestClient(app, follow_redirects=False) as c:
+        yield c
+    app.dependency_overrides.clear()
+
+
+@pytest.fixture()
+def admin_user(auth_db):
+    user = User(
+        username="admin",
+        hashed_password=hash_password("secret123"),
+        role="admin",
+        is_active=True,
+    )
+    auth_db.add(user)
+    auth_db.commit()
+    auth_db.refresh(user)
+    return user
+
+
+@pytest.fixture()
+def readonly_user(auth_db):
+    user = User(
+        username="viewer",
+        hashed_password=hash_password("viewpass"),
+        role="read_only",
+        is_active=True,
+    )
+    auth_db.add(user)
+    auth_db.commit()
+    auth_db.refresh(user)
+    return user
+
+
+@pytest.fixture()
+def preparer_user(auth_db):
+    user = User(
+        username="preparer",
+        hashed_password=hash_password("preppass"),
+        role="preparer",
+        is_active=True,
+    )
+    auth_db.add(user)
+    auth_db.commit()
+    auth_db.refresh(user)
+    return user
+
+
+@pytest.fixture()
+def approver_user(auth_db):
+    user = User(
+        username="approver",
+        hashed_password=hash_password("approvepass"),
+        role="approver",
+        is_active=True,
+    )
+    auth_db.add(user)
+    auth_db.commit()
+    auth_db.refresh(user)
+    return user
 
 
 @pytest.fixture()

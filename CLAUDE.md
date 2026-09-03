@@ -34,13 +34,16 @@ All routers import `templates` from **`app_templates.py`** — a single `Jinja2T
 
 ### Auth & CSRF
 
-- `routers/auth.py` — `get_current_user` / `require_admin` FastAPI dependencies; login/logout routes
+- `routers/auth.py` — `get_current_user` dependency; `require_role(*roles)` factory (admin always passes, otherwise role must be in the given list) backs `require_admin` / `require_preparer` / `require_approver`, exposed as the `AdminUser` / `PreparerUser` / `ApproverUser` typed dependencies; login/logout routes
+- Four roles (`models/user.py:USER_ROLES`): `admin` (superset — company/benefit/WC-code config, user management, everything below), `preparer` (employees, W-4/OK withholding, benefit enrollments, garnishments, timesheets, open pay periods, calculate draft), `approver` (approve run, void paycheck, mark paid), `read_only` (view only — no dependency needed, just doesn't satisfy any mutating route's role check)
+- `routers/companies.py` intentionally stays `AdminUser`-only for all mutating routes — company/benefit-plan/WC-code config is tenant-level setup, a different risk class than routine payroll prep, so it's not preparer-accessible. Don't "fix" this to `PreparerUser` — it's deliberate. Full rationale: `plans/RBAC-PLAN.md`
+- `routers/users.py` — admin-only user management (create/edit role & active flag/reset password); has a lockout guard preventing the last active admin from being demoted or deactivated
 - `utils/csrf.py` — `_csrf_dep` dependency + `csrf_token_global` Jinja2 global
-- Every router sets `dependencies=[Depends(get_current_user)]` at the `APIRouter` level; every mutating (POST) route also adds `current_user: AdminUser` + `_csrf: CsrfProtect`
+- Every router sets `dependencies=[Depends(get_current_user)]` at the `APIRouter` level; every mutating (POST) route also adds `current_user: AdminUser`/`PreparerUser`/`ApproverUser` + `_csrf: CsrfProtect`
 - Login rate limiting: 5 attempts per 5 minutes per IP:username (in-memory, `routers/auth.py`)
-- `is_admin(request)` Jinja2 global in `main.py` — reads `request.session.get("role") == "admin"`, defaults to `False`
+- `has_role(request, *roles)` Jinja2 global in `main.py` gates template UI (buttons etc.) — admin always satisfies it; `is_admin(request)` is `has_role(request, "admin")`, kept for templates that should stay admin-only (e.g. companies). This is UX only — the router dependency is the actual security boundary.
 - Security headers middleware in `main.py`: X-Frame-Options, CSP, nosniff, Referrer-Policy, HSTS (production)
-- **Tests**: `conftest.py` overrides `get_current_user`, `require_admin`, `_csrf_dep`, and `is_admin` template global on the `client` fixture so tests bypass auth, CSRF, and see admin UI. Auth-specific tests use a separate `auth_client` fixture that does NOT override these deps.
+- **Tests**: `conftest.py` overrides `get_current_user`, `require_admin`, `require_preparer`, `require_approver`, `_csrf_dep`, and the `is_admin`/`has_role` template globals on the `client` fixture so tests bypass auth, CSRF, and see admin UI. Auth/role-specific tests use `auth_client` (plus `admin_user`/`preparer_user`/`approver_user`/`readonly_user` fixtures, also in `conftest.py`) which does NOT override these deps, so auth runs for real — see `tests/test_auth.py`, `tests/test_roles.py`, `tests/test_users.py`.
 - Password hashing uses `bcrypt` directly (not passlib — passlib is incompatible with bcrypt 4.x+)
 
 ### Tax engine

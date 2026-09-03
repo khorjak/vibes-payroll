@@ -2,7 +2,7 @@ from sqlalchemy import String, Boolean
 from sqlalchemy.orm import Mapped, mapped_column
 from .base import Base, TimestampMixin
 
-USER_ROLES = ["admin", "read_only"]
+USER_ROLES = ["admin", "preparer", "approver", "read_only"]
 
 
 class User(Base, TimestampMixin):

@@ -35,6 +35,7 @@
        class="px-3 py-1.5 text-sm border border-slate-300 rounded-md text-slate-700 hover:bg-slate-50">
       Timesheets
     </a>
+    {% if has_role(request, 'preparer') %}
     <form method="post" action="/payroll/{{ pp.id }}/calculate">
       <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
       <button type="submit"
@@ -43,7 +44,8 @@
       </button>
     </form>
     {% endif %}
-    {% if s == 'draft' %}
+    {% endif %}
+    {% if s == 'draft' and has_role(request, 'approver') %}
     <form method="post" action="/payroll/{{ pp.id }}/approve"
           onsubmit="return confirm('Approve and lock all paychecks?')">
       <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
@@ -53,7 +55,7 @@
       </button>
     </form>
     {% endif %}
-    {% if s == 'approved' %}
+    {% if s == 'approved' and has_role(request, 'approver') %}
     <form method="post" action="/payroll/{{ pp.id }}/mark-paid"
           onsubmit="return confirm('Mark all paychecks as paid?')">
       <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
@@ -121,14 +123,14 @@
         <td class="px-4 py-3 text-right">
           <a href="/payroll/paychecks/{{ pc.id }}"
              class="text-indigo-600 hover:underline text-sm">Detail</a>
-          {% if pc.status in ('draft', 'approved') %}
+          {% if pc.status in ('draft', 'approved') and has_role(request, 'approver') %}
           <span class="text-slate-300 mx-1">|</span>
           <button onclick="document.getElementById('void-{{ pc.id }}').classList.remove('hidden')"
                   class="text-red-500 hover:underline text-sm">Void</button>
           {% endif %}
         </td>
       </tr>
-      {% if pc.status in ('draft', 'approved') %}
+      {% if pc.status in ('draft', 'approved') and has_role(request, 'approver') %}
       <tr id="void-{{ pc.id }}" class="hidden bg-red-50">
         <td colspan="7" class="px-4 py-3">
           <form method="post" action="/payroll/paychecks/{{ pc.id }}/void" class="flex gap-3 items-center">
@@ -174,7 +176,7 @@
 {% else %}
 <div class="bg-white rounded-lg border border-slate-200 py-16 text-center">
   <p class="text-slate-400 mb-4">No paychecks yet.</p>
-  {% if s == 'open' %}
+  {% if s == 'open' and has_role(request, 'preparer') %}
   <form method="post" action="/payroll/{{ pp.id }}/calculate" class="inline">
     <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
     <button type="submit"

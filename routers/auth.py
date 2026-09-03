@@ -31,14 +31,23 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
     return user
 
 
-def require_admin(current_user: User = Depends(get_current_user)) -> User:
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Admin access required")
-    return current_user
+def require_role(*allowed_roles: str):
+    """Dependency factory: admin always passes; otherwise role must be in allowed_roles."""
+    def _dependency(current_user: User = Depends(get_current_user)) -> User:
+        if current_user.role == "admin" or current_user.role in allowed_roles:
+            return current_user
+        raise HTTPException(status_code=403, detail=f"Requires role: {', '.join(allowed_roles)}")
+    return _dependency
 
+
+require_admin = require_role("admin")
+require_preparer = require_role("preparer")
+require_approver = require_role("approver")
 
 CurrentUser = Annotated[User, Depends(get_current_user)]
 AdminUser = Annotated[User, Depends(require_admin)]
+PreparerUser = Annotated[User, Depends(require_preparer)]
+ApproverUser = Annotated[User, Depends(require_approver)]
 
 
 @router.get("/login", response_class=HTMLResponse)
