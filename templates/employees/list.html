@@ -26,18 +26,18 @@
       hx-trigger="input changed delay:300ms, search"
       hx-target="#employee-table"
       hx-select="#employee-table"
-      hx-include="[name='status_filter'],[name='company_filter']"
+      hx-include="[name='status'],[name='company_id']"
       class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
   </div>
   <div>
     <label class="block text-xs font-medium text-slate-500 mb-1">Status</label>
     <select
-      name="status_filter"
+      name="status"
       hx-get="/employees/"
       hx-trigger="change"
       hx-target="#employee-table"
       hx-select="#employee-table"
-      hx-include="[name='q'],[name='company_filter']"
+      hx-include="[name='q'],[name='company_id']"
       class="rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
       <option value="">All statuses</option>
       {% for s in statuses %}
@@ -48,14 +48,14 @@
   <div>
     <label class="block text-xs font-medium text-slate-500 mb-1">Company</label>
     <select
-      name="company_filter"
+      name="company_id"
       hx-get="/employees/"
       hx-trigger="change"
       hx-target="#employee-table"
       hx-select="#employee-table"
-      hx-include="[name='q'],[name='status_filter']"
+      hx-include="[name='q'],[name='status']"
       class="rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-      <option value="">All companies</option>
+      <option value="all" {{ 'selected' if company_filter == 'all' }}>All my companies</option>
       {% for c in companies %}
       <option value="{{ c.id }}" {{ 'selected' if company_filter == c.id|string }}>{{ c.name }}</option>
       {% endfor %}

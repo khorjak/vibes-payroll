@@ -7,12 +7,20 @@
   <h1 class="text-xl font-semibold text-slate-800">Tax Liability Summary</h1>
 </div>
 
+{% if error %}
+<div class="mb-6 px-4 py-3 rounded-md text-sm bg-red-50 text-red-800 ring-1 ring-red-200">
+  {{ error }}
+</div>
+{% endif %}
 <form method="get" class="bg-white rounded-lg border border-slate-200 p-4 mb-6 flex flex-wrap gap-4 items-end">
   <div class="flex flex-col gap-1">
     <label class="text-xs font-medium text-slate-600">Company</label>
     <select name="company_id"
             class="text-sm rounded-md border border-slate-300 px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
       <option value="0">— Select Company —</option>
+      {% if allow_consolidated %}
+      <option value="-1" {% if consolidated %}selected{% endif %}>All my companies</option>
+      {% endif %}
       {% for co in companies %}
       <option value="{{ co.id }}" {% if co.id == company_id %}selected{% endif %}>{{ co.name }}</option>
       {% endfor %}
@@ -32,6 +40,11 @@
 </form>
 
 {% if rows %}
+{% set sections = groups if consolidated else [{'company': None, 'rows': rows, 'totals': yearly}] %}
+{% for section in sections %}
+{% if section.company %}
+<h2 class="text-sm font-semibold text-slate-700 mb-2 mt-6">{{ section.company.name }}</h2>
+{% endif %}
 <div class="bg-white rounded-lg border border-slate-200 overflow-x-auto">
   <table class="w-full text-sm whitespace-nowrap">
     <thead class="bg-slate-50 border-b border-slate-200">
@@ -50,7 +63,7 @@
       </tr>
     </thead>
     <tbody class="divide-y divide-slate-100">
-      {% for row in rows %}
+      {% for row in section.rows %}
       <tr class="hover:bg-slate-50">
         <td class="px-4 py-3 text-slate-700">{{ row.pay_date }}</td>
         <td class="px-4 py-3 text-right tabular-nums text-slate-500">{{ row.employee_count }}</td>
@@ -69,21 +82,31 @@
     <tfoot>
       <tr class="bg-slate-50 border-t border-slate-200 font-semibold">
         <td class="px-4 py-3 text-slate-700">Year Total</td>
-        <td class="px-4 py-3 text-right tabular-nums">{{ yearly.employee_count }}</td>
-        <td class="px-4 py-3 text-right tabular-nums">${{ "%.2f"|format(yearly.gross) }}</td>
-        <td class="px-4 py-3 text-right tabular-nums">${{ "%.2f"|format(yearly.fed) }}</td>
-        <td class="px-4 py-3 text-right tabular-nums">${{ "%.2f"|format(yearly.ok) }}</td>
-        <td class="px-4 py-3 text-right tabular-nums">${{ "%.2f"|format(yearly.fica_emp) }}</td>
-        <td class="px-4 py-3 text-right tabular-nums">${{ "%.2f"|format(yearly.fica_er) }}</td>
-        <td class="px-4 py-3 text-right tabular-nums">${{ "%.2f"|format(yearly.futa) }}</td>
-        <td class="px-4 py-3 text-right tabular-nums">${{ "%.2f"|format(yearly.suta) }}</td>
-        <td class="px-4 py-3 text-right tabular-nums">${{ "%.2f"|format(yearly.wc) }}</td>
-        <td class="px-4 py-3 text-right tabular-nums">${{ "%.2f"|format(yearly.total_cost) }}</td>
+        <td class="px-4 py-3 text-right tabular-nums">{{ section.totals.employee_count }}</td>
+        <td class="px-4 py-3 text-right tabular-nums">${{ "%.2f"|format(section.totals.gross) }}</td>
+        <td class="px-4 py-3 text-right tabular-nums">${{ "%.2f"|format(section.totals.fed) }}</td>
+        <td class="px-4 py-3 text-right tabular-nums">${{ "%.2f"|format(section.totals.ok) }}</td>
+        <td class="px-4 py-3 text-right tabular-nums">${{ "%.2f"|format(section.totals.fica_emp) }}</td>
+        <td class="px-4 py-3 text-right tabular-nums">${{ "%.2f"|format(section.totals.fica_er) }}</td>
+        <td class="px-4 py-3 text-right tabular-nums">${{ "%.2f"|format(section.totals.futa) }}</td>
+        <td class="px-4 py-3 text-right tabular-nums">${{ "%.2f"|format(section.totals.suta) }}</td>
+        <td class="px-4 py-3 text-right tabular-nums">${{ "%.2f"|format(section.totals.wc) }}</td>
+        <td class="px-4 py-3 text-right tabular-nums">${{ "%.2f"|format(section.totals.total_cost) }}</td>
       </tr>
     </tfoot>
   </table>
 </div>
 
+{% endfor %}
+{% if consolidated and groups %}
+<div class="bg-slate-50 rounded-lg border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-900 flex justify-between">
+  <span>All companies — grand total employer cost</span>
+  <span class="tabular-nums">${{ "%.2f"|format(yearly.total_cost) }}</span>
+</div>
+<p class="mt-2 text-xs text-slate-500">
+  Federal deposit schedules are determined per EIN — use the per-company subtotals above for deposit planning.
+</p>
+{% endif %}
 {% elif company_id and year %}
 <div class="bg-white rounded-lg border border-slate-200 px-4 py-10 text-center text-slate-400 text-sm">
   No payroll data found for {{ year }}.

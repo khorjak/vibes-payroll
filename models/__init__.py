@@ -7,6 +7,7 @@ from .payroll import PayPeriod, Timesheet, Paycheck, PaycheckLine, ClientLiabili
 from .garnishment import GarnishmentOrder
 from .audit import AuditLog
 from .user import User
+from .user_company import UserCompany
 
 __all__ = [
     "Base",
@@ -25,4 +26,5 @@ __all__ = [
     "GarnishmentOrder",
     "AuditLog",
     "User",
+    "UserCompany",
 ]

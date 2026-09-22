@@ -1,6 +1,7 @@
 from datetime import date
 from fastapi import APIRouter, Depends, Form, Request, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
+from sqlalchemy import false
 from sqlalchemy.orm import Session, joinedload
 from database import get_db
 from models.company import Company
@@ -13,7 +14,13 @@ from models.benefit import BenefitPlan, EmployeeBenefitEnrollment
 from models.garnishment import GarnishmentOrder, GARNISHMENT_TYPES
 from utils.crypto import encrypt, decrypt
 from utils.forms import safe_float
-from routers.auth import PreparerUser, get_current_user
+from routers.auth import ActiveCompany, CurrentUser, PreparerUser, get_current_user
+from utils.company_scope import (
+    accessible_companies,
+    assert_company_access,
+    get_scoped_employee,
+    scope_query,
+)
 from utils.csrf import CsrfProtect
 from services.audit import log_change
 
@@ -23,9 +30,33 @@ router = APIRouter(prefix="/employees", tags=["employees"],
                    dependencies=[Depends(get_current_user)])
 
 
+def _company_wc_codes(db: Session, company_id) -> list[WorkersCompCode]:
+    """WC codes belong to one company -- never list them across companies."""
+    if not company_id:
+        return []
+    return (
+        db.query(WorkersCompCode)
+        .filter(WorkersCompCode.company_id == company_id)
+        .order_by(WorkersCompCode.ncci_code)
+        .all()
+    )
+
+
+def _validate_wc_code(db: Session, company_id: int, wc_code_id: str) -> tuple[int | None, str | None]:
+    """Resolve a submitted WC code id, rejecting one from a different company."""
+    if not wc_code_id:
+        return None, None
+    code = db.query(WorkersCompCode).filter(WorkersCompCode.id == int(wc_code_id)).first()
+    if not code or code.company_id != company_id:
+        return None, "Select a workers comp code belonging to this company."
+    return code.id, None
+
+
 @router.get("/", response_class=HTMLResponse)
 def list_employees(
     request: Request,
+    current_user: CurrentUser,
+    active_company: ActiveCompany,
     db: Session = Depends(get_db),
     q: str = "",
     status: str = "",
@@ -40,10 +71,20 @@ def list_employees(
         )
     if status:
         query = query.filter(Employee.status == status)
-    if company_id:
+    # No explicit filter means the active company, not every company.
+    if company_id == "all":
+        query = scope_query(query, Employee.company_id, current_user, db)
+    elif company_id:
+        assert_company_access(current_user, int(company_id), db)
         query = query.filter(Employee.company_id == int(company_id))
+    elif active_company:
+        company_id = str(active_company.id)
+        query = query.filter(Employee.company_id == active_company.id)
+    else:
+        # No accessible company at all -- show nothing rather than everything.
+        query = query.filter(false())
     employees = query.order_by(Employee.last_name, Employee.first_name).all()
-    companies = db.query(Company).order_by(Company.name).all()
+    companies = accessible_companies(current_user, db)
 
     if request.headers.get("HX-Request"):
         return templates.TemplateResponse(request, "employees/_table.html", {
@@ -62,17 +103,43 @@ def list_employees(
 
 
 @router.get("/new", response_class=HTMLResponse)
-def new_employee(request: Request, db: Session = Depends(get_db)):
-    companies = db.query(Company).order_by(Company.name).all()
-    wc_codes = db.query(WorkersCompCode).order_by(WorkersCompCode.ncci_code).all()
+def new_employee(
+    request: Request,
+    current_user: CurrentUser,
+    active_company: ActiveCompany,
+    db: Session = Depends(get_db),
+):
     return templates.TemplateResponse(request, "employees/form.html", {
         "employee": None,
-        "companies": companies,
-        "wc_codes": wc_codes,
+        "companies": accessible_companies(current_user, db),
+        "selected_company_id": active_company.id if active_company else None,
+        "wc_codes": _company_wc_codes(db, active_company.id if active_company else None),
         "employment_types": EMPLOYMENT_TYPES,
         "statuses": EMPLOYEE_STATUSES,
         "errors": {},
         "active_nav": "employees",
+    })
+
+
+@router.get("/wc-code-options", response_class=HTMLResponse)
+def wc_code_options(
+    request: Request,
+    current_user: CurrentUser,
+    db: Session = Depends(get_db),
+    company_id: int = 0,
+    selected: int = 0,
+):
+    """HTMX partial: re-render the WC code <select> options for one company.
+
+    Declared before /{employee_id} so the literal path is not swallowed by the
+    int path param. Scoped like any other read -- an out-of-scope company_id
+    404s, so this cannot be used to enumerate another tenant's codes.
+    """
+    if company_id:
+        assert_company_access(current_user, company_id, db)
+    return templates.TemplateResponse(request, "employees/_wc_options.html", {
+        "wc_codes": _company_wc_codes(db, company_id),
+        "selected_wc_code_id": selected or None,
     })
 
 
@@ -104,6 +171,8 @@ def create_employee(
     routing_number: str = Form(""),
     account_number: str = Form(""),
 ):
+    assert_company_access(current_user, company_id, db)
+
     errors = {}
     if not first_name.strip():
         errors["first_name"] = "First name is required."
@@ -114,13 +183,16 @@ def create_employee(
     elif employment_type in ("hourly", "part_time") and safe_float(pay_rate, "pay_rate") < 7.25:
         errors["pay_rate"] = "Pay rate must be at least $7.25/hr (federal minimum wage)."
 
+    wc_code_id, wc_error = _validate_wc_code(db, company_id, workers_comp_code_id)
+    if wc_error:
+        errors["workers_comp_code_id"] = wc_error
+
     if errors:
-        companies = db.query(Company).order_by(Company.name).all()
-        wc_codes = db.query(WorkersCompCode).order_by(WorkersCompCode.ncci_code).all()
         return templates.TemplateResponse(request, "employees/form.html", {
             "employee": None,
-            "companies": companies,
-            "wc_codes": wc_codes,
+            "companies": accessible_companies(current_user, db),
+            "selected_company_id": company_id,
+            "wc_codes": _company_wc_codes(db, company_id),
             "employment_types": EMPLOYMENT_TYPES,
             "statuses": EMPLOYEE_STATUSES,
             "errors": errors,
@@ -148,7 +220,7 @@ def create_employee(
         city=city.strip() or None,
         state=state.strip() or "OK",
         zip_code=zip_code.strip() or None,
-        workers_comp_code_id=int(workers_comp_code_id) if workers_comp_code_id else None,
+        workers_comp_code_id=wc_code_id,
     )
     db.add(employee)
     db.commit()
@@ -164,21 +236,20 @@ def create_employee(
 @router.get("/{employee_id}", response_class=HTMLResponse)
 def get_employee(
     request: Request,
+    current_user: CurrentUser,
     employee_id: int,
     db: Session = Depends(get_db),
     flash: str = "",
 ):
-    employee = db.query(Employee).options(
+    employee = get_scoped_employee(
+        db, current_user, employee_id,
         joinedload(Employee.company),
         joinedload(Employee.w4_elections),
         joinedload(Employee.ok_withholding_elections),
         joinedload(Employee.benefit_enrollments).joinedload(EmployeeBenefitEnrollment.plan),
         joinedload(Employee.workers_comp_code),
         joinedload(Employee.garnishment_orders),
-    ).filter(Employee.id == employee_id).first()
-
-    if not employee:
-        raise HTTPException(status_code=404, detail="Employee not found")
+    )
 
     ssn_display = None
     if employee.ssn_encrypted:
@@ -200,16 +271,15 @@ def get_employee(
 
 
 @router.get("/{employee_id}/edit", response_class=HTMLResponse)
-def edit_employee(request: Request, employee_id: int, db: Session = Depends(get_db)):
-    employee = db.query(Employee).filter(Employee.id == employee_id).first()
-    if not employee:
-        raise HTTPException(status_code=404, detail="Employee not found")
-    companies = db.query(Company).order_by(Company.name).all()
-    wc_codes = db.query(WorkersCompCode).order_by(WorkersCompCode.ncci_code).all()
+def edit_employee(
+    request: Request, current_user: CurrentUser, employee_id: int, db: Session = Depends(get_db),
+):
+    employee = get_scoped_employee(db, current_user, employee_id)
     return templates.TemplateResponse(request, "employees/form.html", {
         "employee": employee,
-        "companies": companies,
-        "wc_codes": wc_codes,
+        "companies": accessible_companies(current_user, db),
+        "selected_company_id": employee.company_id,
+        "wc_codes": _company_wc_codes(db, employee.company_id),
         "employment_types": EMPLOYMENT_TYPES,
         "statuses": EMPLOYEE_STATUSES,
         "errors": {},
@@ -246,20 +316,27 @@ def update_employee(
     routing_number: str = Form(""),
     account_number: str = Form(""),
 ):
-    employee = db.query(Employee).filter(Employee.id == employee_id).first()
-    if not employee:
-        raise HTTPException(status_code=404, detail="Employee not found")
+    employee = get_scoped_employee(db, current_user, employee_id)
+    # Reassignment must not move an employee into a company the user cannot see.
+    assert_company_access(current_user, company_id, db)
 
+    errors = {}
     if employment_type in ("hourly", "part_time") and pay_rate and safe_float(pay_rate, "pay_rate") < 7.25:
-        companies = db.query(Company).order_by(Company.name).all()
-        wc_codes = db.query(WorkersCompCode).order_by(WorkersCompCode.ncci_code).all()
+        errors["pay_rate"] = "Pay rate must be at least $7.25/hr (federal minimum wage)."
+
+    wc_code_id, wc_error = _validate_wc_code(db, company_id, workers_comp_code_id)
+    if wc_error:
+        errors["workers_comp_code_id"] = wc_error
+
+    if errors:
         return templates.TemplateResponse(request, "employees/form.html", {
             "employee": employee,
-            "companies": companies,
-            "wc_codes": wc_codes,
+            "companies": accessible_companies(current_user, db),
+            "selected_company_id": company_id,
+            "wc_codes": _company_wc_codes(db, company_id),
             "employment_types": EMPLOYMENT_TYPES,
             "statuses": EMPLOYEE_STATUSES,
-            "errors": {"pay_rate": "Pay rate must be at least $7.25/hr (federal minimum wage)."},
+            "errors": errors,
             "active_nav": "employees",
         }, status_code=422)
 
@@ -281,7 +358,7 @@ def update_employee(
     employee.city = city.strip() or None
     employee.state = state.strip() or "OK"
     employee.zip_code = zip_code.strip() or None
-    employee.workers_comp_code_id = int(workers_comp_code_id) if workers_comp_code_id else None
+    employee.workers_comp_code_id = wc_code_id
     if routing_number.strip():
         employee.routing_number_encrypted = encrypt(routing_number.strip())
     if account_number.strip():
@@ -297,10 +374,10 @@ def update_employee(
 # --- W-4 Elections ---
 
 @router.get("/{employee_id}/w4/new", response_class=HTMLResponse)
-def new_w4(request: Request, employee_id: int, db: Session = Depends(get_db)):
-    employee = db.query(Employee).filter(Employee.id == employee_id).first()
-    if not employee:
-        raise HTTPException(status_code=404, detail="Employee not found")
+def new_w4(
+    request: Request, current_user: CurrentUser, employee_id: int, db: Session = Depends(get_db),
+):
+    employee = get_scoped_employee(db, current_user, employee_id)
     return templates.TemplateResponse(request, "employees/w4_form.html", {
         "employee": employee,
         "filing_statuses": FILING_STATUSES,
@@ -323,6 +400,7 @@ def create_w4(
     deductions_amount: str = Form("0"),
     extra_withholding: str = Form("0"),
 ):
+    get_scoped_employee(db, current_user, employee_id)
     election = W4Election(
         employee_id=employee_id,
         effective_date=date.fromisoformat(effective_date),
@@ -346,10 +424,10 @@ def create_w4(
 # --- Oklahoma Withholding Elections ---
 
 @router.get("/{employee_id}/ok-withholding/new", response_class=HTMLResponse)
-def new_ok_withholding(request: Request, employee_id: int, db: Session = Depends(get_db)):
-    employee = db.query(Employee).filter(Employee.id == employee_id).first()
-    if not employee:
-        raise HTTPException(status_code=404, detail="Employee not found")
+def new_ok_withholding(
+    request: Request, current_user: CurrentUser, employee_id: int, db: Session = Depends(get_db),
+):
+    employee = get_scoped_employee(db, current_user, employee_id)
     return templates.TemplateResponse(request, "employees/ok_form.html", {
         "employee": employee,
         "filing_statuses": ["single", "married"],
@@ -369,6 +447,7 @@ def create_ok_withholding(
     allowances: str = Form("0"),
     extra_withholding: str = Form("0"),
 ):
+    get_scoped_employee(db, current_user, employee_id)
     election = OKWithholdingElection(
         employee_id=employee_id,
         effective_date=date.fromisoformat(effective_date),
@@ -398,6 +477,14 @@ def enroll_benefit(
     effective_date: str = Form(...),
     employee_override_amount: str = Form(""),
 ):
+    employee = get_scoped_employee(db, current_user, employee_id)
+    # A benefit plan belongs to one company -- never enroll across companies.
+    plan = db.query(BenefitPlan).filter(
+        BenefitPlan.id == benefit_plan_id,
+        BenefitPlan.company_id == employee.company_id,
+    ).first()
+    if not plan:
+        raise HTTPException(status_code=404, detail="Benefit plan not found")
     enrollment = EmployeeBenefitEnrollment(
         employee_id=employee_id,
         benefit_plan_id=benefit_plan_id,
@@ -423,6 +510,7 @@ def terminate_enrollment(
     db: Session = Depends(get_db),
     end_date: str = Form(...),
 ):
+    get_scoped_employee(db, current_user, employee_id)
     enrollment = db.query(EmployeeBenefitEnrollment).filter(
         EmployeeBenefitEnrollment.id == enrollment_id,
         EmployeeBenefitEnrollment.employee_id == employee_id,
@@ -440,12 +528,12 @@ def terminate_enrollment(
 # --- Garnishment Orders ---
 
 @router.get("/{employee_id}/garnishments", response_class=HTMLResponse)
-def list_garnishments(request: Request, employee_id: int, db: Session = Depends(get_db)):
-    employee = db.query(Employee).options(
-        joinedload(Employee.garnishment_orders),
-    ).filter(Employee.id == employee_id).first()
-    if not employee:
-        raise HTTPException(status_code=404, detail="Employee not found")
+def list_garnishments(
+    request: Request, current_user: CurrentUser, employee_id: int, db: Session = Depends(get_db),
+):
+    employee = get_scoped_employee(
+        db, current_user, employee_id, joinedload(Employee.garnishment_orders),
+    )
     return templates.TemplateResponse(request, "employees/garnishments.html", {
         "employee": employee,
         "garnishment_types": GARNISHMENT_TYPES,
@@ -470,9 +558,7 @@ def create_garnishment(
     case_number: str = Form(""),
     notes: str = Form(""),
 ):
-    employee = db.query(Employee).filter(Employee.id == employee_id).first()
-    if not employee:
-        raise HTTPException(status_code=404, detail="Employee not found")
+    get_scoped_employee(db, current_user, employee_id)
 
     order = GarnishmentOrder(
         employee_id=employee_id,
@@ -501,6 +587,7 @@ def deactivate_garnishment(
     db: Session = Depends(get_db),
     end_date: str = Form(...),
 ):
+    get_scoped_employee(db, current_user, employee_id)
     order = db.query(GarnishmentOrder).filter(
         GarnishmentOrder.id == order_id,
         GarnishmentOrder.employee_id == employee_id,

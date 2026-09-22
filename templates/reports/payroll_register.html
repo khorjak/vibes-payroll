@@ -13,6 +13,11 @@
   {% endif %}
 </div>
 
+{% if error %}
+<div class="mb-6 px-4 py-3 rounded-md text-sm bg-red-50 text-red-800 ring-1 ring-red-200">
+  {{ error }}
+</div>
+{% endif %}
 <form method="get" class="bg-white rounded-lg border border-slate-200 p-4 mb-6 flex flex-wrap gap-4 items-end">
   <div class="flex flex-col gap-1">
     <label class="text-xs font-medium text-slate-600">Company</label>
@@ -20,6 +25,9 @@
             onchange="this.form.submit()"
             class="text-sm rounded-md border border-slate-300 px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
       <option value="0">— Select Company —</option>
+      {% if allow_consolidated %}
+      <option value="-1" {% if consolidated %}selected{% endif %}>All my companies</option>
+      {% endif %}
       {% for co in companies %}
       <option value="{{ co.id }}" {% if co.id == company_id %}selected{% endif %}>{{ co.name }}</option>
       {% endfor %}
@@ -34,7 +42,7 @@
       <option value="0">— Select Period —</option>
       {% for pp in periods %}
       <option value="{{ pp.id }}" {% if pp.id == pay_period_id %}selected{% endif %}>
-        {{ pp.pay_date }} ({{ pp.start_date }} – {{ pp.end_date }})
+        {% if consolidated %}{{ pp.company.name }} — {% endif %}{{ pp.pay_date }} ({{ pp.start_date }} – {{ pp.end_date }})
       </option>
       {% endfor %}
     </select>

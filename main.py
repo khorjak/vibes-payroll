@@ -1,14 +1,17 @@
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.responses import Response
-from database import engine, SessionLocal
+from database import engine, get_db, SessionLocal
 from models import Base
 from config import settings
 from app_templates import templates
 from routers import companies, employees, pay_periods, reports, users
-from routers.auth import router as auth_router, hash_password
+from routers.auth import (
+    ActiveCompany, CurrentUser, router as auth_router, hash_password,
+)
 from utils.csrf import csrf_token_global
 
 Base.metadata.create_all(bind=engine)
@@ -70,8 +73,45 @@ def is_admin(request):
     return has_role(request, "admin")
 
 
+def company_context(request):
+    """Jinja2 global backing the nav company switcher.
+
+    Returns {"active": Company|None, "available": [Company, ...]}. Opens its own
+    short-lived session so no route has to thread switcher data into its context.
+    """
+    from models.company import Company
+    from models.user import User
+    from utils.company_scope import accessible_companies
+
+    empty = {"active": None, "available": []}
+    user_id = request.session.get("user_id")
+    if not user_id:
+        return empty
+
+    # Routes with an ActiveCompany dependency already resolved this; reuse it
+    # rather than opening a second session per page render.
+    stashed = getattr(request.state, "company_context", None)
+    if stashed is not None:
+        return stashed
+
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            return empty
+        available = accessible_companies(user, db)
+        active_id = request.session.get("company_id")
+        active = next((c for c in available if c.id == active_id), None)
+        if active is None and available:
+            active = available[0]
+        return {"active": active, "available": available}
+    finally:
+        db.close()
+
+
 templates.env.globals["has_role"] = has_role
 templates.env.globals["is_admin"] = is_admin
+templates.env.globals["company_context"] = company_context
 
 
 @app.exception_handler(401)
@@ -84,24 +124,43 @@ async def auth_exception_handler(request: Request, exc):
 
 
 @app.get("/", response_class=HTMLResponse)
-def dashboard(request: Request):
-    if not request.session.get("user_id"):
-        return RedirectResponse("/auth/login?next=/", status_code=302)
+def dashboard(
+    request: Request,
+    current_user: CurrentUser,
+    active_company: ActiveCompany,
+    db: Session = Depends(get_db),
+):
+    """Dashboard.
 
-    db = SessionLocal()
-    try:
-        from models.company import Company
-        from models.employee import Employee
-        from models.payroll import PayPeriod
-        company_count = db.query(Company).count()
-        employee_count = db.query(Employee).filter(Employee.status == "active").count()
-        open_pay_runs = db.query(PayPeriod).filter(PayPeriod.status.in_(["open", "draft"])).count()
-    finally:
-        db.close()
+    Uses the normal dependencies rather than hand-rolling a session: that gets
+    the request-scoped company cache and the nav switcher stash for free (this
+    route previously opened two extra sessions per render), and an
+    unauthenticated hit raises 401, which the handler above turns into the same
+    login redirect as before.
+    """
+    from models.employee import Employee
+    from models.payroll import PayPeriod
+    from utils.company_scope import accessible_companies
+
+    # Counts are scoped to the active company -- global counts would leak the
+    # size of payroll clients this user has no access to.
+    company_count = len(accessible_companies(current_user, db))
+    if active_company:
+        employee_count = db.query(Employee).filter(
+            Employee.company_id == active_company.id, Employee.status == "active",
+        ).count()
+        open_pay_runs = db.query(PayPeriod).filter(
+            PayPeriod.company_id == active_company.id,
+            PayPeriod.status.in_(["open", "draft"]),
+        ).count()
+    else:
+        employee_count = 0
+        open_pay_runs = 0
 
     return templates.TemplateResponse(request, "index.html", {
         "company_count": company_count,
         "employee_count": employee_count,
         "open_pay_runs": open_pay_runs,
+        "active_company_name": active_company.name if active_company else None,
         "active_nav": "dashboard",
     })

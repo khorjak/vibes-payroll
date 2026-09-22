@@ -4,7 +4,9 @@ from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from database import get_db
+from models.company import Company
 from models.user import User, USER_ROLES
+from models.user_company import UserCompany
 from routers.auth import AdminUser, get_current_user, hash_password
 from utils.csrf import CsrfProtect
 from services.audit import log_change
@@ -17,11 +19,68 @@ router = APIRouter(prefix="/users", tags=["users"],
 _MIN_PASSWORD_LENGTH = 8
 
 
+def _all_companies(db: Session) -> list[Company]:
+    return db.query(Company).order_by(Company.name).all()
+
+
+def _assigned_company_ids(db: Session, user_id: int) -> set[int]:
+    return {
+        row.company_id
+        for row in db.query(UserCompany).filter(UserCompany.user_id == user_id).all()
+    }
+
+
+def _sync_company_assignments(
+    db: Session, target_user: User, submitted_ids: list[int], changed_by: str,
+) -> None:
+    """Diff submitted company ids against stored rows; insert/delete the difference.
+
+    Admins are not assigned -- they bypass company scope entirely -- so any
+    submitted ids are ignored for them. Grants and revokes are audit-logged
+    because company access is a security boundary, like a role change.
+    """
+    if target_user.role == "admin":
+        return
+
+    valid_ids = {c.id for c in _all_companies(db)}
+    wanted = {cid for cid in submitted_ids if cid in valid_ids}
+    existing = _assigned_company_ids(db, target_user.id)
+
+    for company_id in sorted(wanted - existing):
+        row = UserCompany(user_id=target_user.id, company_id=company_id)
+        db.add(row)
+        db.flush()
+        log_change(db, "user_companies", row.id, "insert",
+                   changed_by=changed_by,
+                   new_values={"user_id": target_user.id, "company_id": company_id})
+
+    removed = existing - wanted
+    if removed:
+        rows_to_delete = db.query(UserCompany).filter(
+            UserCompany.user_id == target_user.id,
+            UserCompany.company_id.in_(removed),
+        ).order_by(UserCompany.company_id).all()
+        for row in rows_to_delete:
+            log_change(db, "user_companies", row.id, "delete",
+                       changed_by=changed_by,
+                       old_values={"user_id": target_user.id, "company_id": row.company_id})
+            db.delete(row)
+
+
 @router.get("/", response_class=HTMLResponse)
 def list_users(request: Request, _: AdminUser, db: Session = Depends(get_db), flash: str = ""):
     users = db.query(User).order_by(User.username).all()
+    companies = {c.id: c for c in _all_companies(db)}
+    assignments: dict[int, list[str]] = {}
+    for row in db.query(UserCompany).all():
+        company = companies.get(row.company_id)
+        if company:
+            assignments.setdefault(row.user_id, []).append(company.name)
+    for names in assignments.values():
+        names.sort()
     return templates.TemplateResponse(request, "users/list.html", {
         "users": users,
+        "assignments": assignments,
         "flash": flash,
         "current_user_id": request.session.get("user_id"),
         "active_nav": "users",
@@ -29,10 +88,12 @@ def list_users(request: Request, _: AdminUser, db: Session = Depends(get_db), fl
 
 
 @router.get("/new", response_class=HTMLResponse)
-def new_user(request: Request, _: AdminUser):
+def new_user(request: Request, _: AdminUser, db: Session = Depends(get_db)):
     return templates.TemplateResponse(request, "users/form.html", {
         "target_user": None,
         "roles": USER_ROLES,
+        "companies": _all_companies(db),
+        "assigned_company_ids": set(),
         "errors": {},
         "active_nav": "users",
     })
@@ -47,6 +108,7 @@ def create_user(
     username: str = Form(...),
     password: str = Form(...),
     role: str = Form(...),
+    company_ids: list[int] = Form(default=[]),
 ):
     errors = {}
     username = username.strip()
@@ -63,6 +125,8 @@ def create_user(
         return templates.TemplateResponse(request, "users/form.html", {
             "target_user": None,
             "roles": USER_ROLES,
+            "companies": _all_companies(db),
+            "assigned_company_ids": set(company_ids),
             "errors": errors,
             "active_nav": "users",
         }, status_code=422)
@@ -85,12 +149,15 @@ def create_user(
         return templates.TemplateResponse(request, "users/form.html", {
             "target_user": None,
             "roles": USER_ROLES,
+            "companies": _all_companies(db),
+            "assigned_company_ids": set(company_ids),
             "errors": {"username": "That username is already taken."},
             "active_nav": "users",
         }, status_code=422)
     log_change(db, "users", user.id, "insert",
                changed_by=current_user.username,
                new_values={"username": user.username, "role": user.role})
+    _sync_company_assignments(db, user, company_ids, current_user.username)
     db.commit()
     return RedirectResponse("/users/?flash=created", status_code=303)
 
@@ -103,6 +170,8 @@ def edit_user(request: Request, user_id: int, _: AdminUser, db: Session = Depend
     return templates.TemplateResponse(request, "users/form.html", {
         "target_user": target_user,
         "roles": USER_ROLES,
+        "companies": _all_companies(db),
+        "assigned_company_ids": _assigned_company_ids(db, user_id),
         "errors": {},
         "active_nav": "users",
     })
@@ -117,6 +186,7 @@ def update_user(
     db: Session = Depends(get_db),
     role: str = Form(...),
     is_active: str = Form(""),
+    company_ids: list[int] = Form(default=[]),
 ):
     target_user = db.query(User).filter(User.id == user_id).first()
     if not target_user:
@@ -130,6 +200,8 @@ def update_user(
         return templates.TemplateResponse(request, "users/form.html", {
             "target_user": target_user,
             "roles": USER_ROLES,
+            "companies": _all_companies(db),
+            "assigned_company_ids": set(company_ids),
             "errors": errors,
             "active_nav": "users",
         }, status_code=422)
@@ -162,6 +234,8 @@ def update_user(
         return templates.TemplateResponse(request, "users/form.html", {
             "target_user": target_user,
             "roles": USER_ROLES,
+            "companies": _all_companies(db),
+            "assigned_company_ids": set(company_ids),
             "errors": {"role": "Cannot demote or deactivate the last active admin."},
             "active_nav": "users",
         }, status_code=422)
@@ -170,6 +244,10 @@ def update_user(
                changed_by=current_user.username,
                old_values=old_values,
                new_values={"role": role, "is_active": new_active})
+    # Re-read: the raw UPDATE above bypassed the ORM, so target_user.role is stale
+    # and _sync_company_assignments keys off the *new* role.
+    db.refresh(target_user)
+    _sync_company_assignments(db, target_user, company_ids, current_user.username)
     db.commit()
     return RedirectResponse("/users/?flash=updated", status_code=303)
 

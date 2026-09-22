@@ -1,12 +1,14 @@
 import time
 from collections import defaultdict
-from typing import Annotated
+from typing import Annotated, Optional
 import bcrypt as _bcrypt
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 from database import get_db
+from models.company import Company
 from models.user import User
+from utils.company_scope import accessible_companies, has_company_access
 from utils.csrf import CsrfProtect
 from app_templates import templates
 
@@ -28,6 +30,13 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
     user = db.query(User).filter(User.id == user_id, User.is_active.is_(True)).first()
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
+    # Drop any memoised company scope from a previous request. Re-querying the
+    # User is NOT enough on its own: SQLAlchemy's identity map hands back the
+    # same instance when a Session is reused, so the cache would survive and
+    # revoked access would keep working until the object was evicted. Clearing
+    # it here -- the one dependency every scoped route passes through -- makes
+    # the cache provably request-scoped.
+    user.__dict__.pop("_company_ids_cache", None)
     return user
 
 
@@ -48,6 +57,44 @@ CurrentUser = Annotated[User, Depends(get_current_user)]
 AdminUser = Annotated[User, Depends(require_admin)]
 PreparerUser = Annotated[User, Depends(require_preparer)]
 ApproverUser = Annotated[User, Depends(require_approver)]
+
+
+def _stash_switcher(request: Request, active, available) -> None:
+    """Hand the nav switcher its data so company_context need not re-query.
+
+    Without this, main.py's company_context global opens its own SessionLocal on
+    every page render just to populate the switcher.
+    """
+    request.state.company_context = {"active": active, "available": available}
+
+
+def get_active_company(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Optional[Company]:
+    """Resolve the session's active company, falling back to the user's first.
+
+    Returns None in two legitimate states: a fresh install with no companies, and
+    a non-admin with no assignments. The session value is re-validated against
+    current access on every request, so access revoked by an admin takes effect
+    immediately rather than at next login.
+    """
+    company_id = request.session.get("company_id")
+    if company_id is not None and has_company_access(current_user, company_id, db):
+        company = db.query(Company).filter(Company.id == company_id).first()
+        if company:
+            _stash_switcher(request, company, accessible_companies(current_user, db))
+            return company
+
+    available = accessible_companies(current_user, db)
+    company = available[0] if available else None
+    request.session["company_id"] = company.id if company else None
+    _stash_switcher(request, company, available)
+    return company
+
+
+ActiveCompany = Annotated[Optional[Company], Depends(get_active_company)]
 
 
 @router.get("/login", response_class=HTMLResponse)
@@ -100,6 +147,8 @@ def login(
     request.session["user_id"] = user.id
     request.session["username"] = user.username
     request.session["role"] = user.role
+    # Drop any previous account's active company; get_active_company re-resolves it.
+    request.session.pop("company_id", None)
     return RedirectResponse(next, status_code=303)
 
 

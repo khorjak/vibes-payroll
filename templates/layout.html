@@ -95,6 +95,23 @@
     <header class="bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between shrink-0">
       <div id="page-title" class="text-sm text-slate-500">{% block breadcrumb %}{% endblock %}</div>
       <div class="flex items-center gap-4">
+        {% set cc = company_context(request) %}
+        {% if cc.available | length > 1 %}
+        <form method="post" action="/companies/switch" class="flex items-center gap-2">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+          <input type="hidden" name="next" value="{{ request.url.path }}">
+          <label for="company-switcher" class="text-xs text-slate-400">Company</label>
+          <select id="company-switcher" name="company_id" onchange="this.form.submit()"
+                  class="rounded-md border border-slate-300 px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            {% for c in cc.available %}
+            <option value="{{ c.id }}" {{ 'selected' if cc.active and cc.active.id == c.id }}>{{ c.name }}</option>
+            {% endfor %}
+          </select>
+          <noscript><button type="submit" class="text-xs text-indigo-600">Go</button></noscript>
+        </form>
+        {% elif cc.active %}
+        <span class="text-xs text-slate-500">{{ cc.active.name }}</span>
+        {% endif %}
         <span class="text-xs text-slate-500">{{ request.session.get("username", "") }}</span>
         <form method="post" action="/auth/logout" class="inline">
           <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">

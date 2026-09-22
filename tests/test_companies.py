@@ -152,7 +152,8 @@ class TestWorkersCompCodes:
         assert float(code.rate_per_100_wages) == pytest.approx(8.5)
 
     def test_add_wc_code_shows_in_company_detail(self, client, db, company):
-        db.add(WorkersCompCode(ncci_code="8810", description="Clerical", rate_per_100_wages=0.12))
+        db.add(WorkersCompCode(company_id=company.id, ncci_code="8810",
+                               description="Clerical", rate_per_100_wages=0.12))
         db.commit()
         r = client.get(f"/companies/{company.id}")
         assert "8810" in r.text
@@ -253,8 +254,9 @@ class TestBenefitPlanManagement:
 
 
 class TestWCCodeManagement:
-    def _make_code(self, db):
-        code = WorkersCompCode(ncci_code="8810", description="Clerical Office", rate_per_100_wages=0.45)
+    def _make_code(self, db, company):
+        code = WorkersCompCode(company_id=company.id, ncci_code="8810",
+                               description="Clerical Office", rate_per_100_wages=0.45)
         db.add(code)
         db.commit()
         db.refresh(code)
@@ -266,13 +268,13 @@ class TestWCCodeManagement:
         assert "Workers Comp" in r.text
 
     def test_edit_page_renders(self, client, db, company):
-        code = self._make_code(db)
+        code = self._make_code(db, company)
         r = client.get(f"/companies/{company.id}/wc-codes/{code.id}/edit")
         assert r.status_code == 200
         assert "8810" in r.text
 
     def test_update_wc_code(self, client, db, company):
-        code = self._make_code(db)
+        code = self._make_code(db, company)
         r = client.post(f"/companies/{company.id}/wc-codes/{code.id}/edit", data={
             "ncci_code": "8810",
             "description": "Clerical Updated",
@@ -315,3 +317,52 @@ class TestOffCyclePayroll:
             "gross_amount": "0",
         })
         assert r.status_code == 422
+
+
+class TestWCCodesArePerCompany:
+    """WC codes were global but shown per-company: editing one changed every
+    company's payroll cost. They are now scoped to one company."""
+
+    def test_code_created_under_one_company_not_visible_in_another(
+        self, client, db, company, second_company,
+    ):
+        client.post(f"/companies/{company.id}/wc-codes/new", data={
+            "ncci_code": "9999", "description": "OnlyAlpha", "rate_per_100_wages": "1.0",
+        })
+        r = client.get(f"/companies/{second_company.id}/wc-codes")
+        assert "OnlyAlpha" not in r.text
+        r = client.get(f"/companies/{company.id}/wc-codes")
+        assert "OnlyAlpha" in r.text
+
+    def test_created_code_records_its_company(self, client, db, company):
+        client.post(f"/companies/{company.id}/wc-codes/new", data={
+            "ncci_code": "7777", "description": "Scoped", "rate_per_100_wages": "2.0",
+        })
+        code = db.query(WorkersCompCode).filter(WorkersCompCode.ncci_code == "7777").first()
+        assert code.company_id == company.id
+
+    def test_employee_form_only_offers_own_company_codes(
+        self, client, db, company, second_company,
+    ):
+        db.add(WorkersCompCode(company_id=second_company.id, ncci_code="4321",
+                               description="BetaOnlyCode", rate_per_100_wages=3.0))
+        db.commit()
+        r = client.get("/employees/new")
+        assert "BetaOnlyCode" not in r.text
+
+    def test_cannot_assign_other_companys_wc_code_to_employee(
+        self, client, db, company, second_company,
+    ):
+        code = WorkersCompCode(company_id=second_company.id, ncci_code="1212",
+                               description="Foreign", rate_per_100_wages=4.0)
+        db.add(code)
+        db.commit()
+        db.refresh(code)
+        r = client.post("/employees/new", data={
+            "company_id": str(company.id),
+            "first_name": "Cross", "last_name": "Code",
+            "employment_type": "salaried", "pay_rate": "50000",
+            "workers_comp_code_id": str(code.id),
+        })
+        assert r.status_code == 422
+        assert "belonging to this company" in r.text

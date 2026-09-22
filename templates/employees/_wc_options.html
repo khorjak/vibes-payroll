@@ -1,0 +1,7 @@
+<option value="">— None —</option>
+{% for code in wc_codes %}
+<option value="{{ code.id }}"
+        {{ 'selected' if selected_wc_code_id == code.id }}>
+  {{ code.ncci_code }} — {{ code.description }}
+</option>
+{% endfor %}

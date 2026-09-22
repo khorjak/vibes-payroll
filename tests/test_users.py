@@ -3,6 +3,7 @@ Tests for user management (routers/users.py): CRUD, access control, lockout guar
 """
 from models.user import User
 from models.audit import AuditLog
+from models.user_company import UserCompany
 
 
 class TestUserCrud:
@@ -202,3 +203,72 @@ class TestUserManagementAccessControl:
             "username": "sneaky", "password": "supersecret1", "role": "admin",
         })
         assert r.status_code == 403
+
+
+class TestCompanyAssignment:
+    def test_create_user_with_companies(self, client, db, company, second_company):
+        client.post("/users/new", data={
+            "username": "scoped", "password": "longenough1", "role": "preparer",
+            "company_ids": [str(company.id)],
+        })
+        user = db.query(User).filter(User.username == "scoped").first()
+        rows = db.query(UserCompany).filter(UserCompany.user_id == user.id).all()
+        assert [r.company_id for r in rows] == [company.id]
+
+    def test_admin_gets_no_assignment_rows(self, client, db, company):
+        client.post("/users/new", data={
+            "username": "newboss", "password": "longenough1", "role": "admin",
+            "company_ids": [str(company.id)],
+        })
+        user = db.query(User).filter(User.username == "newboss").first()
+        assert db.query(UserCompany).filter(UserCompany.user_id == user.id).count() == 0
+
+    def test_edit_adds_and_removes_assignments(self, client, db, company, second_company):
+        user = User(username="shifter", hashed_password="x", role="preparer", is_active=True)
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        db.add(UserCompany(user_id=user.id, company_id=company.id))
+        db.commit()
+
+        client.post(f"/users/{user.id}/edit", data={
+            "role": "preparer", "is_active": "on",
+            "company_ids": [str(second_company.id)],
+        })
+        rows = db.query(UserCompany).filter(UserCompany.user_id == user.id).all()
+        assert [r.company_id for r in rows] == [second_company.id]
+
+    def test_assignment_changes_are_audit_logged(self, client, db, company):
+        client.post("/users/new", data={
+            "username": "audited", "password": "longenough1", "role": "preparer",
+            "company_ids": [str(company.id)],
+        })
+        rows = db.query(AuditLog).filter(AuditLog.table_name == "user_companies").all()
+        assert len(rows) == 1
+        assert rows[0].action == "insert"
+
+    def test_revoking_access_is_audit_logged(self, client, db, company):
+        user = User(username="revoked", hashed_password="x", role="preparer", is_active=True)
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        db.add(UserCompany(user_id=user.id, company_id=company.id))
+        db.commit()
+
+        client.post(f"/users/{user.id}/edit", data={"role": "preparer", "is_active": "on"})
+        rows = db.query(AuditLog).filter(
+            AuditLog.table_name == "user_companies", AuditLog.action == "delete",
+        ).all()
+        assert len(rows) == 1
+
+    def test_promoting_to_admin_drops_assignments_from_ui(self, client, db, company):
+        """Admins bypass scope; the form's checkboxes are ignored for them."""
+        user = User(username="promoted", hashed_password="x", role="preparer", is_active=True)
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+
+        client.post(f"/users/{user.id}/edit", data={
+            "role": "admin", "is_active": "on", "company_ids": [str(company.id)],
+        })
+        assert db.query(UserCompany).filter(UserCompany.user_id == user.id).count() == 0

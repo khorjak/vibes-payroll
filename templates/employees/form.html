@@ -99,9 +99,13 @@
         <div>
           <label class="block text-sm font-medium text-slate-700 mb-1">Company <span class="text-red-500">*</span></label>
           <select name="company_id" required
+                  hx-get="/employees/wc-code-options"
+                  hx-trigger="change"
+                  hx-target="#wc-code-select"
+                  hx-swap="innerHTML"
                   class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
             {% for c in companies %}
-            <option value="{{ c.id }}" {{ 'selected' if employee and employee.company_id == c.id }}>
+            <option value="{{ c.id }}" {{ 'selected' if selected_company_id == c.id }}>
               {{ c.name }}
             </option>
             {% endfor %}
@@ -157,7 +161,7 @@
         {% endif %}
         <div>
           <label class="block text-sm font-medium text-slate-700 mb-1">Workers Comp Code</label>
-          <select name="workers_comp_code_id"
+          <select name="workers_comp_code_id" id="wc-code-select"
                   class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
             <option value="">— None —</option>
             {% for code in wc_codes %}
@@ -167,6 +171,11 @@
             </option>
             {% endfor %}
           </select>
+          {% if errors.workers_comp_code_id %}
+          <p class="mt-1 text-xs text-red-600">{{ errors.workers_comp_code_id }}</p>
+          {% elif not wc_codes %}
+          <p class="mt-1 text-xs text-slate-500">No codes defined for this company yet.</p>
+          {% endif %}
         </div>
         <div class="flex items-center gap-2 pt-6">
           <input type="checkbox" name="flsa_exempt" id="flsa_exempt"

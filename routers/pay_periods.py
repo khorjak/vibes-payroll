@@ -2,6 +2,7 @@ from datetime import date
 from decimal import Decimal
 from fastapi import APIRouter, Depends, Form, Request, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from sqlalchemy import false
 from sqlalchemy.orm import Session, joinedload
 from database import get_db
 from models.company import Company
@@ -13,7 +14,17 @@ from services.payroll_service import (
     mark_period_paid,
     void_paycheck,
 )
-from routers.auth import PreparerUser, ApproverUser, get_current_user
+from routers.auth import (
+    ActiveCompany, ApproverUser, CurrentUser, PreparerUser, get_current_user,
+)
+from utils.company_scope import (
+    accessible_companies,
+    assert_company_access,
+    get_scoped_employee,
+    get_scoped_paycheck,
+    get_scoped_pay_period,
+    scope_query,
+)
 from utils.csrf import CsrfProtect
 from utils.forms import safe_float
 from services.audit import log_change
@@ -29,27 +40,42 @@ _FREQUENCIES = ["weekly", "biweekly", "semi_monthly", "monthly"]
 @router.get("/", response_class=HTMLResponse)
 def list_pay_periods(
     request: Request,
+    current_user: CurrentUser,
+    active_company: ActiveCompany,
     db: Session = Depends(get_db),
     company_id: str = "",
 ):
     query = db.query(PayPeriod).options(joinedload(PayPeriod.company))
-    if company_id:
+    # No explicit filter means the active company, not every company.
+    if company_id == "all":
+        query = scope_query(query, PayPeriod.company_id, current_user, db)
+    elif company_id:
+        assert_company_access(current_user, int(company_id), db)
         query = query.filter(PayPeriod.company_id == int(company_id))
+    elif active_company:
+        company_id = str(active_company.id)
+        query = query.filter(PayPeriod.company_id == active_company.id)
+    else:
+        query = query.filter(false())
     periods = query.order_by(PayPeriod.pay_date.desc()).all()
-    companies = db.query(Company).order_by(Company.name).all()
     return templates.TemplateResponse(request, "payroll/list.html", {
         "periods": periods,
-        "companies": companies,
+        "companies": accessible_companies(current_user, db),
         "company_filter": company_id,
         "active_nav": "payroll",
     })
 
 
 @router.get("/new", response_class=HTMLResponse)
-def new_pay_period(request: Request, db: Session = Depends(get_db)):
-    companies = db.query(Company).order_by(Company.name).all()
+def new_pay_period(
+    request: Request,
+    current_user: CurrentUser,
+    active_company: ActiveCompany,
+    db: Session = Depends(get_db),
+):
     return templates.TemplateResponse(request, "payroll/new.html", {
-        "companies": companies,
+        "companies": accessible_companies(current_user, db),
+        "selected_company_id": active_company.id if active_company else None,
         "frequencies": _FREQUENCIES,
         "today": date.today().isoformat(),
         "errors": {},
@@ -69,6 +95,8 @@ def create_pay_period(
     pay_date: str = Form(...),
     frequency: str = Form(...),
 ):
+    assert_company_access(current_user, company_id, db)
+
     errors = {}
     if not start_date:
         errors["start_date"] = "Required."
@@ -78,9 +106,9 @@ def create_pay_period(
         errors["pay_date"] = "Required."
 
     if errors:
-        companies = db.query(Company).order_by(Company.name).all()
         return templates.TemplateResponse(request, "payroll/new.html", {
-            "companies": companies,
+            "companies": accessible_companies(current_user, db),
+            "selected_company_id": company_id,
             "frequencies": _FREQUENCIES,
             "today": date.today().isoformat(),
             "errors": errors,
@@ -108,22 +136,54 @@ def create_pay_period(
 
 # ── Off-Cycle Payroll (BEFORE /{period_id} to avoid route shadowing) ──────────
 
-@router.get("/off-cycle/new", response_class=HTMLResponse)
-def new_off_cycle(request: Request, db: Session = Depends(get_db)):
-    companies = db.query(Company).order_by(Company.name).all()
-    employees = (
+def _off_cycle_employees(db: Session, company_id) -> list[Employee]:
+    """Active employees of one company -- an off-cycle run must not cross companies."""
+    if not company_id:
+        return []
+    return (
         db.query(Employee)
-        .filter(Employee.status == "active")
+        .filter(Employee.status == "active", Employee.company_id == company_id)
         .order_by(Employee.last_name, Employee.first_name)
         .all()
     )
+
+@router.get("/off-cycle/new", response_class=HTMLResponse)
+def new_off_cycle(
+    request: Request,
+    current_user: CurrentUser,
+    active_company: ActiveCompany,
+    db: Session = Depends(get_db),
+):
+    employees = _off_cycle_employees(db, active_company.id if active_company else None)
     return templates.TemplateResponse(request, "payroll/off_cycle.html", {
-        "companies": companies,
+        "companies": accessible_companies(current_user, db),
+        "selected_company_id": active_company.id if active_company else None,
         "employees": employees,
         "frequencies": _FREQUENCIES,
         "today": date.today().isoformat(),
         "errors": {},
         "active_nav": "payroll",
+    })
+
+
+@router.get("/off-cycle/employee-options", response_class=HTMLResponse)
+def off_cycle_employee_options(
+    request: Request,
+    current_user: CurrentUser,
+    db: Session = Depends(get_db),
+    company_id: int = 0,
+    selected: int = 0,
+):
+    """HTMX partial: re-render the employee <select> options for one company.
+
+    Scoped like any other read -- an out-of-scope company_id 404s, so this
+    cannot be used to enumerate another tenant's employees.
+    """
+    if company_id:
+        assert_company_access(current_user, company_id, db)
+    return templates.TemplateResponse(request, "payroll/_employee_options.html", {
+        "employees": _off_cycle_employees(db, company_id),
+        "selected_employee_id": selected or None,
     })
 
 
@@ -140,6 +200,8 @@ def create_off_cycle(
     gross_amount: str = Form(...),
     description: str = Form("Off-Cycle Payment"),
 ):
+    assert_company_access(current_user, company_id, db)
+
     errors = {}
     if not pay_date:
         errors["pay_date"] = "Required."
@@ -147,11 +209,10 @@ def create_off_cycle(
         errors["gross_amount"] = "Must be greater than zero."
 
     if errors:
-        companies = db.query(Company).order_by(Company.name).all()
-        employees = db.query(Employee).filter(Employee.status == "active").order_by(Employee.last_name).all()
         return templates.TemplateResponse(request, "payroll/off_cycle.html", {
-            "companies": companies,
-            "employees": employees,
+            "companies": accessible_companies(current_user, db),
+            "selected_company_id": company_id,
+            "employees": _off_cycle_employees(db, company_id),
             "frequencies": _FREQUENCIES,
             "today": date.today().isoformat(),
             "errors": errors,
@@ -174,20 +235,29 @@ def create_off_cycle(
     from models.garnishment import GarnishmentOrder
     from services.payroll_service import draft_paycheck
 
-    employee = (
-        db.query(Employee)
-        .options(
-            joinedload(Employee.w4_elections),
-            joinedload(Employee.ok_withholding_elections),
-            joinedload(Employee.benefit_enrollments).joinedload(EmployeeBenefitEnrollment.plan),
-            joinedload(Employee.workers_comp_code),
-            joinedload(Employee.garnishment_orders),
-        )
-        .filter(Employee.id == employee_id)
-        .first()
+    employee = get_scoped_employee(
+        db, current_user, employee_id,
+        joinedload(Employee.w4_elections),
+        joinedload(Employee.ok_withholding_elections),
+        joinedload(Employee.benefit_enrollments).joinedload(EmployeeBenefitEnrollment.plan),
+        joinedload(Employee.workers_comp_code),
+        joinedload(Employee.garnishment_orders),
     )
-    if not employee:
-        raise HTTPException(status_code=404, detail="Employee not found")
+    # Out of scope already 404'd inside get_scoped_employee. Reaching here with a
+    # mismatch means both records are ones this user may legitimately see and the
+    # pairing is simply wrong -- an ordinary form mistake, so say so rather than
+    # dead-ending on a bare 404.
+    if employee.company_id != company_id:
+        db.rollback()
+        return templates.TemplateResponse(request, "payroll/off_cycle.html", {
+            "companies": accessible_companies(current_user, db),
+            "selected_company_id": company_id,
+            "employees": _off_cycle_employees(db, company_id),
+            "frequencies": _FREQUENCIES,
+            "today": date.today().isoformat(),
+            "errors": {"employee_id": "That employee belongs to a different company."},
+            "active_nav": "payroll",
+        }, status_code=422)
 
     gross_val = safe_float(gross_amount, "gross_amount")
     if employee.employment_type != "salaried" and employee.pay_rate:
@@ -219,21 +289,16 @@ def create_off_cycle(
 @router.get("/paychecks/{paycheck_id}", response_class=HTMLResponse)
 def paycheck_detail(
     request: Request,
+    current_user: CurrentUser,
     paycheck_id: int,
     db: Session = Depends(get_db),
 ):
-    paycheck = (
-        db.query(Paycheck)
-        .options(
-            joinedload(Paycheck.employee),
-            joinedload(Paycheck.pay_period).joinedload(PayPeriod.company),
-            joinedload(Paycheck.lines),
-        )
-        .filter(Paycheck.id == paycheck_id)
-        .first()
+    paycheck = get_scoped_paycheck(
+        db, current_user, paycheck_id,
+        joinedload(Paycheck.employee),
+        joinedload(Paycheck.pay_period).joinedload(PayPeriod.company),
+        joinedload(Paycheck.lines),
     )
-    if not paycheck:
-        raise HTTPException(status_code=404, detail="Paycheck not found")
 
     lines = sorted(paycheck.lines, key=lambda l: l.id)
     return templates.TemplateResponse(request, "payroll/paycheck_detail.html", {
@@ -254,9 +319,7 @@ def void_check(
     db: Session = Depends(get_db),
     reason: str = Form(...),
 ):
-    paycheck = db.query(Paycheck).filter(Paycheck.id == paycheck_id).first()
-    if not paycheck:
-        raise HTTPException(status_code=404, detail="Paycheck not found")
+    paycheck = get_scoped_paycheck(db, current_user, paycheck_id)
     period_id = paycheck.pay_period_id
     try:
         void_paycheck(paycheck, reason, db)
@@ -272,21 +335,16 @@ def void_check(
 
 @router.get("/paychecks/{paycheck_id}/pdf")
 def paycheck_pdf(
+    current_user: CurrentUser,
     paycheck_id: int,
     db: Session = Depends(get_db),
 ):
-    paycheck = (
-        db.query(Paycheck)
-        .options(
-            joinedload(Paycheck.employee),
-            joinedload(Paycheck.pay_period).joinedload(PayPeriod.company),
-            joinedload(Paycheck.lines),
-        )
-        .filter(Paycheck.id == paycheck_id)
-        .first()
+    paycheck = get_scoped_paycheck(
+        db, current_user, paycheck_id,
+        joinedload(Paycheck.employee),
+        joinedload(Paycheck.pay_period).joinedload(PayPeriod.company),
+        joinedload(Paycheck.lines),
     )
-    if not paycheck:
-        raise HTTPException(status_code=404, detail="Paycheck not found")
 
     try:
         from weasyprint import HTML as WeasyHTML
@@ -322,21 +380,16 @@ def paycheck_pdf(
 @router.get("/{period_id}", response_class=HTMLResponse)
 def pay_period_detail(
     request: Request,
+    current_user: CurrentUser,
     period_id: int,
     db: Session = Depends(get_db),
     flash: str = "",
 ):
-    pp = (
-        db.query(PayPeriod)
-        .options(
-            joinedload(PayPeriod.company),
-            joinedload(PayPeriod.paychecks).joinedload(Paycheck.employee),
-        )
-        .filter(PayPeriod.id == period_id)
-        .first()
+    pp = get_scoped_pay_period(
+        db, current_user, period_id,
+        joinedload(PayPeriod.company),
+        joinedload(PayPeriod.paychecks).joinedload(Paycheck.employee),
     )
-    if not pp:
-        raise HTTPException(status_code=404, detail="Pay period not found")
 
     variance_flags: dict[int, bool] = {}
     if pp.status == "draft":
@@ -416,17 +469,11 @@ def pay_period_detail(
 @router.get("/{period_id}/timesheets", response_class=HTMLResponse)
 def timesheet_grid(
     request: Request,
+    current_user: CurrentUser,
     period_id: int,
     db: Session = Depends(get_db),
 ):
-    pp = (
-        db.query(PayPeriod)
-        .options(joinedload(PayPeriod.company))
-        .filter(PayPeriod.id == period_id)
-        .first()
-    )
-    if not pp:
-        raise HTTPException(status_code=404, detail="Pay period not found")
+    pp = get_scoped_pay_period(db, current_user, period_id, joinedload(PayPeriod.company))
 
     employees = (
         db.query(Employee)
@@ -457,7 +504,7 @@ def timesheet_grid(
 @router.post("/{period_id}/timesheets/{employee_id}")
 def save_timesheet_row(
     request: Request,
-    _: PreparerUser,
+    current_user: PreparerUser,
     _csrf: CsrfProtect,
     period_id: int,
     employee_id: int,
@@ -469,13 +516,18 @@ def save_timesheet_row(
     sick_hours: str = Form("0"),
     holiday_hours: str = Form("0"),
 ):
-    pp = db.query(PayPeriod).filter(PayPeriod.id == period_id).first()
-    if not pp or pp.status not in ("open", "draft"):
+    pp = get_scoped_pay_period(db, current_user, period_id)
+    if pp.status not in ("open", "draft"):
         raise HTTPException(status_code=400, detail="Pay period not editable")
 
-    employee = db.query(Employee).filter(Employee.id == employee_id).first()
-    if not employee:
-        raise HTTPException(status_code=404, detail="Employee not found")
+    employee = get_scoped_employee(db, current_user, employee_id)
+    # Out of scope already 404'd above. A mismatch here is an in-scope pairing
+    # error -- 422 so the caller can tell it apart from a missing record.
+    if employee.company_id != pp.company_id:
+        raise HTTPException(
+            status_code=422,
+            detail="That employee belongs to a different company than this pay period.",
+        )
 
     def _h(s: str) -> float:
         try:
@@ -513,19 +565,12 @@ def save_timesheet_row(
 
 @router.post("/{period_id}/calculate")
 def calculate_draft(
-    _: PreparerUser,
+    current_user: PreparerUser,
     _csrf: CsrfProtect,
     period_id: int,
     db: Session = Depends(get_db),
 ):
-    pp = (
-        db.query(PayPeriod)
-        .options(joinedload(PayPeriod.company))
-        .filter(PayPeriod.id == period_id)
-        .first()
-    )
-    if not pp:
-        raise HTTPException(status_code=404, detail="Pay period not found")
+    pp = get_scoped_pay_period(db, current_user, period_id, joinedload(PayPeriod.company))
     if pp.status not in ("open", "draft"):
         raise HTTPException(
             status_code=400, detail=f"Cannot calculate: pay period is '{pp.status}'"
@@ -542,14 +587,7 @@ def approve_period(
     period_id: int,
     db: Session = Depends(get_db),
 ):
-    pp = (
-        db.query(PayPeriod)
-        .options(joinedload(PayPeriod.paychecks))
-        .filter(PayPeriod.id == period_id)
-        .first()
-    )
-    if not pp:
-        raise HTTPException(status_code=404, detail="Pay period not found")
+    pp = get_scoped_pay_period(db, current_user, period_id, joinedload(PayPeriod.paychecks))
     try:
         approve_payroll_run(pp, db)
     except ValueError as e:
@@ -570,19 +608,12 @@ def approve_period(
 
 @router.post("/{period_id}/mark-paid")
 def mark_paid_period(
-    _: ApproverUser,
+    current_user: ApproverUser,
     _csrf: CsrfProtect,
     period_id: int,
     db: Session = Depends(get_db),
 ):
-    pp = (
-        db.query(PayPeriod)
-        .options(joinedload(PayPeriod.paychecks))
-        .filter(PayPeriod.id == period_id)
-        .first()
-    )
-    if not pp:
-        raise HTTPException(status_code=404, detail="Pay period not found")
+    pp = get_scoped_pay_period(db, current_user, period_id, joinedload(PayPeriod.paychecks))
     try:
         mark_period_paid(pp, db)
     except ValueError as e:

@@ -17,6 +17,7 @@
       <tr>
         <th class="text-left px-4 py-3 font-medium text-slate-600">Username</th>
         <th class="text-left px-4 py-3 font-medium text-slate-600">Role</th>
+        <th class="text-left px-4 py-3 font-medium text-slate-600">Companies</th>
         <th class="text-left px-4 py-3 font-medium text-slate-600">Status</th>
         <th class="text-left px-4 py-3 font-medium text-slate-600">Created</th>
         <th class="px-4 py-3"></th>
@@ -34,6 +35,15 @@
             {{ u.role | replace("_", " ") | title }}
           </span>
         </td>
+        <td class="px-4 py-3 text-slate-600">
+          {% if u.role == 'admin' %}
+            <span class="text-slate-400">All</span>
+          {% elif assignments.get(u.id) %}
+            {{ assignments[u.id] | join(", ") }}
+          {% else %}
+            <span class="text-amber-600">None</span>
+          {% endif %}
+        </td>
         <td class="px-4 py-3">
           {% if u.is_active %}
           <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700">Active</span>
@@ -50,7 +60,7 @@
       </tr>
       {% else %}
       <tr>
-        <td colspan="5" class="px-4 py-10 text-center text-slate-400">No users yet.</td>
+        <td colspan="6" class="px-4 py-10 text-center text-slate-400">No users yet.</td>
       </tr>
       {% endfor %}
     </tbody>

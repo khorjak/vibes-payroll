@@ -1,0 +1,5 @@
+{% for emp in employees %}
+<option value="{{ emp.id }}" {{ 'selected' if selected_employee_id == emp.id }}>
+  {{ emp.full_name }} ({{ emp.employment_type | replace("_", " ") | title }})
+</option>
+{% endfor %}

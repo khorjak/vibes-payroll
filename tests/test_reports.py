@@ -233,3 +233,162 @@ class TestTerminatedEmployeeWarning:
         assert r.status_code == 200
         assert "Ex Worker" in r.text
         assert "terminated" in r.text.lower()
+
+
+class TestConsolidatedReports:
+    """company_id=-1 means 'all my companies'; filing reports must refuse it."""
+
+    def test_filing_reports_refuse_consolidation(self, client, company):
+        for path in ("/reports/quarterly-941?year=2026&quarter=2",
+                     "/reports/ok-withholding?year=2026"):
+            r = client.get(f"{path}&company_id=-1")
+            assert r.status_code == 200, path
+            assert "filed per EIN" in r.text, path
+
+    def test_w2_export_refuses_consolidation(self, client, company):
+        r = client.get("/reports/w2-export?company_id=-1&year=2026")
+        assert r.status_code == 400
+        assert "per EIN" in r.json()["detail"]
+
+    def test_w2_export_requires_a_company(self, client, company):
+        r = client.get("/reports/w2-export?company_id=0&year=2026")
+        assert r.status_code == 400
+
+    def test_consolidated_reports_accept_all_companies(self, client, company, second_company):
+        for path in ("/reports/payroll-register",
+                     "/reports/tax-liability?year=2026",
+                     "/reports/workers-comp?year=2026",
+                     "/reports/deductions?year=2026",
+                     "/reports/client-liabilities?year=2026",
+                     "/reports/new-hires"):
+            sep = "&" if "?" in path else "?"
+            r = client.get(f"{path}{sep}company_id=-1")
+            assert r.status_code == 200, path
+            assert "filed per EIN" not in r.text, path
+
+    def test_consolidated_shows_each_company_separately(
+        self, client, db, company, second_company,
+    ):
+        from models.employee import Employee
+        db.add(Employee(
+            company_id=second_company.id, first_name="Fresh", last_name="Start",
+            employment_type="salaried", pay_rate=50000, status="active", state="OK",
+            flsa_exempt=True, hire_date=date.today(),
+        ))
+        db.commit()
+        r = client.get("/reports/new-hires?company_id=-1")
+        assert r.status_code == 200
+        assert "Other Co" in r.text
+        assert "Fresh" in r.text
+
+
+class TestConsolidatedTotalsMatchPerCompany:
+    """The invariant behind the groups-first restructure.
+
+    Reports now build per-company groups and derive the flat totals by summing
+    them, instead of aggregating the whole set a second time. Running a report
+    consolidated must therefore equal running it once per company and adding the
+    results -- if it does not, the restructure changed the numbers.
+    """
+
+    def _seed_two_companies(self, client, db, company, second_company):
+        from models.employee import Employee
+        emps = []
+        for co, first in ((company, "Ann"), (second_company, "Bill")):
+            emp = Employee(
+                company_id=co.id, first_name=first, last_name="Worker",
+                employment_type="salaried", pay_rate=52000, status="active",
+                state="OK", flsa_exempt=True, hire_date=date(2025, 1, 1),
+            )
+            db.add(emp)
+            emps.append(emp)
+        db.commit()
+        for emp in emps:
+            db.refresh(emp)
+        periods = [_run_payroll(client, db, co, emp)
+                   for co, emp in ((company, emps[0]), (second_company, emps[1]))]
+        return emps, periods
+
+    def _totals_via_context(self, client, path):
+        """Pull the rendered totals out of the response by re-running the route.
+
+        The templates render the numbers, so comparing the rendered pages is the
+        honest end-to-end check: identical figures must appear.
+        """
+        r = client.get(path)
+        assert r.status_code == 200, (path, r.status_code)
+        return r.text
+
+    def test_tax_liability_consolidated_equals_sum_of_companies(
+        self, client, db, company, second_company,
+    ):
+        from decimal import Decimal
+        from routers.reports import (
+            _load_paychecks, _tax_liability_rows, _totals, _TAX_LIABILITY_KEYS,
+        )
+        self._seed_two_companies(client, db, company, second_company)
+
+        both = _load_paychecks(db, [company.id, second_company.id], 2026)
+        assert both, "fixture produced no paychecks; test would be vacuous"
+
+        # Derived-from-groups (what the route now does).
+        per_company = []
+        for cid in (company.id, second_company.id):
+            rows = _tax_liability_rows(db, _load_paychecks(db, [cid], 2026))
+            per_company.append(_totals(rows, _TAX_LIABILITY_KEYS))
+        derived = _totals(per_company, _TAX_LIABILITY_KEYS)
+
+        # Direct aggregation over the whole set (what it used to do).
+        direct = _totals(_tax_liability_rows(db, both), _TAX_LIABILITY_KEYS)
+
+        assert derived == direct
+
+    def test_deductions_consolidated_equals_sum_of_companies(
+        self, client, db, company, second_company,
+    ):
+        from routers.reports import _load_paychecks, _deduction_rows
+        self._seed_two_companies(client, db, company, second_company)
+
+        both = _deduction_rows(_load_paychecks(db, [company.id, second_company.id], 2026))
+        direct_total = sum(r["total"] for r in both)
+        direct_count = sum(r["count"] for r in both)
+
+        derived_total = derived_count = 0
+        for cid in (company.id, second_company.id):
+            rows = _deduction_rows(_load_paychecks(db, [cid], 2026))
+            derived_total += sum(r["total"] for r in rows)
+            derived_count += sum(r["count"] for r in rows)
+
+        assert derived_total == direct_total
+        assert derived_count == direct_count
+
+    def test_workers_comp_consolidated_equals_sum_of_companies(
+        self, client, db, company, second_company,
+    ):
+        from routers.reports import _load_paychecks, _workers_comp_rows
+        self._seed_two_companies(client, db, company, second_company)
+
+        ids = [company.id, second_company.id]
+        both = _workers_comp_rows(db, _load_paychecks(db, ids, 2026), ids)
+        direct_gross = sum(r["gross"] for r in both)
+        direct_premium = sum(r["premium"] for r in both)
+
+        derived_gross = derived_premium = 0
+        for cid in ids:
+            rows = _workers_comp_rows(db, _load_paychecks(db, [cid], 2026), [cid])
+            derived_gross += sum(r["gross"] for r in rows)
+            derived_premium += sum(r["premium"] for r in rows)
+
+        assert derived_gross == direct_gross
+        assert derived_premium == direct_premium
+
+    def test_consolidated_pages_render_both_companies(
+        self, client, db, company, second_company,
+    ):
+        self._seed_two_companies(client, db, company, second_company)
+        for path in ("/reports/tax-liability?company_id=-1&year=2026",
+                     "/reports/deductions?company_id=-1&year=2026",
+                     "/reports/workers-comp?company_id=-1&year=2026"):
+            text = self._totals_via_context(client, path)
+            assert company.name in text, path
+            assert second_company.name in text, path

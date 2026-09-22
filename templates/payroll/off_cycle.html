@@ -13,21 +13,30 @@
     <div>
       <label class="block text-sm font-medium text-slate-700 mb-1">Company</label>
       <select name="company_id" required
+              hx-get="/payroll/off-cycle/employee-options"
+              hx-trigger="change"
+              hx-target="#off-cycle-employee-select"
+              hx-swap="innerHTML"
               class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
         {% for co in companies %}
-        <option value="{{ co.id }}">{{ co.name }}</option>
+        <option value="{{ co.id }}" {{ 'selected' if selected_company_id == co.id }}>{{ co.name }}</option>
         {% endfor %}
       </select>
     </div>
 
     <div>
       <label class="block text-sm font-medium text-slate-700 mb-1">Employee</label>
-      <select name="employee_id" required
+      <select name="employee_id" required id="off-cycle-employee-select"
               class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
         {% for emp in employees %}
         <option value="{{ emp.id }}">{{ emp.full_name }} ({{ emp.employment_type | replace("_", " ") | title }})</option>
         {% endfor %}
       </select>
+      {% if errors.employee_id %}
+      <p class="mt-1 text-xs text-red-600">{{ errors.employee_id }}</p>
+      {% elif not employees %}
+      <p class="mt-1 text-xs text-slate-500">No active employees for this company.</p>
+      {% endif %}
     </div>
 
     <div>

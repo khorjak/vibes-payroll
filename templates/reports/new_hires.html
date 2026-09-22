@@ -8,12 +8,20 @@
   <p class="text-sm text-slate-500 mt-1">Employees hired within the last 20 days who have not yet been reported to Oklahoma DHS.</p>
 </div>
 
+{% if error %}
+<div class="mb-6 px-4 py-3 rounded-md text-sm bg-red-50 text-red-800 ring-1 ring-red-200">
+  {{ error }}
+</div>
+{% endif %}
 <form method="get" class="bg-white rounded-lg border border-slate-200 p-4 mb-6 flex flex-wrap gap-4 items-end">
   <div class="flex flex-col gap-1">
     <label class="text-xs font-medium text-slate-600">Company</label>
     <select name="company_id" onchange="this.form.submit()"
             class="text-sm rounded-md border border-slate-300 px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
       <option value="0">-- Select --</option>
+      {% if allow_consolidated %}
+      <option value="-1" {% if consolidated %}selected{% endif %}>All my companies</option>
+      {% endif %}
       {% for co in companies %}
       <option value="{{ co.id }}" {% if co.id == company_id %}selected{% endif %}>{{ co.name }}</option>
       {% endfor %}
@@ -22,6 +30,17 @@
 </form>
 
 {% if company_id %}
+  {% if consolidated and groups %}
+  {% for section in groups %}
+  <h2 class="text-sm font-semibold text-slate-700 mb-2 mt-6">{{ section.company.name if section.company else '—' }}</h2>
+  <ul class="mb-4 text-sm text-slate-700 list-disc list-inside">
+    {% for emp in section.employees %}
+    <li>{{ emp.full_name }} — hired {{ emp.hire_date.strftime('%m/%d/%Y') if emp.hire_date else '—' }}</li>
+    {% endfor %}
+  </ul>
+  {% endfor %}
+  {% endif %}
+
   {% if employees %}
   <div class="bg-white rounded-lg border border-slate-200 overflow-hidden">
     <table class="min-w-full divide-y divide-slate-200 text-sm">

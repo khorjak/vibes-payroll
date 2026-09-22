@@ -60,6 +60,33 @@
         {% endif %}
       </div>
 
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1">Company Access</label>
+        {% if companies %}
+        <div class="rounded-md border border-slate-300 divide-y divide-slate-100 max-h-56 overflow-y-auto">
+          {% for c in companies %}
+          <label class="flex items-center gap-2 px-3 py-2 text-sm">
+            <input type="checkbox" name="company_ids" value="{{ c.id }}"
+                   {{ 'checked' if c.id in assigned_company_ids }}
+                   class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
+            <span>{{ c.name }}</span>
+          </label>
+          {% endfor %}
+        </div>
+        <p class="mt-1 text-xs text-slate-500">
+          Admins have access to all companies; these boxes are ignored for them.
+          A non-admin with none selected will not see any company data.
+        </p>
+        {% if target_user and target_user.role != 'admin' and not target_user.is_active and not assigned_company_ids %}
+        <p class="mt-1 text-xs text-amber-600">
+          This user has no company access. Assign companies before reactivating.
+        </p>
+        {% endif %}
+        {% else %}
+        <p class="text-sm text-slate-500 py-2">No companies exist yet.</p>
+        {% endif %}
+      </div>
+
       {% if target_user %}
       <div class="flex items-center gap-2">
         <input type="checkbox" name="is_active" id="is_active" {{ 'checked' if target_user.is_active }}

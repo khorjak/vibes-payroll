@@ -14,7 +14,7 @@
       <select name="company_id" required
               class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
         {% for co in companies %}
-        <option value="{{ co.id }}">{{ co.name }}</option>
+        <option value="{{ co.id }}" {{ 'selected' if selected_company_id == co.id }}>{{ co.name }}</option>
         {% endfor %}
       </select>
     </div>

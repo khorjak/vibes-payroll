@@ -11,12 +11,20 @@
   {% endif %}
 </div>
 
+{% if error %}
+<div class="mb-6 px-4 py-3 rounded-md text-sm bg-red-50 text-red-800 ring-1 ring-red-200">
+  {{ error }}
+</div>
+{% endif %}
 <form method="get" class="bg-white rounded-lg border border-slate-200 p-4 mb-6 flex flex-wrap gap-4 items-end">
   <div class="flex flex-col gap-1">
     <label class="text-xs font-medium text-slate-600">Company</label>
     <select name="company_id" onchange="this.form.submit()"
             class="text-sm rounded-md border border-slate-300 px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
       <option value="0">-- Select --</option>
+      {% if allow_consolidated %}
+      <option value="-1" {% if consolidated %}selected{% endif %}>All my companies</option>
+      {% endif %}
       {% for co in companies %}
       <option value="{{ co.id }}" {% if co.id == company_id %}selected{% endif %}>{{ co.name }}</option>
       {% endfor %}
@@ -31,7 +39,12 @@
 </form>
 
 {% if rows %}
-<div class="bg-white rounded-lg border border-slate-200 overflow-hidden">
+{% set sections = groups if consolidated else [{'company': None, 'rows': rows, 'totals': totals}] %}
+{% for section in sections %}
+{% if section.company %}
+<h2 class="text-sm font-semibold text-slate-700 mb-2 mt-6">{{ section.company.name }}</h2>
+{% endif %}
+<div class="bg-white rounded-lg border border-slate-200 overflow-hidden mb-4">
   <table class="min-w-full divide-y divide-slate-200 text-sm">
     <thead class="bg-slate-50">
       <tr>
@@ -44,7 +57,7 @@
       </tr>
     </thead>
     <tbody class="divide-y divide-slate-100">
-      {% for row in rows %}
+      {% for row in section.rows %}
       <tr>
         <td class="px-4 py-2 text-slate-900 font-medium">{{ row.payee_name }}</td>
         <td class="px-4 py-2 text-slate-600">{{ row.liability_type | replace("_", " ") | title }}</td>
@@ -60,13 +73,20 @@
     <tfoot class="bg-slate-50 font-semibold">
       <tr>
         <td class="px-4 py-2 text-slate-900" colspan="3">Total</td>
-        <td class="px-4 py-2 text-right tabular-nums">${{ "%.2f"|format(totals.total) }}</td>
-        <td class="px-4 py-2 text-right tabular-nums">${{ "%.2f"|format(totals.remitted) }}</td>
-        <td class="px-4 py-2 text-right tabular-nums">${{ "%.2f"|format(totals.total - totals.remitted) }}</td>
+        <td class="px-4 py-2 text-right tabular-nums">${{ "%.2f"|format(section.totals.total) }}</td>
+        <td class="px-4 py-2 text-right tabular-nums">${{ "%.2f"|format(section.totals.remitted) }}</td>
+        <td class="px-4 py-2 text-right tabular-nums">${{ "%.2f"|format(section.totals.total - section.totals.remitted) }}</td>
       </tr>
     </tfoot>
   </table>
 </div>
+{% endfor %}
+{% if consolidated and groups %}
+<div class="bg-slate-50 rounded-lg border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-900 flex justify-between">
+  <span>All companies — grand total</span>
+  <span class="tabular-nums">${{ "%.2f"|format(totals.total) }} ({{ "%.2f"|format(totals.remitted) }} remitted)</span>
+</div>
+{% endif %}
 {% elif company_id %}
 <p class="text-sm text-slate-500">No client liabilities found for this period.</p>
 {% endif %}

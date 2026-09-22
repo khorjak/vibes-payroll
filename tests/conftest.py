@@ -11,7 +11,12 @@ from models.company import Company
 from models.employee import Employee
 from models.benefit import BenefitPlan
 from models.user import User
-from routers.auth import get_current_user, require_admin, require_preparer, require_approver, hash_password
+from models.user_company import UserCompany
+from models.workers_comp import WorkersCompCode
+from routers.auth import (
+    get_active_company, get_current_user, require_admin, require_preparer,
+    require_approver, hash_password,
+)
 from utils.csrf import _csrf_dep
 from main import app
 
@@ -46,8 +51,15 @@ def client(db):
     from app_templates import templates
     _original_is_admin = templates.env.globals.get("is_admin")
     _original_has_role = templates.env.globals.get("has_role")
+    _original_company_context = templates.env.globals.get("company_context")
     templates.env.globals["is_admin"] = lambda request: True
     templates.env.globals["has_role"] = lambda request, *roles: True
+    # company_context opens its own SessionLocal against the real DB; point the
+    # switcher at the test session instead.
+    templates.env.globals["company_context"] = lambda request: {
+        "active": db.query(Company).order_by(Company.id).first(),
+        "available": db.query(Company).order_by(Company.name).all(),
+    }
 
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_current_user] = lambda: _fake_admin
@@ -55,6 +67,11 @@ def client(db):
     app.dependency_overrides[require_preparer] = lambda: _fake_admin
     app.dependency_overrides[require_approver] = lambda: _fake_admin
     app.dependency_overrides[_csrf_dep] = lambda: None
+    # The fake admin bypasses company scope, but routes still need an active
+    # company for their "default to the active company" list filtering.
+    app.dependency_overrides[get_active_company] = (
+        lambda: db.query(Company).order_by(Company.id).first()
+    )
     with TestClient(app, follow_redirects=False) as c:
         yield c
     app.dependency_overrides.clear()
@@ -62,6 +79,8 @@ def client(db):
         templates.env.globals["is_admin"] = _original_is_admin
     if _original_has_role:
         templates.env.globals["has_role"] = _original_has_role
+    if _original_company_context:
+        templates.env.globals["company_context"] = _original_company_context
 
 
 @pytest.fixture()
@@ -229,3 +248,63 @@ def benefit_plan(db, company):
     db.commit()
     db.refresh(plan)
     return plan
+
+
+@pytest.fixture()
+def second_company(db):
+    """A second tenant -- scoping tests are only meaningful with two."""
+    co = Company(name="Other Co", pay_frequency="biweekly", state="OK")
+    db.add(co)
+    db.commit()
+    db.refresh(co)
+    return co
+
+
+@pytest.fixture()
+def other_employee(db, second_company):
+    emp = Employee(
+        company_id=second_company.id,
+        first_name="Rival",
+        last_name="Person",
+        employment_type="salaried",
+        pay_rate=50000.00,
+        status="active",
+        state="OK",
+        flsa_exempt=True,
+        hire_date=date(2025, 6, 1),
+    )
+    db.add(emp)
+    db.commit()
+    db.refresh(emp)
+    return emp
+
+
+@pytest.fixture()
+def other_pay_period(db, second_company):
+    from models.payroll import PayPeriod
+    pp = PayPeriod(
+        company_id=second_company.id,
+        start_date=date(2026, 5, 1),
+        end_date=date(2026, 5, 14),
+        pay_date=date(2026, 5, 20),
+        frequency="biweekly",
+        status="open",
+    )
+    db.add(pp)
+    db.commit()
+    db.refresh(pp)
+    return pp
+
+
+@pytest.fixture()
+def wc_code(db, company):
+    code = WorkersCompCode(
+        company_id=company.id,
+        ncci_code="8810",
+        description="Clerical",
+        rate_per_100_wages=0.25,
+    )
+    db.add(code)
+    db.commit()
+    db.refresh(code)
+    return code
