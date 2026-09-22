@@ -502,3 +502,17 @@ class TestScopedLists:
         r = auth_client.get("/payroll/?company_id=all")
         assert "Alpha Co" in r.text
         assert "Beta Co" not in r.text
+
+    def test_garbage_company_id_falls_back_to_active_company(
+        self, auth_client, alpha_preparer, emp_a, emp_b, period_a, period_b,
+    ):
+        """An unparseable filter is unset, not a 500 -- and never widens scope."""
+        login(auth_client, "alpha_prep", "alphapass123")
+        r = auth_client.get("/employees/?company_id=abc")
+        assert r.status_code == 200
+        assert "Alice" in r.text
+        assert "Bob" not in r.text
+        r = auth_client.get("/payroll/?company_id=abc")
+        assert r.status_code == 200
+        assert "Alpha Co" in r.text
+        assert "Beta Co" not in r.text

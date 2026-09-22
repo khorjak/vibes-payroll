@@ -49,7 +49,7 @@ def list_pay_periods(
     # No explicit filter means the active company, not every company.
     if company_id == "all":
         query = scope_query(query, PayPeriod.company_id, current_user, db)
-    elif company_id:
+    elif company_id.isdigit():
         assert_company_access(current_user, int(company_id), db)
         query = query.filter(PayPeriod.company_id == int(company_id))
     elif active_company:

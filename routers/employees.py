@@ -46,7 +46,10 @@ def _validate_wc_code(db: Session, company_id: int, wc_code_id: str) -> tuple[in
     """Resolve a submitted WC code id, rejecting one from a different company."""
     if not wc_code_id:
         return None, None
-    code = db.query(WorkersCompCode).filter(WorkersCompCode.id == int(wc_code_id)).first()
+    # A non-numeric id is just an invalid selection, not a 500.
+    code = None
+    if wc_code_id.isdigit():
+        code = db.query(WorkersCompCode).filter(WorkersCompCode.id == int(wc_code_id)).first()
     if not code or code.company_id != company_id:
         return None, "Select a workers comp code belonging to this company."
     return code.id, None
@@ -74,7 +77,7 @@ def list_employees(
     # No explicit filter means the active company, not every company.
     if company_id == "all":
         query = scope_query(query, Employee.company_id, current_user, db)
-    elif company_id:
+    elif company_id.isdigit():
         assert_company_access(current_user, int(company_id), db)
         query = query.filter(Employee.company_id == int(company_id))
     elif active_company:

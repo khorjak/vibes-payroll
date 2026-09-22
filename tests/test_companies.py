@@ -366,3 +366,13 @@ class TestWCCodesArePerCompany:
         })
         assert r.status_code == 422
         assert "belonging to this company" in r.text
+
+    def test_non_numeric_wc_code_id_is_rejected_not_500(self, client, company):
+        r = client.post("/employees/new", data={
+            "company_id": str(company.id),
+            "first_name": "Junk", "last_name": "Code",
+            "employment_type": "salaried", "pay_rate": "50000",
+            "workers_comp_code_id": "junk",
+        })
+        assert r.status_code == 422
+        assert "belonging to this company" in r.text
