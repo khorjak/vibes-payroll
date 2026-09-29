@@ -36,3 +36,6 @@ Thumbs.db
 # Secrets
 .env
 *.key
+
+# Docker test deployment secrets
+.env.docker
