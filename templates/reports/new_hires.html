@@ -72,6 +72,7 @@
             <form method="post" action="/employees/{{ emp.id }}/new-hire-reported">
               <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
               <input type="hidden" name="return_to" value="report">
+              <input type="hidden" name="company_id" value="{{ company_id }}">
               <button type="submit" class="text-xs text-indigo-600 hover:underline">Mark as reported</button>
             </form>
           </td>

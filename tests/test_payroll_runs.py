@@ -114,7 +114,7 @@ class TestCalcEmployeeGross:
 class TestGetPreTaxDeductions:
     def test_no_enrollments(self, db, salaried_employee):
         emp = _load_employee(db, salaried_employee.id)
-        assert get_employee_pre_tax_deductions(emp) == Decimal("0")
+        assert get_employee_pre_tax_deductions(emp, Decimal("2500")) == Decimal("0")
 
     def test_active_pretax_fixed(self, db, salaried_employee, benefit_plan):
         enrollment = EmployeeBenefitEnrollment(
@@ -126,7 +126,7 @@ class TestGetPreTaxDeductions:
         db.commit()
         emp = _load_employee(db, salaried_employee.id)
         # benefit_plan fixture: employee_contribution_amount=150.00
-        assert get_employee_pre_tax_deductions(emp) == Decimal("150.00")
+        assert get_employee_pre_tax_deductions(emp, Decimal("2500")) == Decimal("150.00")
 
     def test_terminated_enrollment_excluded(self, db, salaried_employee, benefit_plan):
         enrollment = EmployeeBenefitEnrollment(
@@ -138,7 +138,7 @@ class TestGetPreTaxDeductions:
         db.add(enrollment)
         db.commit()
         emp = _load_employee(db, salaried_employee.id)
-        assert get_employee_pre_tax_deductions(emp) == Decimal("0")
+        assert get_employee_pre_tax_deductions(emp, Decimal("2500")) == Decimal("0")
 
     def test_post_tax_plan_excluded(self, db, salaried_employee, company):
         post_tax_plan = BenefitPlan(
@@ -160,7 +160,7 @@ class TestGetPreTaxDeductions:
         db.add(enrollment)
         db.commit()
         emp = _load_employee(db, salaried_employee.id)
-        assert get_employee_pre_tax_deductions(emp) == Decimal("0")
+        assert get_employee_pre_tax_deductions(emp, Decimal("2500")) == Decimal("0")
 
     def test_post_tax_plan_returned(self, db, salaried_employee, company):
         roth_plan = BenefitPlan(
@@ -181,7 +181,7 @@ class TestGetPreTaxDeductions:
         ))
         db.commit()
         emp = _load_employee(db, salaried_employee.id)
-        assert get_employee_post_tax_deductions(emp) == Decimal("100.00")
+        assert get_employee_post_tax_deductions(emp, Decimal("2500")) == Decimal("100.00")
 
     def test_post_tax_excludes_pre_tax(self, db, salaried_employee, benefit_plan):
         db.add(EmployeeBenefitEnrollment(
@@ -191,7 +191,7 @@ class TestGetPreTaxDeductions:
         ))
         db.commit()
         emp = _load_employee(db, salaried_employee.id)
-        assert get_employee_post_tax_deductions(emp) == Decimal("0")
+        assert get_employee_post_tax_deductions(emp, Decimal("2500")) == Decimal("0")
 
     def test_override_amount_used(self, db, salaried_employee, benefit_plan):
         enrollment = EmployeeBenefitEnrollment(
@@ -203,7 +203,7 @@ class TestGetPreTaxDeductions:
         db.add(enrollment)
         db.commit()
         emp = _load_employee(db, salaried_employee.id)
-        assert get_employee_pre_tax_deductions(emp) == Decimal("75.00")
+        assert get_employee_pre_tax_deductions(emp, Decimal("2500")) == Decimal("75.00")
 
 
 # ── get_ytd_prior ────────────────────────────────────────────────────────────

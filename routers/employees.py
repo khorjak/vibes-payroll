@@ -13,7 +13,7 @@ from models.workers_comp import WorkersCompCode
 from models.benefit import BenefitPlan, EmployeeBenefitEnrollment
 from models.garnishment import GarnishmentOrder, GARNISHMENT_TYPES
 from utils.crypto import encrypt, decrypt
-from utils.forms import safe_float
+from utils.forms import percent_value, safe_float
 from routers.auth import ActiveCompany, CurrentUser, PreparerUser, get_current_user
 from utils.company_scope import (
     accessible_companies,
@@ -383,16 +383,21 @@ def mark_new_hire_reported(
     employee_id: int,
     db: Session = Depends(get_db),
     return_to: str = Form(""),
+    company_id: int = Form(0),
 ):
     employee = get_scoped_employee(db, current_user, employee_id)
-    employee.new_hire_reported_at = date.today()
-    log_change(db, "employees", employee.id, "update",
-               changed_by=current_user.username,
-               old_values={"new_hire_reported_at": None},
-               new_values={"new_hire_reported_at": date.today().isoformat()})
-    db.commit()
+    # A second click or tab must not rewrite the date or the audit trail.
+    if employee.new_hire_reported_at is None:
+        employee.new_hire_reported_at = date.today()
+        log_change(db, "employees", employee.id, "update",
+                   changed_by=current_user.username,
+                   old_values={"new_hire_reported_at": None},
+                   new_values={"new_hire_reported_at": date.today().isoformat()})
+        db.commit()
     if return_to == "report":
-        return RedirectResponse(f"/reports/new-hires?company_id={employee.company_id}", status_code=303)
+        # Back to the view the user came from (-1 = all companies); the report re-checks access.
+        return RedirectResponse(
+            f"/reports/new-hires?company_id={company_id or employee.company_id}", status_code=303)
     return RedirectResponse(f"/employees/{employee_id}?flash=new_hire_reported", status_code=303)
 
 
@@ -508,11 +513,14 @@ def enroll_benefit(
     ).first()
     if not plan:
         raise HTTPException(status_code=404, detail="Benefit plan not found")
+    override = safe_float(employee_override_amount, "override_amount") if employee_override_amount else None
+    if override is not None and plan.employee_contribution_type == "percent":
+        percent_value(override, "override_amount")
     enrollment = EmployeeBenefitEnrollment(
         employee_id=employee_id,
         benefit_plan_id=benefit_plan_id,
         effective_date=date.fromisoformat(effective_date),
-        employee_override_amount=safe_float(employee_override_amount, "override_amount") if employee_override_amount else None,
+        employee_override_amount=override,
     )
     db.add(enrollment)
     db.flush()

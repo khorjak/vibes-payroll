@@ -13,7 +13,7 @@ from utils.company_scope import (
     get_scoped_wc_code,
 )
 from utils.csrf import CsrfProtect
-from utils.forms import safe_float
+from utils.forms import percent_value, safe_float
 
 from app_templates import templates
 
@@ -201,6 +201,16 @@ def create_wc_code(
 
 # --- Benefit Plans ---
 
+def _plan_numbers(contribution_type: str, amount: str, match: str, cap: str):
+    """Parse a benefit plan's numbers; percent values must be 0-100."""
+    amount_f = safe_float(amount or "0", "employee_contribution_amount")
+    if contribution_type == "percent":
+        percent_value(amount_f, "employee_contribution_amount")
+    match_f = percent_value(safe_float(match, "employer_match_percent"), "employer_match_percent") if match else None
+    cap_f = percent_value(safe_float(cap, "employer_match_cap_percent"), "employer_match_cap_percent") if cap else None
+    return amount_f, match_f, cap_f
+
+
 @router.post("/{company_id}/benefits/new")
 def create_benefit_plan(
     current_user: AdminUser,
@@ -216,14 +226,17 @@ def create_benefit_plan(
     pre_tax: str = Form(""),
 ):
     assert_company_access(current_user, company_id, db)
+    amount, match, cap = _plan_numbers(
+        employee_contribution_type, employee_contribution_amount,
+        employer_match_percent, employer_match_cap_percent)
     plan = BenefitPlan(
         company_id=company_id,
         name=name.strip(),
         benefit_type=benefit_type,
         employee_contribution_type=employee_contribution_type,
-        employee_contribution_amount=safe_float(employee_contribution_amount or "0", "employee_contribution_amount"),
-        employer_match_percent=safe_float(employer_match_percent, "employer_match_percent") if employer_match_percent else None,
-        employer_match_cap_percent=safe_float(employer_match_cap_percent, "employer_match_cap_percent") if employer_match_cap_percent else None,
+        employee_contribution_amount=amount,
+        employer_match_percent=match,
+        employer_match_cap_percent=cap,
         pre_tax=pre_tax == "on",
     )
     db.add(plan)
@@ -298,9 +311,9 @@ def update_benefit_plan(
     plan.name = name.strip()
     plan.benefit_type = benefit_type
     plan.employee_contribution_type = employee_contribution_type
-    plan.employee_contribution_amount = safe_float(employee_contribution_amount or "0", "employee_contribution_amount")
-    plan.employer_match_percent = safe_float(employer_match_percent, "employer_match_percent") if employer_match_percent else None
-    plan.employer_match_cap_percent = safe_float(employer_match_cap_percent, "employer_match_cap_percent") if employer_match_cap_percent else None
+    plan.employee_contribution_amount, plan.employer_match_percent, plan.employer_match_cap_percent = _plan_numbers(
+        employee_contribution_type, employee_contribution_amount,
+        employer_match_percent, employer_match_cap_percent)
     plan.pre_tax = pre_tax == "on"
     db.commit()
     return RedirectResponse(f"/companies/{company_id}/benefits?flash=updated", status_code=303)

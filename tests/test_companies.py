@@ -390,3 +390,37 @@ class TestWCCodesArePerCompany:
         })
         assert r.status_code == 422
         assert "belonging to this company" in r.text
+
+
+class TestBenefitPlanPercentValidation:
+    def _post(self, client, company, **over):
+        data = {"name": "Plan", "benefit_type": "traditional_401k",
+                "employee_contribution_type": "percent", "employee_contribution_amount": "5",
+                "pre_tax": "on", **over}
+        return client.post(f"/companies/{company.id}/benefits/new", data=data)
+
+    def test_percent_plan_over_100_rejected(self, client, company):
+        assert self._post(client, company, employee_contribution_amount="500").status_code == 422
+
+    def test_negative_percent_rejected(self, client, company):
+        assert self._post(client, company, employee_contribution_amount="-1").status_code == 422
+
+    def test_match_percent_over_100_rejected(self, client, company):
+        assert self._post(client, company, employer_match_percent="150").status_code == 422
+        assert self._post(client, company, employer_match_cap_percent="101").status_code == 422
+
+    def test_fixed_plan_may_exceed_100(self, client, company):
+        r = self._post(client, company, employee_contribution_type="fixed",
+                       employee_contribution_amount="250")
+        assert r.status_code == 303
+
+    def test_edit_rejects_percent_over_100(self, client, db, company):
+        from models.benefit import BenefitPlan
+        assert self._post(client, company).status_code == 303
+        plan = db.query(BenefitPlan).one()
+        r = client.post(f"/companies/{company.id}/benefits/{plan.id}/edit", data={
+            "name": "Plan", "benefit_type": "traditional_401k",
+            "employee_contribution_type": "percent", "employee_contribution_amount": "500"})
+        assert r.status_code == 422
+        db.refresh(plan)
+        assert float(plan.employee_contribution_amount) == 5.0
