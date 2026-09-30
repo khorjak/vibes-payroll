@@ -272,3 +272,65 @@ class TestCompanyAssignment:
             "role": "admin", "is_active": "on", "company_ids": [str(company.id)],
         })
         assert db.query(UserCompany).filter(UserCompany.user_id == user.id).count() == 0
+
+
+class TestUserListAndNotFound:
+    def test_list_shows_assigned_company_names(self, client, db, company, second_company):
+        client.post("/users/new", data={
+            "username": "twoco", "password": "supersecret1", "role": "preparer",
+            "company_ids": [company.id, second_company.id], "csrf_token": ""})
+        page = client.get("/users/").text
+        assert "twoco" in page
+        assert company.name in page and second_company.name in page
+
+    def test_edit_form_unknown_user_404(self, client):
+        assert client.get("/users/9999/edit").status_code == 404
+
+    def test_update_unknown_user_404(self, client):
+        r = client.post("/users/9999/edit", data={"role": "preparer", "csrf_token": ""})
+        assert r.status_code == 404
+
+    def test_reset_form_unknown_user_404(self, client):
+        assert client.get("/users/9999/reset-password").status_code == 404
+
+    def test_reset_password_unknown_user_404(self, client):
+        r = client.post("/users/9999/reset-password", data={
+            "new_password": "brandnewpass1", "confirm_password": "brandnewpass1", "csrf_token": ""})
+        assert r.status_code == 404
+
+
+class TestUserValidation:
+    def _make(self, client, username="victim", role="preparer"):
+        client.post("/users/new", data={"username": username, "password": "supersecret1",
+                                        "role": role, "csrf_token": ""})
+
+    def test_create_blank_username_rejected(self, client, db):
+        r = client.post("/users/new", data={"username": "   ", "password": "supersecret1",
+                                            "role": "preparer", "csrf_token": ""})
+        assert r.status_code == 422
+        assert "Username is required" in r.text
+
+    def test_create_invalid_role_rejected(self, client, db):
+        r = client.post("/users/new", data={"username": "badrole", "password": "supersecret1",
+                                            "role": "superuser", "csrf_token": ""})
+        assert r.status_code == 422
+        assert db.query(User).filter_by(username="badrole").first() is None
+
+    def test_edit_invalid_role_rejected_and_unchanged(self, client, db):
+        self._make(client)
+        user = db.query(User).filter_by(username="victim").one()
+        r = client.post(f"/users/{user.id}/edit", data={"role": "superuser", "is_active": "on",
+                                                        "csrf_token": ""})
+        assert r.status_code == 422
+        db.refresh(user)
+        assert user.role == "preparer"
+
+    def test_reset_short_password_rejected(self, client, db):
+        self._make(client)
+        user = db.query(User).filter_by(username="victim").one()
+        old = user.hashed_password
+        r = client.post(f"/users/{user.id}/reset-password", data={
+            "new_password": "short", "confirm_password": "short", "csrf_token": ""})
+        assert r.status_code == 422
+        db.refresh(user)
+        assert user.hashed_password == old

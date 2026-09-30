@@ -493,3 +493,47 @@ class TestMarkNewHireReportedEdgeCases:
         self._hire(db, company)
         page = client.get(f"/reports/new-hires?company_id={company.id}").text
         assert f'name="company_id" value="{company.id}"' in page
+
+
+class TestDeductionsReportWithData:
+    def _run(self, db, company, salaried_employee, benefit_plan):
+        from models.benefit import EmployeeBenefitEnrollment
+        from services.payroll_service import calculate_payroll_run
+        db.add(EmployeeBenefitEnrollment(
+            employee_id=salaried_employee.id, benefit_plan_id=benefit_plan.id,
+            effective_date=date(2026, 1, 1)))
+        pp = PayPeriod(company_id=company.id, start_date=date(2026, 5, 1), end_date=date(2026, 5, 14),
+                       pay_date=date(2026, 5, 20), frequency="biweekly", status="open")
+        db.add(pp)
+        db.commit()
+        calculate_payroll_run(pp, db)
+
+    def test_lists_each_deduction_with_total(self, client, db, company, salaried_employee, benefit_plan):
+        self._run(db, company, salaried_employee, benefit_plan)
+        r = client.get(f"/reports/deductions?company_id={company.id}&year=2026")
+        assert r.status_code == 200
+        assert "Health Plan" in r.text
+        assert "150.00" in r.text
+
+    def test_other_year_is_empty(self, client, db, company, salaried_employee, benefit_plan):
+        self._run(db, company, salaried_employee, benefit_plan)
+        r = client.get(f"/reports/deductions?company_id={company.id}&year=2025")
+        assert "Health Plan" not in r.text
+
+    def test_voided_paycheck_excluded(self, client, db, company, salaried_employee, benefit_plan):
+        from services.payroll_service import void_paycheck
+        self._run(db, company, salaried_employee, benefit_plan)
+        void_paycheck(db.query(Paycheck).one(), "mistake", db)
+        r = client.get(f"/reports/deductions?company_id={company.id}&year=2026")
+        assert "Health Plan" not in r.text
+
+    def test_same_deduction_across_paychecks_is_summed(self, client, db, company, salaried_employee, benefit_plan):
+        from services.payroll_service import calculate_payroll_run
+        self._run(db, company, salaried_employee, benefit_plan)
+        pp2 = PayPeriod(company_id=company.id, start_date=date(2026, 6, 1), end_date=date(2026, 6, 14),
+                        pay_date=date(2026, 6, 20), frequency="biweekly", status="open")
+        db.add(pp2)
+        db.commit()
+        calculate_payroll_run(pp2, db)
+        r = client.get(f"/reports/deductions?company_id={company.id}&year=2026")
+        assert "300.00" in r.text  # two $150 deductions in one row

@@ -8,6 +8,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Run all tests
 python -m pytest
 
+# Run with coverage; term-missing lists uncovered lines (config in .coveragerc)
+python -m pytest --cov --cov-report=term-missing
+
 # Run a single test file
 python -m pytest tests/test_auth.py
 
