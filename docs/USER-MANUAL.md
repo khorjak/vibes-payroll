@@ -87,14 +87,14 @@ Workers comp codes belong to one company. Changing a rate in one company never a
 ### Add benefit plans
 
 1. Open the company, then its benefit plans page.
-2. **Add Benefit Plan**: name; type (health, dental, vision, FSA, HSA, traditional 401(k), Roth 401(k), life insurance, other); employee contribution type and amount; whether it is **pre-tax**; and optional employer match percentages.
+2. **Add Benefit Plan**: name; type (health, dental, vision, FSA, HSA, traditional 401(k), Roth 401(k), life insurance, other); employee contribution type and amount (a percent plan's amount and both match percentages must be between 0 and 100); whether it is **pre-tax**; and optional employer match percentages.
 3. Use **Edit** to change a plan, or the toggle to make it inactive. An inactive plan is no longer deducted.
 
 **How contributions work.**
 - **Fixed:** the amount is dollars per pay period.
 - **Percent:** the amount is a percent of that paycheck's gross pay. A 5% plan takes $125.00 from a $2,500.00 paycheck.
 - **Employer match:** "match percent" is how much of the employee's contribution the company matches, and "cap percent" is the most of gross pay that counts. A 100% match with a 4% cap on a $2,500.00 paycheck adds at most $100.00. The match appears under employer costs on the paycheck screen and the pay stub, is included in the total employer cost, and is not taken from the employee.
-- An employee's **override amount** (set when enrolling them) uses the same unit as the plan: dollars for a fixed plan, a percent for a percent plan.
+- An employee's **override** (set when enrolling them) uses the same unit as the plan: dollars for a fixed plan, a percent (0 to 100) for a percent plan. An override of 0 means no deduction for that employee.
 
 ## 5. Managing users (admins)
 
@@ -229,7 +229,7 @@ Use for a one-off payment to one employee outside the regular schedule.
 3. Save. The system creates a one-day pay period with a draft paycheck.
 4. An approver approves and marks it paid, like any other run.
 
-The gross amount you enter is what the paycheck pays. For **hourly and part-time** employees it is converted to hours at their pay rate. For **salaried** employees it replaces their per-period salary for this paycheck. The description you enter labels the earnings line, for example "Bonus".
+The gross amount you enter is what the paycheck pays. For **hourly and part-time** employees it is converted to hours at their pay rate. For **salaried** employees it replaces their per-period salary for this paycheck. For a salaried employee, the description you enter labels the earnings line, for example "Bonus". Hourly and part-time paychecks keep their normal "Regular Pay" line.
 
 Do not choose **Recalculate** on an off-cycle period. It redrafts every active employee in the company and replaces a salaried employee's entered amount with their normal salary. To change an off-cycle payment, void the paycheck and create a new one.
 

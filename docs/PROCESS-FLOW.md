@@ -131,7 +131,7 @@ flowchart LR
     O3 --> O4[Approver marks paid]
 ```
 
-The new period starts in `draft` so it follows the normal approve and mark-paid steps. For hourly and part-time employees the gross amount is converted to hours at their pay rate. For salaried employees the amount entered is the gross for that paycheck, in place of their per-period salary. The description you enter labels the earnings line.
+The new period starts in `draft` so it follows the normal approve and mark-paid steps. For hourly and part-time employees the gross amount is converted to hours at their pay rate. For salaried employees the amount entered is the gross for that paycheck, in place of their per-period salary. For a salaried employee, the description you enter labels the earnings line; hourly paychecks keep their normal "Regular Pay" line.
 
 ## 7. Voiding a paycheck
 

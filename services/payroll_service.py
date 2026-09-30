@@ -88,11 +88,11 @@ def _sum_employee_deductions(employee: Employee, pre_tax: bool, gross: Decimal) 
     )
 
 
-def get_employee_pre_tax_deductions(employee: Employee, gross: Decimal = Decimal("0")) -> Decimal:
+def get_employee_pre_tax_deductions(employee: Employee, gross: Decimal) -> Decimal:
     return _sum_employee_deductions(employee, True, gross)
 
 
-def get_employee_post_tax_deductions(employee: Employee, gross: Decimal = Decimal("0")) -> Decimal:
+def get_employee_post_tax_deductions(employee: Employee, gross: Decimal) -> Decimal:
     return _sum_employee_deductions(employee, False, gross)
 
 

@@ -576,3 +576,39 @@ class TestAuditLogExpansion:
             AuditLog.action == "update",
         ).first()
         assert log is not None
+
+
+class TestEnrollmentOverrideValidation:
+    def _plan(self, db, company, ctype):
+        from models.benefit import BenefitPlan
+        plan = BenefitPlan(company_id=company.id, name="P", benefit_type="traditional_401k",
+                           employee_contribution_type=ctype, employee_contribution_amount=5,
+                           pre_tax=True, active=True)
+        db.add(plan)
+        db.commit()
+        return plan
+
+    def test_percent_override_over_100_rejected(self, client, db, company, salaried_employee):
+        plan = self._plan(db, company, "percent")
+        r = client.post(f"/employees/{salaried_employee.id}/benefits/enroll", data={
+            "benefit_plan_id": plan.id, "effective_date": "2026-01-01",
+            "employee_override_amount": "250"})
+        assert r.status_code == 422
+
+    def test_fixed_override_over_100_allowed(self, client, db, company, salaried_employee):
+        plan = self._plan(db, company, "fixed")
+        r = client.post(f"/employees/{salaried_employee.id}/benefits/enroll", data={
+            "benefit_plan_id": plan.id, "effective_date": "2026-01-01",
+            "employee_override_amount": "250"})
+        assert r.status_code == 303
+
+    def test_zero_override_shown_not_plan_default(self, client, db, company, salaried_employee):
+        from models.benefit import EmployeeBenefitEnrollment
+        plan = self._plan(db, company, "percent")
+        db.add(EmployeeBenefitEnrollment(
+            employee_id=salaried_employee.id, benefit_plan_id=plan.id,
+            effective_date=date(2026, 1, 1), employee_override_amount=0))
+        db.commit()
+        page = client.get(f"/employees/{salaried_employee.id}").text
+        assert "0.0000%" in page  # the override, not the plan's 5%
+        assert "5.0000%" not in page

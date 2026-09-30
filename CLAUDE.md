@@ -71,7 +71,7 @@ Paycheck lines have four `line_type`s: `earning`, `deduction`, `tax`, `employer_
 
 `draft_paycheck` also writes `ClientLiability` rows (garnishment payees, benefit plans incl. match). They hang off the draft paycheck, so recalculating replaces them; the client-liabilities report counts only approved/paid paychecks (plus paycheck-less rows), which is what makes voids drop out. Nothing sets `remitted_at` yet. `gross_override` on `draft_paycheck` lets a salaried off-cycle payment use the entered amount.
 
-`POST /employees/{id}/new-hire-reported` (preparer) sets `new_hire_reported_at`; the report and employee profile both link to it.
+`POST /employees/{id}/new-hire-reported` (preparer) sets `new_hire_reported_at` once (repeat posts change nothing); the report and employee profile both link to it. Percent values on benefit plans and enrollment overrides are validated 0-100 server-side (`utils/forms.py:percent_value`).
 
 `services/payroll_service.py` orchestrates: `calculate_payroll_run` → `approve_payroll_run` → `mark_period_paid` → `void_paycheck`. These call the tax engine and write `Paycheck` + `PaycheckLine` rows.
 

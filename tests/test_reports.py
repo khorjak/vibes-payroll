@@ -460,3 +460,36 @@ class TestMarkNewHireReported:
         assert "Mark as reported" in client.get(f"/employees/{emp.id}").text
         client.post(f"/employees/{emp.id}/new-hire-reported")
         assert "Mark as reported" not in client.get(f"/employees/{emp.id}").text
+
+
+class TestMarkNewHireReportedEdgeCases:
+    def _hire(self, db, company):
+        emp = Employee(company_id=company.id, first_name="New", last_name="Hire",
+                       employment_type="hourly", pay_rate=15, status="active",
+                       state="OK", hire_date=date.today())
+        db.add(emp)
+        db.commit()
+        return emp
+
+    def test_second_post_changes_nothing(self, client, db, company):
+        from datetime import timedelta
+        from models.audit import AuditLog
+        emp = self._hire(db, company)
+        client.post(f"/employees/{emp.id}/new-hire-reported")
+        emp.new_hire_reported_at = date.today() - timedelta(days=3)
+        db.commit()
+        client.post(f"/employees/{emp.id}/new-hire-reported")
+        db.refresh(emp)
+        assert emp.new_hire_reported_at == date.today() - timedelta(days=3)
+        assert db.query(AuditLog).filter_by(table_name="employees", record_id=emp.id).count() == 1
+
+    def test_redirect_keeps_consolidated_view(self, client, db, company):
+        emp = self._hire(db, company)
+        r = client.post(f"/employees/{emp.id}/new-hire-reported",
+                        data={"return_to": "report", "company_id": "-1"})
+        assert r.headers["location"] == "/reports/new-hires?company_id=-1"
+
+    def test_report_form_posts_current_company(self, client, db, company):
+        self._hire(db, company)
+        page = client.get(f"/reports/new-hires?company_id={company.id}").text
+        assert f'name="company_id" value="{company.id}"' in page
