@@ -90,7 +90,11 @@ Workers comp codes belong to one company. Changing a rate in one company never a
 2. **Add Benefit Plan**: name; type (health, dental, vision, FSA, HSA, traditional 401(k), Roth 401(k), life insurance, other); employee contribution type and amount; whether it is **pre-tax**; and optional employer match percentages.
 3. Use **Edit** to change a plan, or the toggle to make it inactive. An inactive plan is no longer deducted.
 
-> Use **fixed-amount** contributions. Percentage-based plans are not currently deducted from paychecks (see [Things to know](#14-things-to-know)).
+**How contributions work.**
+- **Fixed:** the amount is dollars per pay period.
+- **Percent:** the amount is a percent of that paycheck's gross pay. A 5% plan takes $125.00 from a $2,500.00 paycheck.
+- **Employer match:** "match percent" is how much of the employee's contribution the company matches, and "cap percent" is the most of gross pay that counts. A 100% match with a 4% cap on a $2,500.00 paycheck adds at most $100.00. The match appears under employer costs on the paycheck screen and the pay stub, is included in the total employer cost, and is not taken from the employee.
+- An employee's **override amount** (set when enrolling them) uses the same unit as the plan: dollars for a fixed plan, a percent for a percent plan.
 
 ## 5. Managing users (admins)
 
@@ -140,6 +144,10 @@ An employee's paycheck cannot withhold correctly without these. Add both after c
 - **Oklahoma:** add the Oklahoma withholding election: effective date, filing status, allowances, and extra withholding.
 
 When an employee files a new form, add a *new* election with the new effective date. The old ones stay as history, and the newest is used.
+
+### New hire reporting
+
+Oklahoma requires new hires to be reported within 20 days. After you report someone, open their profile and choose **Mark as reported** next to *New Hire Reported*. The date is saved and they leave the New Hire report. The same button is on each row of the report. Only preparers and admins see it.
 
 ### Benefit enrollments
 
@@ -221,7 +229,9 @@ Use for a one-off payment to one employee outside the regular schedule.
 3. Save. The system creates a one-day pay period with a draft paycheck.
 4. An approver approves and marks it paid, like any other run.
 
-**Important:** for **hourly and part-time** employees, the gross amount you enter is honored (converted to hours at their rate). For **salaried** employees the paycheck is their regular per-period salary and the amount you enter is **not** used. For a bonus or other special amount to a salaried employee, check the paycheck before approving and void it if it is wrong.
+The gross amount you enter is what the paycheck pays. For **hourly and part-time** employees it is converted to hours at their pay rate. For **salaried** employees it replaces their per-period salary for this paycheck. The description you enter labels the earnings line, for example "Bonus".
+
+Do not choose **Recalculate** on an off-cycle period. It redrafts every active employee in the company and replaces a salaried employee's entered amount with their normal salary. To change an off-cycle payment, void the paycheck and create a new one.
 
 ## 9. Voiding a paycheck
 
@@ -255,8 +265,8 @@ Open **Reports** and pick a report. Every report lets you choose the company; mo
 | **Oklahoma withholding** | Oklahoma tax withheld. | State withholding filings. |
 | **W-2 export** | Downloads a CSV of per-employee W-2 box amounts. | Year-end W-2 preparation. |
 | **Deductions and benefits** | Benefit and deduction totals. | Reconciling with carriers. |
-| **Client liabilities** | Amounts to remit to third parties. | Tracking remittances. |
-| **New hire reporting** | Recent hires who may need to be reported. | Meeting new hire reporting deadlines. |
+| **Client liabilities** | Amounts to send to garnishment payees, benefit carriers and retirement plans, once a payroll is approved. Voided paychecks drop out. | Knowing what to remit. |
+| **New hire reporting** | Hires from the last 20 days not yet marked as reported, with a **Mark as reported** button on each row. | Meeting new hire reporting deadlines. |
 
 **Running across companies.** If you can access more than one company, six reports (register, tax liability, workers comp, deductions, client liabilities, new hires) can be run for *all* your companies at once. They show a subtotal per company and a grand total. The **941**, **Oklahoma withholding**, and **W-2 export** must be run one company at a time, because each is filed under that company's own EIN.
 
@@ -286,7 +296,7 @@ Confirm figures against the official IRS and Oklahoma Tax Commission instruction
 | Cannot calculate or edit hours | The period is already approved or paid. |
 | "Cannot approve" or "Cannot mark paid" | The period is not in the expected earlier status. Calculate first, then approve, then mark paid. |
 | Cannot void a paycheck | It is already paid or already voided. |
-| Benefit not deducted | The plan is inactive, the enrollment has ended, or the plan uses a percentage contribution (not supported yet). |
+| Benefit not deducted | The plan is inactive, the enrollment has ended, or the contribution amount is zero. |
 | Garnishment is less than the order | Legal limits on disposable earnings cap it. |
 | Cannot demote or deactivate an admin | You are trying to change the last active admin. Make another admin first. |
 | Workers comp code will not save | The code belongs to a different company than the employee. |
@@ -294,9 +304,8 @@ Confirm figures against the official IRS and Oklahoma Tax Commission instruction
 
 ## 14. Things to know
 
-- **Percentage-based benefit plans** are not deducted in payroll runs; only fixed-amount plans are. Employer match settings are stored but not used in paycheck calculation.
-- **Client liabilities report** shows records that must already exist; payroll runs do not create any yet, so it may be empty.
-- **New hire reporting** lists employees hired in the last 20 days. There is no button to mark an employee as reported, so they stay listed until the 20 days pass.
+- **Remittances are not tracked yet.** The Client liabilities report shows what is owed, but there is no screen to record that a payment was sent, so its remitted column stays at $0.00.
+- **Employer insurance premiums** are not modeled. Client liabilities include the employee's deduction and any employer match, not a company-paid premium share.
 - **Test data only** on the Docker test deployment: it runs over plain HTTP, so anything typed (including your password) can be read on the network. Use fake SSNs and bank numbers there.
 - **Backups.** The database and the encryption key must both be backed up. Without the key, stored Social Security and bank numbers cannot be read.
 - **Audit log.** The system records who created or changed employees, pay periods, approvals, voids, user roles, and company assignments. It is stored in the database and is not yet shown on any screen.

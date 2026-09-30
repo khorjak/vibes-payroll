@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 
 from models.employee import Employee
-from models.payroll import PayPeriod, Timesheet, Paycheck, PaycheckLine
+from models.payroll import PayPeriod, Timesheet, Paycheck, PaycheckLine, ClientLiability
 from models.benefit import EmployeeBenefitEnrollment
 from models.garnishment import GarnishmentOrder
 from models.company import Company
@@ -49,31 +49,51 @@ def calc_employee_gross(
     return _round2(regular + overtime + double_time + pto + sick + holiday)
 
 
-def _sum_employee_deductions(employee: Employee, pre_tax: bool) -> Decimal:
-    total = Decimal("0")
+def _active_enrollments(employee: Employee, pre_tax: bool):
+    """Open enrollments in active plans of the given tax treatment."""
     for enrollment in employee.benefit_enrollments:
-        if enrollment.end_date:
-            continue
         plan = enrollment.plan
-        if plan.pre_tax != pre_tax or not plan.active:
-            continue
-        if plan.employee_contribution_type != "fixed":
-            continue
-        amount = (
-            Decimal(str(enrollment.employee_override_amount))
-            if enrollment.employee_override_amount is not None
-            else Decimal(str(plan.employee_contribution_amount))
-        )
-        total += amount
-    return total
+        if not enrollment.end_date and plan.active and plan.pre_tax == pre_tax:
+            yield enrollment
 
 
-def get_employee_pre_tax_deductions(employee: Employee) -> Decimal:
-    return _sum_employee_deductions(employee, pre_tax=True)
+def _employee_contribution(enrollment, gross: Decimal) -> Decimal:
+    """Per-period employee contribution; percent plans take a percent of gross."""
+    plan = enrollment.plan
+    value = Decimal(str(
+        enrollment.employee_override_amount
+        if enrollment.employee_override_amount is not None
+        else plan.employee_contribution_amount
+    ))
+    if plan.employee_contribution_type == "percent":
+        return _round2(gross * value / 100)
+    return value
 
 
-def get_employee_post_tax_deductions(employee: Employee) -> Decimal:
-    return _sum_employee_deductions(employee, pre_tax=False)
+def _employer_match(enrollment, contribution: Decimal, gross: Decimal) -> Decimal:
+    """Match % of the employee contribution, counting at most cap % of gross."""
+    plan = enrollment.plan
+    if not plan.employer_match_percent:
+        return Decimal("0")
+    eligible = contribution
+    if plan.employer_match_cap_percent is not None:
+        eligible = min(eligible, gross * Decimal(str(plan.employer_match_cap_percent)) / 100)
+    return _round2(eligible * Decimal(str(plan.employer_match_percent)) / 100)
+
+
+def _sum_employee_deductions(employee: Employee, pre_tax: bool, gross: Decimal) -> Decimal:
+    return sum(
+        (_employee_contribution(e, gross) for e in _active_enrollments(employee, pre_tax)),
+        Decimal("0"),
+    )
+
+
+def get_employee_pre_tax_deductions(employee: Employee, gross: Decimal = Decimal("0")) -> Decimal:
+    return _sum_employee_deductions(employee, True, gross)
+
+
+def get_employee_post_tax_deductions(employee: Employee, gross: Decimal = Decimal("0")) -> Decimal:
+    return _sum_employee_deductions(employee, False, gross)
 
 
 def get_active_garnishments(employee: Employee) -> list[GarnishmentInputItem]:
@@ -192,8 +212,10 @@ def _create_paycheck_lines(
     timesheet: Optional[Timesheet],
     result,
     db: Session,
+    earning_label: Optional[str] = None,
 ) -> None:
     lines = []
+    liabilities = []
     rate = Decimal(str(employee.pay_rate))
 
     # Earnings
@@ -202,7 +224,7 @@ def _create_paycheck_lines(
             PaycheckLine(
                 paycheck_id=paycheck.id,
                 line_type="earning",
-                description="Regular Salary",
+                description=earning_label or "Regular Salary",
                 amount=result.gross_wages,
                 is_pre_tax=False,
                 is_taxable=True,
@@ -216,54 +238,63 @@ def _create_paycheck_lines(
         _add_hour_line(lines, paycheck.id, "Sick Pay", timesheet.sick_hours, rate)
         _add_hour_line(lines, paycheck.id, "Holiday Pay", timesheet.holiday_hours, rate)
 
-    # Pre-tax deductions
-    for enrollment in employee.benefit_enrollments:
-        if enrollment.end_date or not enrollment.plan.pre_tax or not enrollment.plan.active:
-            continue
-        if enrollment.plan.employee_contribution_type != "fixed":
-            continue
-        amt = (
-            Decimal(str(enrollment.employee_override_amount))
-            if enrollment.employee_override_amount is not None
-            else Decimal(str(enrollment.plan.employee_contribution_amount))
-        )
-        lines.append(
-            PaycheckLine(
-                paycheck_id=paycheck.id,
-                line_type="deduction",
-                description=enrollment.plan.name,
-                amount=amt,
-                is_pre_tax=True,
-                is_taxable=False,
+    # Benefit deductions (pre-tax, then post-tax) and any employer match
+    gross = result.gross_wages
+    for pre_tax in (True, False):
+        for enrollment in _active_enrollments(employee, pre_tax):
+            plan = enrollment.plan
+            amt = _employee_contribution(enrollment, gross)
+            lines.append(
+                PaycheckLine(
+                    paycheck_id=paycheck.id,
+                    line_type="deduction",
+                    description=plan.name,
+                    amount=amt,
+                    is_pre_tax=pre_tax,
+                    is_taxable=False,
+                )
             )
-        )
-
-    # Post-tax deductions
-    for enrollment in employee.benefit_enrollments:
-        if enrollment.end_date or enrollment.plan.pre_tax or not enrollment.plan.active:
-            continue
-        if enrollment.plan.employee_contribution_type != "fixed":
-            continue
-        amt = (
-            Decimal(str(enrollment.employee_override_amount))
-            if enrollment.employee_override_amount is not None
-            else Decimal(str(enrollment.plan.employee_contribution_amount))
-        )
-        lines.append(
-            PaycheckLine(
-                paycheck_id=paycheck.id,
-                line_type="deduction",
-                description=enrollment.plan.name,
-                amount=amt,
-                is_pre_tax=False,
-                is_taxable=False,
-            )
-        )
+            match = _employer_match(enrollment, amt, gross)
+            if match > 0:
+                lines.append(
+                    PaycheckLine(
+                        paycheck_id=paycheck.id,
+                        line_type="employer_contribution",
+                        description=f"{plan.name} (Employer Match)",
+                        amount=match,
+                        is_pre_tax=False,
+                        is_taxable=False,
+                    )
+                )
+            if amt + match > 0:
+                liabilities.append(ClientLiability(
+                    company_id=employee.company_id,
+                    pay_period_id=paycheck.pay_period_id,
+                    paycheck_id=paycheck.id,
+                    liability_type=(
+                        "retirement_deposit" if plan.benefit_type.endswith("_401k")
+                        else "benefit_premium"
+                    ),
+                    payee_name=plan.name,
+                    amount=amt + match,
+                ))
 
     # Garnishment lines
+    orders = {o.id: o for o in employee.garnishment_orders}
     for gr in getattr(result, "garnishment_results", []):
         if gr.amount > 0:
             label = gr.garnishment_type.replace("_", " ").title()
+            liabilities.append(ClientLiability(
+                company_id=employee.company_id,
+                pay_period_id=paycheck.pay_period_id,
+                paycheck_id=paycheck.id,
+                liability_type=(
+                    "child_support_remittance" if gr.garnishment_type == "child_support"
+                    else "garnishment_remittance"
+                ),
+                payee_name=orders[gr.order_id].payee_name if gr.order_id in orders else label,
+                amount=gr.amount,
+            ))
             lines.append(
                 PaycheckLine(
                     paycheck_id=paycheck.id,
@@ -313,8 +344,7 @@ def _create_paycheck_lines(
                 )
             )
 
-    for line in lines:
-        db.add(line)
+    db.add_all(lines + liabilities)
 
 
 def draft_paycheck(
@@ -322,8 +352,13 @@ def draft_paycheck(
     pay_period: PayPeriod,
     timesheet: Optional[Timesheet],
     db: Session,
+    gross_override: Optional[Decimal] = None,
+    earning_label: Optional[str] = None,
 ) -> Paycheck:
-    """Calculate and save a draft Paycheck, replacing any existing draft for this employee/period."""
+    """Calculate and save a draft Paycheck, replacing any existing draft for this employee/period.
+
+    gross_override replaces the computed gross (used for a salaried off-cycle payment).
+    """
     existing = (
         db.query(Paycheck)
         .filter(
@@ -339,10 +374,13 @@ def draft_paycheck(
 
     company = pay_period.company
     frequency = get_pay_frequency(employee, company)
-    gross = calc_employee_gross(employee, timesheet, frequency)
+    gross = (
+        _round2(gross_override) if gross_override is not None
+        else calc_employee_gross(employee, timesheet, frequency)
+    )
     ytd = get_ytd_prior(employee.id, pay_period, db)
-    pre_tax = get_employee_pre_tax_deductions(employee)
-    post_tax = get_employee_post_tax_deductions(employee)
+    pre_tax = get_employee_pre_tax_deductions(employee, gross)
+    post_tax = get_employee_post_tax_deductions(employee, gross)
     garnishment_items = get_active_garnishments(employee)
 
     w4 = None
@@ -413,7 +451,7 @@ def draft_paycheck(
     db.add(paycheck)
     db.flush()
 
-    _create_paycheck_lines(paycheck, employee, timesheet, result, db)
+    _create_paycheck_lines(paycheck, employee, timesheet, result, db, earning_label)
     return paycheck
 
 

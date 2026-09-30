@@ -376,6 +376,26 @@ def update_employee(
 
 # --- W-4 Elections ---
 
+@router.post("/{employee_id}/new-hire-reported")
+def mark_new_hire_reported(
+    current_user: PreparerUser,
+    _csrf: CsrfProtect,
+    employee_id: int,
+    db: Session = Depends(get_db),
+    return_to: str = Form(""),
+):
+    employee = get_scoped_employee(db, current_user, employee_id)
+    employee.new_hire_reported_at = date.today()
+    log_change(db, "employees", employee.id, "update",
+               changed_by=current_user.username,
+               old_values={"new_hire_reported_at": None},
+               new_values={"new_hire_reported_at": date.today().isoformat()})
+    db.commit()
+    if return_to == "report":
+        return RedirectResponse(f"/reports/new-hires?company_id={employee.company_id}", status_code=303)
+    return RedirectResponse(f"/employees/{employee_id}?flash=new_hire_reported", status_code=303)
+
+
 @router.get("/{employee_id}/w4/new", response_class=HTMLResponse)
 def new_w4(
     request: Request, current_user: CurrentUser, employee_id: int, db: Session = Depends(get_db),

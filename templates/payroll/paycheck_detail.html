@@ -199,12 +199,18 @@
             <td colspan="2" class="px-4 py-3 text-slate-400 text-center">No employer taxes</td>
           </tr>
           {% endfor %}
+          {% for line in employer_contributions %}
+          <tr>
+            <td class="px-4 py-2 text-slate-700">{{ line.description }}</td>
+            <td class="px-4 py-2 text-right font-mono">${{ "%.2f"|format(line.amount) }}</td>
+          </tr>
+          {% endfor %}
         </tbody>
         <tfoot class="border-t border-slate-200 bg-slate-50">
           <tr>
             <td class="px-4 py-2 font-medium text-slate-700">Total Employer Cost</td>
             <td class="px-4 py-2 text-right font-mono font-medium">
-              ${{ "%.2f"|format(paycheck.employer_fica + paycheck.employer_futa + paycheck.employer_suta + paycheck.employer_workers_comp) }}
+              ${{ "%.2f"|format(paycheck.employer_fica + paycheck.employer_futa + paycheck.employer_suta + paycheck.employer_workers_comp + (employer_contributions | sum(attribute='amount'))) }}
             </td>
           </tr>
         </tfoot>

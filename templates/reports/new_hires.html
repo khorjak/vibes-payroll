@@ -50,6 +50,7 @@
           <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Hire Date</th>
           <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Days Since Hire</th>
           <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Status</th>
+          {% if has_role(request, 'preparer') %}<th class="px-4 py-3"></th>{% endif %}
         </tr>
       </thead>
       <tbody class="divide-y divide-slate-100">
@@ -66,6 +67,15 @@
           <td class="px-4 py-2">
             <span class="px-2 py-0.5 text-xs font-medium rounded-full bg-amber-100 text-amber-700">Unreported</span>
           </td>
+          {% if has_role(request, 'preparer') %}
+          <td class="px-4 py-2 text-right">
+            <form method="post" action="/employees/{{ emp.id }}/new-hire-reported">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+              <input type="hidden" name="return_to" value="report">
+              <button type="submit" class="text-xs text-indigo-600 hover:underline">Mark as reported</button>
+            </form>
+          </td>
+          {% endif %}
         </tr>
         {% endfor %}
       </tbody>

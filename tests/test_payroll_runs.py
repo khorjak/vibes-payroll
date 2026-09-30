@@ -9,7 +9,7 @@ from sqlalchemy.orm import joinedload
 from models.employee import Employee, W4Election, OKWithholdingElection
 from models.benefit import BenefitPlan, EmployeeBenefitEnrollment
 from models.garnishment import GarnishmentOrder
-from models.payroll import PayPeriod, Paycheck, Timesheet, PaycheckLine
+from models.payroll import PayPeriod, Paycheck, Timesheet, PaycheckLine, ClientLiability
 from services.payroll_service import (
     calc_employee_gross,
     get_employee_pre_tax_deductions,
@@ -760,3 +760,134 @@ class TestGarnishmentRoutes:
         db.refresh(order)
         assert order.active is False
         assert order.end_date == d(2026, 6, 1)
+
+
+# ── Percent plans, employer match, client liabilities ───────────────────────
+
+def _enroll(db, employee, **plan_kwargs):
+    plan = BenefitPlan(company_id=employee.company_id, active=True, **plan_kwargs)
+    db.add(plan)
+    db.flush()
+    db.add(EmployeeBenefitEnrollment(
+        employee_id=employee.id, benefit_plan_id=plan.id, effective_date=date(2026, 1, 1),
+    ))
+    db.commit()
+    return plan
+
+
+class TestPercentPlansAndMatch:
+    def test_percent_plan_deducts_percent_of_gross(self, db, salaried_employee, pay_period):
+        _enroll(db, salaried_employee, name="401k", benefit_type="traditional_401k",
+                employee_contribution_type="percent", employee_contribution_amount=5, pre_tax=True)
+        emp = _load_employee(db, salaried_employee.id)
+        paycheck = draft_paycheck(emp, _load_pay_period(db, pay_period.id), None, db)
+        # $2,500 biweekly gross x 5%
+        line = db.query(PaycheckLine).filter_by(paycheck_id=paycheck.id, description="401k").one()
+        assert line.amount == Decimal("125.00")
+        assert paycheck.total_deductions == Decimal("125.00")
+
+    def test_percent_override_is_a_percent(self, db, salaried_employee, pay_period):
+        plan = _enroll(db, salaried_employee, name="401k", benefit_type="traditional_401k",
+                       employee_contribution_type="percent", employee_contribution_amount=5, pre_tax=True)
+        enrollment = db.query(EmployeeBenefitEnrollment).filter_by(benefit_plan_id=plan.id).one()
+        enrollment.employee_override_amount = 10
+        db.commit()
+        emp = _load_employee(db, salaried_employee.id)
+        assert get_employee_pre_tax_deductions(emp, Decimal("2500")) == Decimal("250.00")
+
+    def test_employer_match_line_capped(self, db, salaried_employee, pay_period):
+        # Employee gives 6% ($150); match 100% up to 4% of gross ($100)
+        _enroll(db, salaried_employee, name="401k", benefit_type="traditional_401k",
+                employee_contribution_type="percent", employee_contribution_amount=6, pre_tax=True,
+                employer_match_percent=100, employer_match_cap_percent=4)
+        emp = _load_employee(db, salaried_employee.id)
+        paycheck = draft_paycheck(emp, _load_pay_period(db, pay_period.id), None, db)
+        match = db.query(PaycheckLine).filter_by(
+            paycheck_id=paycheck.id, line_type="employer_contribution").one()
+        assert match.amount == Decimal("100.00")
+        assert match.description == "401k (Employer Match)"
+        # Match is employer money: not part of the employee's deductions
+        assert paycheck.total_deductions == Decimal("150.00")
+
+    def test_no_match_line_without_match_settings(self, db, salaried_employee, benefit_plan, pay_period):
+        db.add(EmployeeBenefitEnrollment(
+            employee_id=salaried_employee.id, benefit_plan_id=benefit_plan.id,
+            effective_date=date(2026, 1, 1)))
+        db.commit()
+        emp = _load_employee(db, salaried_employee.id)
+        paycheck = draft_paycheck(emp, _load_pay_period(db, pay_period.id), None, db)
+        assert db.query(PaycheckLine).filter_by(
+            paycheck_id=paycheck.id, line_type="employer_contribution").count() == 0
+
+
+class TestClientLiabilityRows:
+    def test_garnishment_creates_liability_for_payee(self, db, salaried_employee, pay_period):
+        db.add(GarnishmentOrder(
+            employee_id=salaried_employee.id, garnishment_type="child_support",
+            payee_name="OK Child Support", amount=Decimal("200.00"), amount_type="fixed",
+            effective_date=date(2026, 1, 1), active=True))
+        db.commit()
+        emp = _load_employee(db, salaried_employee.id)
+        paycheck = draft_paycheck(emp, _load_pay_period(db, pay_period.id), None, db)
+        db.commit()
+        li = db.query(ClientLiability).filter_by(paycheck_id=paycheck.id).one()
+        assert (li.payee_name, li.liability_type) == ("OK Child Support", "child_support_remittance")
+        assert li.amount == Decimal("200.00")
+        assert li.company_id == salaried_employee.company_id
+        assert li.pay_period_id == pay_period.id
+
+    def test_benefit_creates_liability_including_match(self, db, salaried_employee, pay_period):
+        _enroll(db, salaried_employee, name="Roth", benefit_type="roth_401k",
+                employee_contribution_type="fixed", employee_contribution_amount=100, pre_tax=False,
+                employer_match_percent=50, employer_match_cap_percent=10)
+        emp = _load_employee(db, salaried_employee.id)
+        paycheck = draft_paycheck(emp, _load_pay_period(db, pay_period.id), None, db)
+        db.commit()
+        li = db.query(ClientLiability).filter_by(paycheck_id=paycheck.id).one()
+        assert (li.payee_name, li.liability_type) == ("Roth", "retirement_deposit")
+        assert li.amount == Decimal("150.00")  # 100 employee + 50 match
+
+    def test_health_plan_is_benefit_premium(self, db, salaried_employee, benefit_plan, pay_period):
+        db.add(EmployeeBenefitEnrollment(
+            employee_id=salaried_employee.id, benefit_plan_id=benefit_plan.id,
+            effective_date=date(2026, 1, 1)))
+        db.commit()
+        emp = _load_employee(db, salaried_employee.id)
+        draft_paycheck(emp, _load_pay_period(db, pay_period.id), None, db)
+        db.commit()
+        assert db.query(ClientLiability).one().liability_type == "benefit_premium"
+
+    def test_recalculate_replaces_liabilities(self, db, salaried_employee, benefit_plan, pay_period):
+        db.add(EmployeeBenefitEnrollment(
+            employee_id=salaried_employee.id, benefit_plan_id=benefit_plan.id,
+            effective_date=date(2026, 1, 1)))
+        db.commit()
+        for _ in range(2):
+            emp = _load_employee(db, salaried_employee.id)
+            draft_paycheck(emp, _load_pay_period(db, pay_period.id), None, db)
+            db.commit()
+        assert db.query(ClientLiability).count() == 1
+
+
+class TestGrossOverride:
+    def test_override_replaces_salary(self, db, salaried_employee, pay_period):
+        emp = _load_employee(db, salaried_employee.id)
+        paycheck = draft_paycheck(
+            emp, _load_pay_period(db, pay_period.id), None, db,
+            gross_override=Decimal("1000"), earning_label="Bonus")
+        assert paycheck.gross_wages == Decimal("1000.00")
+        line = db.query(PaycheckLine).filter_by(paycheck_id=paycheck.id, line_type="earning").one()
+        assert (line.description, line.amount) == ("Bonus", Decimal("1000.00"))
+
+
+class TestEmployerMatchDisplay:
+    def test_match_shown_on_paycheck_page(self, client, db, salaried_employee, pay_period):
+        _enroll(db, salaried_employee, name="401k", benefit_type="traditional_401k",
+                employee_contribution_type="percent", employee_contribution_amount=4, pre_tax=True,
+                employer_match_percent=100, employer_match_cap_percent=4)
+        emp = _load_employee(db, salaried_employee.id)
+        paycheck = draft_paycheck(emp, _load_pay_period(db, pay_period.id), None, db)
+        db.commit()
+        r = client.get(f"/payroll/paychecks/{paycheck.id}")
+        assert r.status_code == 200
+        assert "401k (Employer Match)" in r.text

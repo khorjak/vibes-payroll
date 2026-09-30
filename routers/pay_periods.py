@@ -273,7 +273,12 @@ def create_off_cycle(
     db.add(ts)
     db.flush()
 
-    paycheck = draft_paycheck(employee, pp, ts, db)
+    # Salaried pay comes from the salary, so the entered amount must override it.
+    paycheck = draft_paycheck(
+        employee, pp, ts, db,
+        gross_override=Decimal(str(gross_val)) if employee.employment_type == "salaried" else None,
+        earning_label=description.strip() or None,
+    )
 
     pp.status = "draft"
     log_change(db, "pay_periods", pp.id, "insert",
@@ -307,6 +312,7 @@ def paycheck_detail(
         "deductions": [l for l in lines if l.line_type == "deduction"],
         "employee_taxes": [l for l in lines if l.line_type == "tax"],
         "employer_taxes": [l for l in lines if l.line_type == "employer_tax"],
+        "employer_contributions": [l for l in lines if l.line_type == "employer_contribution"],
         "active_nav": "payroll",
     })
 
@@ -362,6 +368,7 @@ def paycheck_pdf(
         deductions=[l for l in lines if l.line_type == "deduction"],
         employee_taxes=[l for l in lines if l.line_type == "tax"],
         employer_taxes=[l for l in lines if l.line_type == "employer_tax"],
+        employer_contributions=[l for l in lines if l.line_type == "employer_contribution"],
     )
     pdf_bytes = WeasyHTML(string=html_str).write_pdf()
 
