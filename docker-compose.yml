@@ -1,0 +1,14 @@
+services:
+  payroll:
+    build: .
+    image: vibes-payroll:latest
+    container_name: payroll-test
+    restart: unless-stopped
+    env_file: .env.docker
+    ports:
+      - "0.0.0.0:8000:8000"
+    volumes:
+      - payroll-data:/data
+
+volumes:
+  payroll-data:
