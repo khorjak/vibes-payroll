@@ -516,3 +516,19 @@ class TestScopedLists:
         assert r.status_code == 200
         assert "Alpha Co" in r.text
         assert "Beta Co" not in r.text
+
+
+class TestMarkNewHireReportedAccess:
+    def test_out_of_scope_employee_is_404(self, auth_client, alpha_preparer, emp_b):
+        login(auth_client, "alpha_prep", "alphapass123")
+        token = csrf(auth_client, "/employees/")
+        r = auth_client.post(f"/employees/{emp_b.id}/new-hire-reported",
+                             data={"csrf_token": token})
+        assert r.status_code == 404
+
+    def test_read_only_user_is_forbidden(self, auth_client, readonly_user, emp_a):
+        login(auth_client, "viewer", "viewpass")
+        token = csrf(auth_client, "/employees/")
+        r = auth_client.post(f"/employees/{emp_a.id}/new-hire-reported",
+                             data={"csrf_token": token})
+        assert r.status_code == 403

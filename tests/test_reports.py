@@ -392,3 +392,71 @@ class TestConsolidatedTotalsMatchPerCompany:
             text = self._totals_via_context(client, path)
             assert company.name in text, path
             assert second_company.name in text, path
+
+
+class TestClientLiabilitiesOnlyOwedWhenApproved:
+    def _run(self, db, company, salaried_employee, benefit_plan, approve):
+        from models.benefit import EmployeeBenefitEnrollment
+        from models.payroll import PayPeriod
+        from services.payroll_service import approve_payroll_run, calculate_payroll_run
+        db.add(EmployeeBenefitEnrollment(
+            employee_id=salaried_employee.id, benefit_plan_id=benefit_plan.id,
+            effective_date=date(2026, 1, 1)))
+        pp = PayPeriod(company_id=company.id, start_date=date(2026, 5, 1), end_date=date(2026, 5, 14),
+                       pay_date=date(2026, 5, 20), frequency="biweekly", status="open")
+        db.add(pp)
+        db.commit()
+        calculate_payroll_run(pp, db)
+        if approve:
+            approve_payroll_run(pp, db)
+        return pp
+
+    def test_draft_run_owes_nothing(self, client, db, company, salaried_employee, benefit_plan):
+        self._run(db, company, salaried_employee, benefit_plan, approve=False)
+        r = client.get(f"/reports/client-liabilities?company_id={company.id}&year=2026")
+        assert "Health Plan" not in r.text
+
+    def test_approved_run_is_listed(self, client, db, company, salaried_employee, benefit_plan):
+        self._run(db, company, salaried_employee, benefit_plan, approve=True)
+        r = client.get(f"/reports/client-liabilities?company_id={company.id}&year=2026")
+        assert "Health Plan" in r.text
+
+    def test_voided_check_drops_off(self, client, db, company, salaried_employee, benefit_plan):
+        from models.payroll import Paycheck
+        from services.payroll_service import void_paycheck
+        self._run(db, company, salaried_employee, benefit_plan, approve=True)
+        void_paycheck(db.query(Paycheck).one(), "error", db)
+        r = client.get(f"/reports/client-liabilities?company_id={company.id}&year=2026")
+        assert "Health Plan" not in r.text
+
+
+class TestMarkNewHireReported:
+    def _hire(self, db, company):
+        emp = Employee(company_id=company.id, first_name="New", last_name="Hire",
+                       employment_type="hourly", pay_rate=15, status="active",
+                       state="OK", hire_date=date.today())
+        db.add(emp)
+        db.commit()
+        return emp
+
+    def test_marks_reported_and_leaves_report(self, client, db, company):
+        emp = self._hire(db, company)
+        r = client.post(f"/employees/{emp.id}/new-hire-reported", data={"return_to": "report"})
+        assert r.status_code == 303
+        assert r.headers["location"] == f"/reports/new-hires?company_id={company.id}"
+        db.refresh(emp)
+        assert emp.new_hire_reported_at == date.today()
+        page = client.get(f"/reports/new-hires?company_id={company.id}")
+        assert "All recent hires have been reported" in page.text
+
+    def test_profile_redirect_by_default(self, client, db, company):
+        emp = self._hire(db, company)
+        r = client.post(f"/employees/{emp.id}/new-hire-reported")
+        assert r.headers["location"] == f"/employees/{emp.id}?flash=new_hire_reported"
+
+    def test_report_and_profile_show_button_until_reported(self, client, db, company):
+        emp = self._hire(db, company)
+        assert "Mark as reported" in client.get(f"/reports/new-hires?company_id={company.id}").text
+        assert "Mark as reported" in client.get(f"/employees/{emp.id}").text
+        client.post(f"/employees/{emp.id}/new-hire-reported")
+        assert "Mark as reported" not in client.get(f"/employees/{emp.id}").text

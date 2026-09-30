@@ -67,6 +67,12 @@ Pure Python, no ORM or HTTP side effects. Lives in `tax_engine/`. Entry point is
 
 `PayPeriod.status`: `open → draft → approved → paid`; individual `Paycheck.status` can be `voided`.
 
+Paycheck lines have four `line_type`s: `earning`, `deduction`, `tax`, `employer_tax`, plus `employer_contribution` (employer match, never part of `total_deductions`). Benefit contributions come from `_employee_contribution()` — fixed plans are dollars, `percent` plans are a percent of gross, and an enrollment override uses the plan's unit. `_employer_match()` matches `employer_match_percent` of the contribution, counting at most `employer_match_cap_percent` of gross.
+
+`draft_paycheck` also writes `ClientLiability` rows (garnishment payees, benefit plans incl. match). They hang off the draft paycheck, so recalculating replaces them; the client-liabilities report counts only approved/paid paychecks (plus paycheck-less rows), which is what makes voids drop out. Nothing sets `remitted_at` yet. `gross_override` on `draft_paycheck` lets a salaried off-cycle payment use the entered amount.
+
+`POST /employees/{id}/new-hire-reported` (preparer) sets `new_hire_reported_at`; the report and employee profile both link to it.
+
 `services/payroll_service.py` orchestrates: `calculate_payroll_run` → `approve_payroll_run` → `mark_period_paid` → `void_paycheck`. These call the tax engine and write `Paycheck` + `PaycheckLine` rows.
 
 ### Encryption

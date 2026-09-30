@@ -126,7 +126,7 @@
     {% if flash %}
     <div x-data="{ show: true }" x-show="show" x-cloak
          class="mx-6 mt-4 px-4 py-3 rounded-md text-sm flex items-center justify-between
-                {% if flash in ['created','updated','w4_updated','ok_updated','enrolled','enrollment_ended','wc_added','benefit_added','calculated','approved','paid','voided','password_reset'] %}
+                {% if flash in ['created','updated','w4_updated','ok_updated','enrolled','enrollment_ended','wc_added','benefit_added','calculated','approved','paid','voided','password_reset','new_hire_reported'] %}
                   bg-green-50 text-green-800 ring-1 ring-green-200
                 {% else %}
                   bg-red-50 text-red-800 ring-1 ring-red-200
@@ -145,6 +145,7 @@
         {% elif flash == 'paid' %}Pay period marked as paid.
         {% elif flash == 'voided' %}Paycheck voided.
         {% elif flash == 'password_reset' %}Password reset.
+        {% elif flash == 'new_hire_reported' %}New hire marked as reported.
         {% else %}An action was completed.
         {% endif %}
       </span>

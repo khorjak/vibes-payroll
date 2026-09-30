@@ -304,9 +304,15 @@
             {% else %}
             <tr><td colspan="2" style="color:#94a3b8; padding:5pt 10pt;">None</td></tr>
             {% endfor %}
+            {% for line in employer_contributions %}
+            <tr>
+              <td style="color:#475569;">{{ line.description }}</td>
+              <td class="amt">${{ "{:,.2f}".format(line.amount) }}</td>
+            </tr>
+            {% endfor %}
           </tbody>
           <tbody>
-            {% set employer_total = paycheck.employer_fica + paycheck.employer_futa + paycheck.employer_suta + paycheck.employer_workers_comp %}
+            {% set employer_total = paycheck.employer_fica + paycheck.employer_futa + paycheck.employer_suta + paycheck.employer_workers_comp + (employer_contributions | sum(attribute='amount')) %}
             <tr class="subtotal">
               <td>Total Cost</td>
               <td class="amt">${{ "{:,.2f}".format(employer_total) }}</td>

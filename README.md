@@ -11,7 +11,7 @@ Self-hosted payroll application for small businesses operating in Oklahoma. Hand
 ## Features
 
 - Employee management with W-4 and Oklahoma withholding elections
-- Benefit plan enrollment (health, dental, 401k, FSA/HSA) with pre-tax and post-tax deductions
+- Benefit plan enrollment (health, dental, 401k, FSA/HSA) with pre-tax and post-tax deductions, fixed or percent-of-gross contributions, and employer match
 - Garnishment order management (child support, creditor, tax levy, student loan)
 - Full payroll run workflow: open → draft → approve → paid
 - Off-cycle payroll for individual employees

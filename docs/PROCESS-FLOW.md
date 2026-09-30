@@ -91,7 +91,7 @@ The tax engine (`tax_engine/`) is pure calculation; the payroll service gathers 
 
 ```mermaid
 flowchart TD
-    G[Gross wages<br/>salary ÷ periods, or hours × rate<br/>OT 1.5×, double time 2×] --> PRE[Subtract pre-tax benefits<br/>fixed-amount plans]
+    G[Gross wages<br/>salary ÷ periods, or hours × rate<br/>OT 1.5×, double time 2×] --> PRE[Subtract pre-tax benefits<br/>fixed $ or % of gross]
     PRE --> TAX[Employee taxes<br/>federal income tax from W-4<br/>Oklahoma tax from OK election<br/>Social Security, Medicare]
     TAX --> POST[Subtract post-tax deductions]
     POST --> GARN[Garnishments on disposable earnings<br/>in legal priority order, CCPA limits]
@@ -108,11 +108,15 @@ Inputs the calculation reads:
 | Pay rate, employment type, pay frequency | Employee record (frequency falls back to the company's) |
 | Federal withholding | Employee's latest W-4 election |
 | Oklahoma withholding | Employee's latest Oklahoma election |
-| Pre-tax and post-tax deductions | Active benefit enrollments (fixed-amount plans only) |
+| Pre-tax and post-tax deductions | Active benefit enrollments. Fixed plans deduct a dollar amount; percent plans deduct that percent of the period's gross. An enrollment override uses the same unit as its plan. |
 | Garnishments | Active garnishment orders |
 | SUTA rate | Company setting; 2.7% if blank |
 | Workers comp rate | Employee's workers comp code (rate per $100 of wages) |
 | Year-to-date wages | Sum of earlier non-voided paychecks in the same calendar year |
+
+**Employer match.** A plan with a match percentage adds an employer contribution line: the match percent of the employee's contribution, counting at most the cap percent of gross pay. For example, "100% up to 4%" on a $2,500 check matches at most $100. The match is employer money, so it never reduces the employee's net pay or appears in their deductions.
+
+**Client liabilities.** Each calculated paycheck also records what must be sent to outside parties: one entry per garnishment order (to its payee), and one per benefit plan (to the plan, including any employer match). Retirement plans are typed as retirement deposits, other plans as benefit premiums, child support as child support remittances. The Client liabilities report counts these once the paycheck is approved. Drafts owe nothing, recalculating replaces them, and a voided paycheck drops out.
 
 Garnishment priority: child support, federal tax levy, state tax levy, student loan, creditor and bankruptcy, then other. Amounts are capped by the Consumer Credit Protection Act limits.
 
@@ -127,7 +131,7 @@ flowchart LR
     O3 --> O4[Approver marks paid]
 ```
 
-The new period starts in `draft` so it follows the normal approve and mark-paid steps. For hourly and part-time employees the gross amount is converted to hours at their pay rate. For salaried employees the paycheck uses their normal per-period salary; the amount entered is not used.
+The new period starts in `draft` so it follows the normal approve and mark-paid steps. For hourly and part-time employees the gross amount is converted to hours at their pay rate. For salaried employees the amount entered is the gross for that paycheck, in place of their per-period salary. The description you enter labels the earnings line.
 
 ## 7. Voiding a paycheck
 
@@ -198,14 +202,14 @@ Access is re-checked on every request. If an admin removes a company from a user
 
 ## 11. Audit trail
 
-The audit log records who changed what and when for: employee create and update, pay period create (including off-cycle), paycheck approve and void, user role and active-flag changes, and company assignment grants and revokes.
+The audit log records who changed what and when for: employee create and update, marking a new hire as reported, pay period create (including off-cycle), paycheck approve and void, user role and active-flag changes, and company assignment grants and revokes.
 
 ## 12. Known limitations
 
 These are current behaviors, not bugs in your data:
 
-- **Percent-based benefit plans** are not deducted in a payroll run. Only fixed-amount plans reduce pay. Employer match percentages are stored but not used in paycheck calculation.
-- **Client liabilities report** reads liability records, but the payroll run does not create any, so the report is empty until records exist.
-- **New hire reporting** lists employees hired in the last 20 days who are not marked as reported. The screens do not currently offer a way to mark an employee as reported.
+- **Remittances cannot be marked as sent.** The Client liabilities report lists what is owed and shows the remitted amount, but no screen records a remittance yet, so remitted stays at $0.00.
+- **Recalculating an off-cycle period redrafts everyone.** An off-cycle payment lives in its own one-day pay period. Choosing Recalculate on it drafts every active employee in the company, not just the one paid, and a salaried employee's entered amount is replaced by their normal salary. Approve the off-cycle period as created; to change it, void the paycheck and create a new off-cycle payment.
+- **Employer share of insurance premiums** is not modeled. Only the employee's deduction (plus any employer match on the plan) appears in client liabilities.
 - **Hourly minimum wage check** ($7.25) applies when creating an employee.
 - The site runs over plain HTTP in the Docker test deployment. Use test data only.

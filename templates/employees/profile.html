@@ -64,6 +64,22 @@
           <dt class="text-slate-500">Hire Date</dt>
           <dd class="text-slate-900 mt-0.5">{{ employee.hire_date.strftime('%B %d, %Y') if employee.hire_date else '—' }}</dd>
         </div>
+        {% if employee.hire_date %}
+        <div>
+          <dt class="text-slate-500">New Hire Reported</dt>
+          <dd class="text-slate-900 mt-0.5">
+            {% if employee.new_hire_reported_at %}
+              {{ employee.new_hire_reported_at.strftime('%B %d, %Y') }}
+            {% elif has_role(request, 'preparer') %}
+              <form method="post" action="/employees/{{ employee.id }}/new-hire-reported"
+                    onsubmit="return confirm('Mark this new hire as reported to Oklahoma DHS?')">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+                <button type="submit" class="text-indigo-600 hover:underline">Mark as reported</button>
+              </form>
+            {% else %}Not yet{% endif %}
+          </dd>
+        </div>
+        {% endif %}
         {% if employee.termination_date %}
         <div>
           <dt class="text-slate-500">Termination Date</dt>

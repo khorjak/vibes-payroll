@@ -308,6 +308,20 @@ class TestOffCyclePayroll:
         paycheck = db.query(Paycheck).filter(Paycheck.pay_period_id == pp.id).first()
         assert paycheck is not None
 
+    def test_off_cycle_salaried_uses_entered_amount(self, client, db, company, salaried_employee):
+        from models.payroll import Paycheck
+        r = client.post("/payroll/off-cycle/new", data={
+            "company_id": company.id,
+            "employee_id": salaried_employee.id,
+            "pay_date": "2026-06-15",
+            "frequency": "biweekly",
+            "gross_amount": "1000",
+            "description": "Bonus",
+        })
+        assert r.status_code == 303
+        paycheck = db.query(Paycheck).order_by(Paycheck.id.desc()).first()
+        assert paycheck.gross_wages == 1000
+
     def test_off_cycle_missing_amount_returns_422(self, client, company, salaried_employee):
         r = client.post("/payroll/off-cycle/new", data={
             "company_id": company.id,

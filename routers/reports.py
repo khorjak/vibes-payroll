@@ -782,7 +782,10 @@ def client_liabilities_report(
         liabilities = (
             db.query(ClientLiability)
             .join(PayPeriod, ClientLiability.pay_period_id == PayPeriod.id)
+            .outerjoin(Paycheck, ClientLiability.paycheck_id == Paycheck.id)
             .filter(
+                # Owed once a paycheck is approved; drafts and voids owe nothing.
+                (Paycheck.id.is_(None)) | Paycheck.status.in_(["approved", "paid"]),
                 PayPeriod.company_id.in_(company_ids),
                 PayPeriod.pay_date >= date(year, 1, 1),
                 PayPeriod.pay_date < date(year + 1, 1, 1),
