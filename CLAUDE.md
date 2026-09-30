@@ -98,3 +98,11 @@ Pure Python, no ORM or HTTP side effects. Lives in `tax_engine/`. Entry point is
 | `SESSION_HTTPS_ONLY` | `false` | Set `true` in production to restrict session cookie to HTTPS |
 | `ADMIN_USERNAME` | `admin` | Seeded on first run |
 | `ADMIN_PASSWORD` | `changeme` | Seeded on first run |
+
+## Documentation
+
+Whenever a change is made, update every doc it affects in the same piece of work: `docs/USER-MANUAL.md`, `docs/PROCESS-FLOW.md`, this file, `README.md`, and the relevant file in `plans/`.
+
+- Check each for statements the change makes untrue, including the "Known limitations" sections. If a change fixes one, remove or update the entry.
+- Button and menu names in the user manual must match the templates.
+- Mention which docs were updated in the final summary.
