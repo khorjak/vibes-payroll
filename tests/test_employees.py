@@ -352,6 +352,73 @@ class TestOKWithholdingElections:
         assert float(election.extra_withholding) == pytest.approx(25.0)
         assert election.effective_date == date(2026, 3, 1)
 
+    def test_create_exempt_ok_ignores_allowances(self, client, db, salaried_employee):
+        client.post(f"/employees/{salaried_employee.id}/ok-withholding/new", data={
+            "effective_date": "2026-03-01",
+            "filing_status": "single",
+            "allowances": "3",
+            "extra_withholding": "25",
+            "exempt": "on",
+        })
+        election = db.query(OKWithholdingElection).filter(
+            OKWithholdingElection.employee_id == salaried_employee.id
+        ).one()
+        assert election.exempt is True
+        assert election.allowances == 0
+        assert float(election.extra_withholding) == 0
+
+    def test_exempt_ok_shows_on_profile(self, client, db, salaried_employee):
+        db.add(OKWithholdingElection(employee_id=salaried_employee.id, effective_date=date(2026, 1, 1),
+                                     filing_status="single", exempt=True))
+        db.commit()
+        r = client.get(f"/employees/{salaried_employee.id}")
+        assert "No Oklahoma income tax withheld." in r.text
+
+
+class TestExemptW4:
+    def test_create_exempt_w4_ignores_step_2_to_4(self, client, db, salaried_employee):
+        client.post(f"/employees/{salaried_employee.id}/w4/new", data={
+            "effective_date": "2026-01-01",
+            "filing_status": "single",
+            "multiple_jobs": "on",
+            "dependents_amount": "4000",
+            "extra_withholding": "75",
+            "exempt": "on",
+        })
+        election = db.query(W4Election).filter(W4Election.employee_id == salaried_employee.id).one()
+        assert election.exempt is True
+        assert election.multiple_jobs is False
+        assert float(election.dependents_amount) == 0
+        assert float(election.extra_withholding) == 0
+
+    def test_create_w4_defaults_not_exempt(self, client, db, salaried_employee):
+        client.post(f"/employees/{salaried_employee.id}/w4/new", data={
+            "effective_date": "2026-01-01", "filing_status": "single",
+        })
+        election = db.query(W4Election).filter(W4Election.employee_id == salaried_employee.id).one()
+        assert election.exempt is False
+
+    def test_expiry_is_feb_15_of_next_year(self):
+        e = W4Election(effective_date=date(2026, 6, 1), exempt=True)
+        assert e.exempt_expires_on == date(2027, 2, 15)
+        assert e.is_exempt_on(date(2027, 2, 15))
+        assert not e.is_exempt_on(date(2027, 2, 16))
+        assert not W4Election(effective_date=date(2026, 6, 1), exempt=False).is_exempt_on(date(2026, 7, 1))
+
+    def test_current_exemption_shows_on_profile(self, client, db, salaried_employee):
+        db.add(W4Election(employee_id=salaried_employee.id, effective_date=date.today(),
+                          filing_status="single", exempt=True))
+        db.commit()
+        r = client.get(f"/employees/{salaried_employee.id}")
+        assert "No federal income tax withheld." in r.text
+
+    def test_expired_exemption_warns_on_profile(self, client, db, salaried_employee):
+        db.add(W4Election(employee_id=salaried_employee.id, effective_date=date(2020, 1, 1),
+                          filing_status="single", exempt=True))
+        db.commit()
+        r = client.get(f"/employees/{salaried_employee.id}")
+        assert "Exemption expired 02/15/2021" in r.text
+
 
 class TestBenefitEnrollments:
     def test_enroll_in_benefit_plan(self, client, db, salaried_employee, benefit_plan):

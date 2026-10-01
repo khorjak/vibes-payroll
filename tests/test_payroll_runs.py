@@ -352,6 +352,80 @@ class TestDraftPaycheck:
         assert len(ss_lines) == 1
         assert ss_lines[0].amount == Decimal("155.00")  # $2,500 × 6.2%
 
+    @staticmethod
+    def _income_tax(db, paycheck):
+        lines = db.query(PaycheckLine).filter(
+            PaycheckLine.paycheck_id == paycheck.id,
+            PaycheckLine.line_type == "tax",
+        ).all()
+        by_desc = {l.description: l.amount for l in lines}
+        return by_desc.get("Federal Income Tax"), by_desc.get("Oklahoma Income Tax")
+
+    def test_no_elections_withholds_as_single(self, db, salaried_employee, pay_period):
+        # No W-4 / OK-W-4 on file must withhold as single, zero allowances --
+        # identical to an explicit election of that, and never $0.
+        emp = _load_employee(db, salaried_employee.id)
+        pp = _load_pay_period(db, pay_period.id)
+        fed_default, ok_default = self._income_tax(db, draft_paycheck(emp, pp, None, db))
+        assert fed_default > Decimal("0")
+        assert ok_default > Decimal("0")
+
+        db.add(W4Election(employee_id=emp.id, effective_date=date(2026, 1, 1), filing_status="single"))
+        db.add(OKWithholdingElection(employee_id=emp.id, effective_date=date(2026, 1, 1),
+                                     filing_status="single", allowances=0))
+        db.commit()
+        db.expire_all()
+        emp = _load_employee(db, salaried_employee.id)
+        fed_explicit, ok_explicit = self._income_tax(db, draft_paycheck(emp, pp, None, db))
+        assert (fed_default, ok_default) == (fed_explicit, ok_explicit)
+
+    def test_election_overrides_default(self, db, salaried_employee, pay_period):
+        db.add(W4Election(employee_id=salaried_employee.id, effective_date=date(2026, 1, 1),
+                          filing_status="married_filing_jointly"))
+        db.add(OKWithholdingElection(employee_id=salaried_employee.id, effective_date=date(2026, 1, 1),
+                                     filing_status="married", allowances=2))
+        db.commit()
+        emp = _load_employee(db, salaried_employee.id)
+        pp = _load_pay_period(db, pay_period.id)
+        fed_married, ok_married = self._income_tax(db, draft_paycheck(emp, pp, None, db))
+
+        db.query(W4Election).delete()
+        db.query(OKWithholdingElection).delete()
+        db.commit()
+        db.expire_all()
+        emp = _load_employee(db, salaried_employee.id)
+        fed_single, ok_single = self._income_tax(db, draft_paycheck(emp, pp, None, db))
+        assert fed_married < fed_single
+        assert ok_married < ok_single
+
+    def test_exempt_elections_withhold_no_income_tax(self, db, salaried_employee, pay_period):
+        db.add(W4Election(employee_id=salaried_employee.id, effective_date=date(2026, 1, 1),
+                          filing_status="single", exempt=True))
+        db.add(OKWithholdingElection(employee_id=salaried_employee.id, effective_date=date(2026, 1, 1),
+                                     filing_status="single", exempt=True))
+        db.commit()
+        emp = _load_employee(db, salaried_employee.id)
+        pp = _load_pay_period(db, pay_period.id)
+        paycheck = draft_paycheck(emp, pp, None, db)
+        fed, ok = self._income_tax(db, paycheck)
+        assert not fed and not ok  # no line, or a $0 line
+        assert paycheck.net_pay < paycheck.gross_wages  # FICA still withheld
+
+    def test_expired_federal_exemption_withholds_as_single(self, db, salaried_employee, pay_period):
+        # Exempt W-4 from 2025 expired 2026-02-15; the 2026-05-20 check withholds
+        # exactly as if no W-4 were on file.
+        emp = _load_employee(db, salaried_employee.id)
+        pp = _load_pay_period(db, pay_period.id)
+        fed_default, _ = self._income_tax(db, draft_paycheck(emp, pp, None, db))
+
+        db.add(W4Election(employee_id=salaried_employee.id, effective_date=date(2025, 1, 1),
+                          filing_status="married_filing_jointly", exempt=True))
+        db.commit()
+        db.expire_all()
+        emp = _load_employee(db, salaried_employee.id)
+        fed_expired, _ = self._income_tax(db, draft_paycheck(emp, pp, None, db))
+        assert fed_expired == fed_default > Decimal("0")
+
     def test_replaces_existing_draft(self, db, salaried_employee, pay_period):
         emp = _load_employee(db, salaried_employee.id)
         pp = _load_pay_period(db, pay_period.id)

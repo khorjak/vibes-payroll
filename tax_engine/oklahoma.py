@@ -52,6 +52,8 @@ def calc_ok_withholding(
     ok: OKWithholdingInput,
 ) -> Decimal:
     """Returns the Oklahoma income tax to withhold for this pay period."""
+    if ok.exempt:
+        return Decimal("0")
     periods = PAY_PERIOD_FACTORS[pay_frequency]
     annualized = taxable_wages_per_period * periods
     exemption = ALLOWANCE_VALUE * ok.allowances

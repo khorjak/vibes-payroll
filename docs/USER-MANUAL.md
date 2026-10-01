@@ -138,12 +138,16 @@ The SSN and bank fields are encrypted in storage. Enter only what you need to.
 
 ### Tax elections
 
-An employee's paycheck cannot withhold correctly without these. Add both after creating the employee.
+Add both after creating the employee. Until an election is on file, payroll withholds as the law requires for a missing form: federal as *Single* with no adjustments, Oklahoma as *single* with 0 allowances. The profile shows this in amber. Withholding is never skipped, so an employee who claims married status or allowances will be over-withheld until you add their forms.
 
 - **Federal (W-4):** on the profile, **Add W-4**. Enter the effective date, filing status, whether the employee has multiple jobs, and the W-4 amounts (dependents, other income, deductions, extra withholding).
 - **Oklahoma:** add the Oklahoma withholding election: effective date, filing status, allowances, and extra withholding.
 
 When an employee files a new form, add a *new* election with the new effective date. The old ones stay as history, and the newest is used.
+
+**Exempt employees.** If the employee claims exemption, tick **Exempt from withholding** on the W-4 form or **Exempt from Oklahoma withholding** on the Oklahoma form. No income tax of that kind is withheld, and the form's other amounts (multiple jobs, dependents, allowances, extra withholding) are ignored and saved as zero. Social Security and Medicare are still withheld. The profile card shows *Exempt*.
+
+A federal exemption only lasts for the calendar year the W-4 was given. Unless the employee files a new W-4 by **February 15** of the next year, paychecks dated after that withhold as *Single* with no adjustments, and the profile shows an amber "Exemption expired" note. To renew, add a new W-4 with **Exempt from withholding** ticked. The Oklahoma exemption does not expire on its own; replace it by adding a new election.
 
 ### New hire reporting
 
@@ -292,7 +296,9 @@ Confirm figures against the official IRS and Oklahoma Tax Commission instruction
 | "Not found" on a page you were using | Your access to that company was removed, or the record is in a company you cannot access. |
 | Employee is missing from the payroll run | Status is not *Active*, or the employee belongs to a different company than the pay period. |
 | Employee paid $0.00 | Hourly or part-time with no timesheet for the period. |
-| Withholding looks wrong or is zero | No W-4 or Oklahoma election on the employee. Add them and recalculate. |
+| Withholding looks too high | No W-4 or Oklahoma election on the employee, so the single / 0-allowance default was used, or the employee's federal exemption expired on February 15. Add the forms and recalculate. |
+| No income tax withheld at all | The W-4 or Oklahoma election is marked *Exempt*. Check the profile. |
+| Federal income tax is zero | Wages for the period are below the withholding threshold for the employee's filing status and W-4 amounts. This is expected. |
 | Cannot calculate or edit hours | The period is already approved or paid. |
 | "Cannot approve" or "Cannot mark paid" | The period is not in the expected earlier status. Calculate first, then approve, then mark paid. |
 | Cannot void a paycheck | It is already paid or already voided. |

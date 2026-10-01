@@ -91,6 +91,23 @@ class TestNoW4OrOKWithholding:
         assert result.taxes.medicare_employee > Decimal("0")
 
 
+
+class TestExemptElections:
+    def test_exempt_elections_skip_income_tax_but_not_fica(self):
+        inp = make_input(
+            w4=W4Input(filing_status="single", exempt=True),
+            ok_withholding=OKWithholdingInput(filing_status="single", exempt=True),
+        )
+        result = calculate_paycheck(inp)
+        assert result.taxes.federal_income_tax == Decimal("0")
+        assert result.taxes.ok_income_tax == Decimal("0")
+        assert result.taxes.ss_employee > Decimal("0")
+        assert result.taxes.medicare_employee > Decimal("0")
+
+    def test_exempt_covers_supplemental_wages(self):
+        inp = make_input(w4=W4Input(filing_status="single", exempt=True), is_supplemental=True)
+        assert calculate_paycheck(inp).taxes.federal_income_tax == Decimal("0")
+
 class TestSupplementalWages:
     def test_supplemental_uses_22_percent(self):
         inp = make_input(

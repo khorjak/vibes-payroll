@@ -76,6 +76,10 @@ Paycheck lines have four `line_type`s: `earning`, `deduction`, `tax`, `employer_
 
 `POST /employees/{id}/new-hire-reported` (preparer) sets `new_hire_reported_at` once (repeat posts change nothing); the report and employee profile both link to it. Percent values on benefit plans and enrollment overrides are validated 0-100 server-side (`utils/forms.py:percent_value`).
 
+An employee with no W-4 / OK-W-4 is withheld as single with no adjustments / 0 allowances (IRS Pub. 15-T, OTC). That default is applied in `draft_paycheck`, not the tax engine, whose `w4=None` still means "no income tax" for engine-level tests.
+
+Both elections have an `exempt` flag (`W4Input.exempt` / `OKWithholdingInput.exempt` in the engine → $0 income tax, FICA unaffected; federal exempt also zeroes supplemental). Saving an exempt election zeroes its other amounts. A federal exempt W-4 expires Feb 15 of the year after its `effective_date` (`W4Election.is_exempt_on(pay_date)`, IRS Pub. 15); `draft_paycheck` then falls back to the single default. OK exempt has no expiry.
+
 `services/payroll_service.py` orchestrates: `calculate_payroll_run` → `approve_payroll_run` → `mark_period_paid` → `void_paycheck`. These call the tax engine and write `Paycheck` + `PaycheckLine` rows.
 
 ### Encryption

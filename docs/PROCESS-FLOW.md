@@ -106,8 +106,8 @@ Inputs the calculation reads:
 | Input | Source |
 |---|---|
 | Pay rate, employment type, pay frequency | Employee record (frequency falls back to the company's) |
-| Federal withholding | Employee's latest W-4 election |
-| Oklahoma withholding | Employee's latest Oklahoma election |
+| Federal withholding | Employee's latest W-4 election; Single with no adjustments if none on file. An exempt W-4 withholds $0 through Feb 15 of the year after its effective date (compared with the pay date), then Single with no adjustments |
+| Oklahoma withholding | Employee's latest Oklahoma election; single with 0 allowances if none on file. An exempt election withholds $0 and does not expire |
 | Pre-tax and post-tax deductions | Active benefit enrollments. Fixed plans deduct a dollar amount; percent plans deduct that percent of the period's gross. An enrollment override uses the same unit as its plan. |
 | Garnishments | Active garnishment orders |
 | SUTA rate | Company setting; 2.7% if blank |
@@ -159,7 +159,7 @@ flowchart LR
     E7 --> E8[Warning shown until a final<br/>paycheck is approved or paid]
 ```
 
-Only employees with status `active` are included in a payroll run. W-4 and Oklahoma elections are kept as history; the newest one by effective date is used. Benefit enrollments and garnishment orders are ended by giving an end date (they are not deleted).
+Only employees with status `active` are included in a payroll run. W-4 and Oklahoma elections are kept as history; the newest one by effective date is used. An employee with no election is withheld as single with no adjustments / 0 allowances, never $0. Benefit enrollments and garnishment orders are ended by giving an end date (they are not deleted).
 
 ## 9. Reports and filing scope
 
