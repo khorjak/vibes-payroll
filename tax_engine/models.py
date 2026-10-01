@@ -18,6 +18,7 @@ class W4Input:
     other_income: Decimal = field(default_factory=lambda: Decimal("0"))       # Step 4a annual
     deductions_amount: Decimal = field(default_factory=lambda: Decimal("0"))  # Step 4b annual
     extra_withholding: Decimal = field(default_factory=lambda: Decimal("0"))  # Step 4c per-period
+    exempt: bool = False  # "Exempt" written below Step 4c: no income tax withheld
 
 
 @dataclass
@@ -25,6 +26,7 @@ class OKWithholdingInput:
     filing_status: str  # single | married
     allowances: int = 0
     extra_withholding: Decimal = field(default_factory=lambda: Decimal("0"))
+    exempt: bool = False  # OK-W-4 exemption claimed: no OK income tax withheld
 
 
 @dataclass

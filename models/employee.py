@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional, List, TYPE_CHECKING
-from sqlalchemy import String, Date, Boolean, Numeric, ForeignKey, Text, Integer
+from sqlalchemy import String, Date, Boolean, Numeric, ForeignKey, Text, Integer, false
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from .base import Base, TimestampMixin
 
@@ -85,8 +85,20 @@ class W4Election(Base):
     other_income: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=0)
     deductions_amount: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=0)
     extra_withholding: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=0)
+    exempt: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
 
     employee: Mapped["Employee"] = relationship("Employee", back_populates="w4_elections")
+
+    @property
+    def exempt_expires_on(self) -> Optional[date]:
+        """An exempt W-4 covers only its calendar year; without a new one by
+        Feb 15 of the next year, withholding resumes (IRS Pub. 15)."""
+        if not self.exempt:
+            return None
+        return date(self.effective_date.year + 1, 2, 15)
+
+    def is_exempt_on(self, pay_date: date) -> bool:
+        return self.exempt and pay_date <= self.exempt_expires_on
 
 
 class OKWithholdingElection(Base):
@@ -98,5 +110,6 @@ class OKWithholdingElection(Base):
     filing_status: Mapped[str] = mapped_column(String(40), default="single")
     allowances: Mapped[int] = mapped_column(Integer, default=0)
     extra_withholding: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=0)
+    exempt: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
 
     employee: Mapped["Employee"] = relationship("Employee", back_populates="ok_withholding_elections")

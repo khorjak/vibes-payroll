@@ -166,3 +166,13 @@ class TestSupplemental:
     def test_supplemental_rounds_correctly(self):
         result = calc_supplemental_federal(Decimal("333.33"))
         assert result == Decimal("73.33")
+
+
+class TestExempt:
+    def test_exempt_withholds_nothing(self):
+        w = W4Input(filing_status="single", exempt=True)
+        assert calc_federal_withholding(Decimal("5000"), "biweekly", w) == Decimal("0")
+
+    def test_exempt_ignores_extra_withholding(self):
+        w = W4Input(filing_status="single", extra_withholding=Decimal("50"), exempt=True)
+        assert calc_federal_withholding(Decimal("5000"), "biweekly", w) == Decimal("0")

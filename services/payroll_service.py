@@ -383,9 +383,14 @@ def draft_paycheck(
     post_tax = get_employee_post_tax_deductions(employee, gross)
     garnishment_items = get_active_garnishments(employee)
 
-    w4 = None
-    if employee.active_w4:
-        e = employee.active_w4
+    # No certificate on file: IRS Pub. 15-T and the OTC require withholding as
+    # single with no adjustments / zero allowances, never zero withholding.
+    # An exempt W-4 past its Feb 15 expiry falls back to the same default.
+    w4 = W4Input(filing_status="single")
+    e = employee.active_w4
+    if e and e.is_exempt_on(pay_period.pay_date):
+        w4 = W4Input(filing_status=e.filing_status, exempt=True)
+    elif e and not e.exempt:
         w4 = W4Input(
             filing_status=e.filing_status,
             multiple_jobs=bool(e.multiple_jobs),
@@ -395,13 +400,14 @@ def draft_paycheck(
             extra_withholding=Decimal(str(e.extra_withholding)),
         )
 
-    ok_w = None
+    ok_w = OKWithholdingInput(filing_status="single", allowances=0)
     if employee.active_ok_withholding:
         e = employee.active_ok_withholding
         ok_w = OKWithholdingInput(
             filing_status=e.filing_status,
             allowances=e.allowances,
             extra_withholding=Decimal(str(e.extra_withholding)),
+            exempt=bool(e.exempt),
         )
 
     suta_rate = Decimal(str(company.suta_rate or "0.027"))

@@ -112,13 +112,15 @@ id, employee_id, effective_date,
 filing_status (single/married/head_of_household),
 multiple_jobs (bool),
 dependents_amount, other_income, deductions_amount, extra_withholding,
+exempt (bool; expires Feb 15 of the following year),
 version (2019+ form vs legacy allowances)
 ```
 
 ### `ok_withholding_elections`
 ```
 id, employee_id, effective_date,
-filing_status, allowances, extra_withholding
+filing_status, allowances, extra_withholding,
+exempt (bool)
 ```
 
 ### `benefit_plans`
@@ -195,8 +197,8 @@ The tax engine is a pure Python module with no database or HTTP side effects. Ev
 
 1. **Gross earnings** — sum all earnings lines (regular + OT + bonuses + etc.)
 2. **Pre-tax deductions** — subtract to get federal/state taxable wages
-3. **Federal income tax** — IRS Publication 15 percentage method tables, using W-4 elections and pay frequency
-4. **Oklahoma state income tax** — OTC withholding tables by filing status and pay period
+3. **Federal income tax** — IRS Publication 15 percentage method tables, using W-4 elections (Single, no adjustments, when none is on file) and pay frequency
+4. **Oklahoma state income tax** — OTC withholding tables by filing status and pay period (single, 0 allowances, when no OK-W-4 is on file)
 5. **Social Security** — 6.2% up to annual wage base (check YTD accumulator)
 6. **Medicare** — 1.45% flat; +0.9% additional once YTD wages exceed $200,000
 7. **Post-tax deductions** — garnishments, Roth contributions, etc.

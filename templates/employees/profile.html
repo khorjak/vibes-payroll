@@ -250,7 +250,22 @@
            class="text-xs font-medium text-indigo-600 hover:text-indigo-800">Update</a>
       </div>
       {% set w4 = employee.active_w4 %}
-      {% if w4 %}
+      {% if w4 and w4.exempt %}
+      <dl class="space-y-2 text-sm">
+        <div class="flex justify-between">
+          <dt class="text-slate-500">Status</dt>
+          <dd class="text-slate-900 font-medium">Exempt</dd>
+        </div>
+        {% if w4.is_exempt_on(today) %}
+        <p class="text-xs text-slate-500">No federal income tax withheld. Expires {{ w4.exempt_expires_on.strftime('%m/%d/%Y') }} unless a new W-4 is filed.</p>
+        {% else %}
+        <p class="text-xs text-amber-700">Exemption expired {{ w4.exempt_expires_on.strftime('%m/%d/%Y') }}. Withholding as Single with no adjustments until a new W-4 is filed.</p>
+        {% endif %}
+        <div class="pt-1 border-t border-slate-100 text-xs text-slate-400">
+          Effective {{ w4.effective_date.strftime('%m/%d/%Y') }}
+        </div>
+      </dl>
+      {% elif w4 %}
       <dl class="space-y-2 text-sm">
         <div class="flex justify-between">
           <dt class="text-slate-500">Filing Status</dt>
@@ -281,7 +296,7 @@
         </div>
       </dl>
       {% else %}
-      <p class="text-sm text-slate-400 mb-2">No W-4 on file.</p>
+      <p class="text-sm text-amber-700 mb-2">No W-4 on file. Withholding as Single with no adjustments.</p>
       <a href="/employees/{{ employee.id }}/w4/new"
          class="text-xs font-medium text-indigo-600 hover:underline">Add W-4 →</a>
       {% endif %}
@@ -295,7 +310,18 @@
            class="text-xs font-medium text-indigo-600 hover:text-indigo-800">Update</a>
       </div>
       {% set ok_w = employee.active_ok_withholding %}
-      {% if ok_w %}
+      {% if ok_w and ok_w.exempt %}
+      <dl class="space-y-2 text-sm">
+        <div class="flex justify-between">
+          <dt class="text-slate-500">Status</dt>
+          <dd class="text-slate-900 font-medium">Exempt</dd>
+        </div>
+        <p class="text-xs text-slate-500">No Oklahoma income tax withheld.</p>
+        <div class="pt-1 border-t border-slate-100 text-xs text-slate-400">
+          Effective {{ ok_w.effective_date.strftime('%m/%d/%Y') }}
+        </div>
+      </dl>
+      {% elif ok_w %}
       <dl class="space-y-2 text-sm">
         <div class="flex justify-between">
           <dt class="text-slate-500">Filing Status</dt>
@@ -314,7 +340,7 @@
         </div>
       </dl>
       {% else %}
-      <p class="text-sm text-slate-400 mb-2">No OK withholding election on file.</p>
+      <p class="text-sm text-amber-700 mb-2">No OK withholding election on file. Withholding as single with 0 allowances.</p>
       <a href="/employees/{{ employee.id }}/ok-withholding/new"
          class="text-xs font-medium text-indigo-600 hover:underline">Add election →</a>
       {% endif %}

@@ -269,6 +269,7 @@ def get_employee(
         "flash": flash,
         "active_enrollments": active_enrollments,
         "active_garnishments": active_garnishments,
+        "today": date.today(),
         "active_nav": "employees",
     })
 
@@ -427,8 +428,13 @@ def create_w4(
     other_income: str = Form("0"),
     deductions_amount: str = Form("0"),
     extra_withholding: str = Form("0"),
+    exempt: str = Form(""),
 ):
     get_scoped_employee(db, current_user, employee_id)
+    is_exempt = exempt == "on"
+    if is_exempt:
+        # An exempt W-4 has no Step 2-4 entries; store it as filed.
+        multiple_jobs = dependents_amount = other_income = deductions_amount = extra_withholding = ""
     election = W4Election(
         employee_id=employee_id,
         effective_date=date.fromisoformat(effective_date),
@@ -438,13 +444,14 @@ def create_w4(
         other_income=safe_float(other_income or "0", "other_income"),
         deductions_amount=safe_float(deductions_amount or "0", "deductions_amount"),
         extra_withholding=safe_float(extra_withholding or "0", "extra_withholding"),
+        exempt=is_exempt,
     )
     db.add(election)
     db.flush()
     log_change(db, "w4_elections", election.id, "insert",
                changed_by=current_user.username,
                new_values={"employee_id": employee_id, "filing_status": filing_status,
-                           "effective_date": effective_date})
+                           "effective_date": effective_date, "exempt": is_exempt})
     db.commit()
     return RedirectResponse(f"/employees/{employee_id}?flash=w4_updated", status_code=303)
 
@@ -474,21 +481,27 @@ def create_ok_withholding(
     filing_status: str = Form("single"),
     allowances: str = Form("0"),
     extra_withholding: str = Form("0"),
+    exempt: str = Form(""),
 ):
     get_scoped_employee(db, current_user, employee_id)
+    is_exempt = exempt == "on"
+    if is_exempt:
+        allowances = extra_withholding = ""
     election = OKWithholdingElection(
         employee_id=employee_id,
         effective_date=date.fromisoformat(effective_date),
         filing_status=filing_status,
         allowances=int(allowances or 0),
         extra_withholding=safe_float(extra_withholding or "0", "extra_withholding"),
+        exempt=is_exempt,
     )
     db.add(election)
     db.flush()
     log_change(db, "ok_withholding_elections", election.id, "insert",
                changed_by=current_user.username,
                new_values={"employee_id": employee_id, "filing_status": filing_status,
-                           "allowances": allowances, "effective_date": effective_date})
+                           "allowances": allowances, "effective_date": effective_date,
+                           "exempt": is_exempt})
     db.commit()
     return RedirectResponse(f"/employees/{employee_id}?flash=ok_updated", status_code=303)
 

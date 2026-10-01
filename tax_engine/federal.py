@@ -147,6 +147,8 @@ def calc_federal_withholding(
     Returns federal income tax to withhold for the pay period.
     taxable_wages_per_period should already exclude pre-tax deductions.
     """
+    if w4.exempt:
+        return Decimal("0")
     periods = PAY_PERIOD_FACTORS[pay_frequency]
 
     # Step 1: Annualize and adjust

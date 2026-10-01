@@ -30,7 +30,9 @@ def calculate_paycheck(inp: PaycheckInput) -> PaycheckResult:
     taxes = TaxResult()
 
     # Federal income tax
-    if inp.is_supplemental:
+    if inp.w4 is not None and inp.w4.exempt:
+        pass  # exempt covers supplemental wages too (no $1M+ mandatory rate modeled)
+    elif inp.is_supplemental:
         taxes.federal_income_tax = calc_supplemental_federal(taxable)
     elif inp.w4 is not None:
         taxes.federal_income_tax = calc_federal_withholding(taxable, inp.pay_frequency, inp.w4)

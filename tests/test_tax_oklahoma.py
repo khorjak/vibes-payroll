@@ -89,3 +89,9 @@ class TestOKWithholding:
         # Per period: $429 / 52 = $8.25
         result = calc_ok_withholding(Decimal("250"), "weekly", ok("single", 0))
         assert result == Decimal("8.25")
+
+
+class TestOKExempt:
+    def test_exempt_withholds_nothing(self):
+        o = OKWithholdingInput(filing_status="single", extra_withholding=Decimal("25"), exempt=True)
+        assert calc_ok_withholding(Decimal("2000"), "biweekly", o) == Decimal("0")
