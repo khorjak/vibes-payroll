@@ -891,3 +891,92 @@ class TestEmployerMatchDisplay:
         r = client.get(f"/payroll/paychecks/{paycheck.id}")
         assert r.status_code == 200
         assert "401k (Employer Match)" in r.text
+
+
+# ── Variance flag, void route errors, PDF fallback ──────────────────────────
+
+class TestVarianceFlag:
+    def _run(self, db, company, employee, hours, pay_date, approve):
+        pp = PayPeriod(company_id=company.id, start_date=pay_date, end_date=pay_date,
+                       pay_date=pay_date, frequency="biweekly", status="open")
+        db.add(pp)
+        db.flush()
+        db.add(Timesheet(employee_id=employee.id, pay_period_id=pp.id, regular_hours=hours))
+        db.commit()
+        calculate_payroll_run(pp, db)
+        if approve:
+            approve_payroll_run(pp, db)
+        return pp
+
+    def test_swing_over_20_percent_is_flagged(self, client, db, company, hourly_employee):
+        self._run(db, company, hourly_employee, 80, date(2026, 5, 6), approve=True)
+        current = self._run(db, company, hourly_employee, 40, date(2026, 5, 20), approve=False)
+        assert "differ" in client.get(f"/payroll/{current.id}").text
+
+    def test_swing_under_20_percent_not_flagged(self, client, db, company, hourly_employee):
+        self._run(db, company, hourly_employee, 80, date(2026, 5, 6), approve=True)
+        current = self._run(db, company, hourly_employee, 72, date(2026, 5, 20), approve=False)
+        assert "differ" not in client.get(f"/payroll/{current.id}").text
+
+    def test_no_prior_paycheck_not_flagged(self, client, db, company, hourly_employee):
+        current = self._run(db, company, hourly_employee, 40, date(2026, 5, 20), approve=False)
+        assert "differ" not in client.get(f"/payroll/{current.id}").text
+
+    def test_only_approved_or_paid_priors_count(self, client, db, company, hourly_employee):
+        # A prior period still in draft is not a baseline.
+        self._run(db, company, hourly_employee, 80, date(2026, 5, 6), approve=False)
+        current = self._run(db, company, hourly_employee, 40, date(2026, 5, 20), approve=False)
+        assert "differ" not in client.get(f"/payroll/{current.id}").text
+
+
+class TestVoidRoute:
+    def _approved_check(self, db, salaried_employee, pay_period):
+        pp = db.query(PayPeriod).options(joinedload(PayPeriod.company)).filter_by(id=pay_period.id).one()
+        paycheck = calculate_payroll_run(pp, db)[0]
+        approve_payroll_run(pp, db)
+        return pp, paycheck
+
+    def test_void_approved_check(self, client, db, salaried_employee, pay_period):
+        pp, paycheck = self._approved_check(db, salaried_employee, pay_period)
+        r = client.post(f"/payroll/paychecks/{paycheck.id}/void", data={"reason": "Wrong amount"})
+        assert r.status_code == 303
+        db.refresh(paycheck)
+        assert paycheck.status == "voided"
+
+    def test_void_twice_is_400(self, client, db, salaried_employee, pay_period):
+        pp, paycheck = self._approved_check(db, salaried_employee, pay_period)
+        client.post(f"/payroll/paychecks/{paycheck.id}/void", data={"reason": "first"})
+        r = client.post(f"/payroll/paychecks/{paycheck.id}/void", data={"reason": "second"})
+        assert r.status_code == 400
+        assert "already voided" in r.text
+
+    def test_void_paid_check_is_400(self, client, db, salaried_employee, pay_period):
+        pp, paycheck = self._approved_check(db, salaried_employee, pay_period)
+        mark_period_paid(pp, db)
+        r = client.post(f"/payroll/paychecks/{paycheck.id}/void", data={"reason": "too late"})
+        assert r.status_code == 400
+        db.refresh(paycheck)
+        assert paycheck.status == "paid"
+
+    def test_void_requires_a_reason(self, client, db, salaried_employee, pay_period):
+        pp, paycheck = self._approved_check(db, salaried_employee, pay_period)
+        assert client.post(f"/payroll/paychecks/{paycheck.id}/void", data={}).status_code == 422
+
+
+class TestPdfFallback:
+    def test_missing_gtk_runtime_is_503_not_500(self, client, db, salaried_employee, pay_period, monkeypatch):
+        import sys
+        import types
+        pp = db.query(PayPeriod).options(joinedload(PayPeriod.company)).filter_by(id=pay_period.id).one()
+        paycheck = calculate_payroll_run(pp, db)[0]
+
+        broken = types.ModuleType("weasyprint")
+
+        def _no_gtk(name):
+            raise OSError("cannot load library 'libgobject-2.0-0'")
+
+        broken.__getattr__ = _no_gtk
+        monkeypatch.setitem(sys.modules, "weasyprint", broken)
+        r = client.get(f"/payroll/paychecks/{paycheck.id}/pdf")
+        assert r.status_code == 503
+        assert "GTK" in r.text

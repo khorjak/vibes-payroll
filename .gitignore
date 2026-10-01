@@ -39,3 +39,6 @@ Thumbs.db
 
 # Docker test deployment secrets
 .env.docker
+
+.coverage
+htmlcov/

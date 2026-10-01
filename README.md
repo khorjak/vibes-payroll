@@ -42,7 +42,8 @@ The database is created automatically on first run. A default admin user (`admin
 ## Tests
 
 ```bash
-pytest                                        # all 299 tests
+pytest                                        # all tests
+pytest --cov --cov-report=term-missing       # with coverage (settings in .coveragerc)
 pytest tests/test_auth.py                    # single file
 pytest tests/test_auth.py::TestLoginLogout   # single class
 ```
