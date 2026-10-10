@@ -12,7 +12,7 @@ A self-hosted payroll application for small businesses operating in Oklahoma. Ha
 |---|---|---|
 | Backend | FastAPI | Async, clean routing, auto OpenAPI docs |
 | Templates | Jinja2 | Server-rendered HTML, pairs naturally with HTMX |
-| Frontend | HTMX + Alpine.js | Minimal JavaScript, server-driven interactions |
+| Frontend | HTMX + small vanilla JS | Minimal JavaScript, server-driven interactions (Alpine.js was dropped: it needs `'unsafe-eval'`, which the CSP forbids) |
 | CSS | Tailwind CSS | Utility-first, no build step via CDN |
 | Database | SQLite + SQLAlchemy | Simple, file-based, zero-config |
 | Migrations | Alembic | Schema versioning for SQLAlchemy |

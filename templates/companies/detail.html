@@ -52,13 +52,13 @@
     </div>
 
     <!-- Benefit Plans -->
-    <div class="bg-white rounded-lg ring-1 ring-slate-200 p-5" x-data="{ open: false }">
+    <div class="bg-white rounded-lg ring-1 ring-slate-200 p-5">
       <div class="flex items-center justify-between mb-4">
         <h2 class="text-sm font-semibold text-slate-700">Benefit Plans</h2>
         <div class="flex gap-3">
           <a href="/companies/{{ company.id }}/benefits"
              class="text-xs font-medium text-indigo-600 hover:text-indigo-800">Manage</a>
-          <button @click="open = !open"
+          <button type="button" data-toggle="#add-benefit-form" aria-controls="add-benefit-form" aria-expanded="false"
                   class="text-xs font-medium text-indigo-600 hover:text-indigo-800">
             + Add
           </button>
@@ -66,7 +66,7 @@
       </div>
 
       <!-- Add plan form -->
-      <form x-show="open" x-cloak method="POST"
+      <form id="add-benefit-form" hidden method="POST"
             action="/companies/{{ company.id }}/benefits/new"
             class="mb-4 p-4 bg-slate-50 rounded-md ring-1 ring-slate-200 space-y-3">
         <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
@@ -119,7 +119,7 @@
                   class="px-3 py-1.5 text-xs font-medium bg-indigo-600 text-white rounded hover:bg-indigo-700">
             Add Plan
           </button>
-          <button type="button" @click="open = false"
+          <button type="button" data-toggle="#add-benefit-form"
                   class="px-3 py-1.5 text-xs text-slate-600 hover:text-slate-900">Cancel</button>
         </div>
       </form>
@@ -182,18 +182,18 @@
     </div>
 
     <!-- Workers Comp Codes -->
-    <div class="bg-white rounded-lg ring-1 ring-slate-200 p-5" x-data="{ open: false }">
+    <div class="bg-white rounded-lg ring-1 ring-slate-200 p-5">
       <div class="flex items-center justify-between mb-3">
         <h2 class="text-sm font-semibold text-slate-700">WC Codes</h2>
         <div class="flex gap-3">
           <a href="/companies/{{ company.id }}/wc-codes"
              class="text-xs font-medium text-indigo-600 hover:text-indigo-800">Manage</a>
-          <button @click="open = !open"
+          <button type="button" data-toggle="#add-wc-form" aria-controls="add-wc-form" aria-expanded="false"
                   class="text-xs font-medium text-indigo-600 hover:text-indigo-800">+ Add</button>
         </div>
       </div>
 
-      <form x-show="open" x-cloak method="POST"
+      <form id="add-wc-form" hidden method="POST"
             action="/companies/{{ company.id }}/wc-codes/new"
             class="mb-3 space-y-2 p-3 bg-slate-50 rounded ring-1 ring-slate-200">
         <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
@@ -217,7 +217,7 @@
                   class="px-3 py-1.5 text-xs font-medium bg-indigo-600 text-white rounded hover:bg-indigo-700">
             Add
           </button>
-          <button type="button" @click="open = false"
+          <button type="button" data-toggle="#add-wc-form"
                   class="text-xs text-slate-600 hover:text-slate-900">Cancel</button>
         </div>
       </form>

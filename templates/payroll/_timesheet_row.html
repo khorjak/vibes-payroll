@@ -1,7 +1,7 @@
 <tr id="ts-row-{{ employee.id }}"
     hx-post="/payroll/{{ pp.id }}/timesheets/{{ employee.id }}"
-    hx-trigger="change from:input delay:800ms"
-    hx-include="find input"
+    hx-trigger="change delay:800ms"
+    hx-include="#ts-row-{{ employee.id }} input"
     hx-target="#ts-row-{{ employee.id }}"
     hx-swap="outerHTML">
   <td style="display:none"><input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}"></td>

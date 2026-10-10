@@ -148,14 +148,14 @@
     </div>
 
     <!-- Benefits -->
-    <div class="bg-white rounded-lg ring-1 ring-slate-200 p-5" x-data="{ open: false }">
+    <div class="bg-white rounded-lg ring-1 ring-slate-200 p-5">
       <div class="flex items-center justify-between mb-4">
         <h2 class="text-sm font-semibold text-slate-700">Benefit Enrollments</h2>
-        <button @click="open = !open"
+        <button type="button" data-toggle="#enroll-form" aria-controls="enroll-form" aria-expanded="false"
                 class="text-xs font-medium text-indigo-600 hover:text-indigo-800">+ Enroll</button>
       </div>
 
-      <form x-show="open" x-cloak method="POST"
+      <form id="enroll-form" hidden method="POST"
             action="/employees/{{ employee.id }}/benefits/enroll"
             class="mb-4 p-4 bg-slate-50 rounded-md ring-1 ring-slate-200 space-y-3">
         <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
@@ -188,7 +188,7 @@
                   class="px-3 py-1.5 text-xs font-medium bg-indigo-600 text-white rounded hover:bg-indigo-700">
             Enroll
           </button>
-          <button type="button" @click="open = false"
+          <button type="button" data-toggle="#enroll-form"
                   class="text-xs text-slate-600 hover:text-slate-900">Cancel</button>
         </div>
       </form>
@@ -206,7 +206,7 @@
         </thead>
         <tbody class="divide-y divide-slate-50">
           {% for enrollment in active_enrollments %}
-          <tr x-data="{ terminating: false }">
+          <tr>
             <td class="py-2 text-slate-900">{{ enrollment.plan.name }}</td>
             <td class="py-2 text-slate-500">{{ enrollment.plan.benefit_type | replace("_", " ") | title }}</td>
             <td class="py-2 text-right tabular-nums">
@@ -219,9 +219,10 @@
             </td>
             <td class="py-2 text-slate-500">{{ enrollment.effective_date.strftime('%m/%d/%Y') }}</td>
             <td class="py-2 text-right">
-              <button @click="terminating = !terminating"
+              <button type="button" data-toggle="#end-enrollment-{{ enrollment.id }}"
+                      aria-controls="end-enrollment-{{ enrollment.id }}" aria-expanded="false"
                       class="text-xs text-red-500 hover:text-red-700">End</button>
-              <form x-show="terminating" x-cloak method="POST"
+              <form id="end-enrollment-{{ enrollment.id }}" hidden method="POST"
                     action="/employees/{{ employee.id }}/benefits/{{ enrollment.id }}/terminate"
                     class="mt-2 flex gap-2 items-center">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">

@@ -194,7 +194,7 @@ Only needed for **hourly and part-time** employees. Salaried employees are paid 
 
 1. Open the pay period and choose **Timesheets**.
 2. For each employee enter hours in: regular, overtime, double time, PTO, sick, and holiday.
-3. Each row saves on its own; a saved confirmation appears on the row.
+3. Each row saves on its own about a second after you change a value; a saved confirmation appears on the row. Only the row you edited is saved.
 
 How hours turn into pay: regular, PTO, sick and holiday hours are paid at the hourly rate; overtime at 1.5 times; double time at 2 times. **Enter overtime hours yourself.** The system does not calculate overtime from a total.
 
