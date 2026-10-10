@@ -1,6 +1,6 @@
 # Mobile / responsive UI plan
 
-> Status: **Phase 1 implemented.** Phases 2-3 pending.
+> Status: **Phase 1 implemented**; the Alpine/HTMX finding is fixed. Phases 2-3 pending.
 
 ## Problem
 
@@ -34,7 +34,7 @@ put title and action buttons on one row, and almost nothing used `sm:`/`md:`.
   button, backdrop, Esc and navigation; no horizontal page scroll at 375px on
   the employee list; desktop unchanged.
 
-### Finding while verifying (not fixed in Phase 1)
+### Finding while verifying (fixed after Phase 1)
 
 - The CSP (`main.py`) has no `'unsafe-eval'`, so standard Alpine.js cannot
   evaluate any expression. Every `x-data`/`x-show`/`@click` in the app fails;
@@ -44,9 +44,12 @@ put title and action buttons on one row, and almost nothing used `sm:`/`md:`.
   serves (it redirects to `/dist/htmx.min.js`), so browsers refuse to run HTMX.
   HTMX-only behaviour (live search, partial swaps) silently falls back or does
   nothing.
-- Fix options: switch to the Alpine CSP build (`@alpinejs/csp`, requires moving
-  inline expressions into `Alpine.data` components) or allow `'unsafe-eval'`;
-  pin HTMX to `.../dist/htmx.min.js` with the correct integrity hash.
+- **Fixed:** Alpine was removed (its 8 uses were simple show/hide toggles) in
+  favour of a delegated `data-toggle` / `data-dismiss` script in `layout.html`,
+  keeping the CSP free of `'unsafe-eval'`. HTMX is pinned to
+  `.../dist/htmx.min.js` with its published hash. Turning HTMX on exposed a
+  latent timesheet bug: `hx-include="find input"` sent only the CSRF token, so
+  autosave stored 0 hours, and `from:input` re-posted every row; both fixed.
 
 ## Phase 2 — page sweep (all templates)
 

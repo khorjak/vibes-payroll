@@ -29,12 +29,13 @@ Install deps: `pip install -r requirements-dev.txt`
 
 ## Architecture
 
-Self-hosted Oklahoma payroll application. FastAPI backend, Jinja2 + HTMX + Alpine.js + Tailwind frontend, SQLite + SQLAlchemy ORM.
+Self-hosted Oklahoma payroll application. FastAPI backend, Jinja2 + HTMX + Tailwind frontend with a little inline vanilla JS (no Alpine), SQLite + SQLAlchemy ORM.
 
 ### Frontend / responsive layout
 
 - `templates/layout.html`: below `md` (768px) the sidebar is an off-canvas drawer (`#sidebar`, `#nav-open`, `#nav-close`, `#nav-backdrop`), shown via a `body.nav-open` class in a `<style>` media query and toggled by a small inline vanilla script. It deliberately does **not** use Alpine or HTMX. From `md` up it is the original fixed column. Mobile work is phased in `plans/MOBILE-PLAN.md`.
-- **Known issue:** the CSP in `main.py` has no `'unsafe-eval'`, so standard Alpine.js cannot evaluate any expression (`x-data`, `x-show`, `@click` all fail; `x-show` elements stay visible). The HTMX `<script>` SRI hash does not match what `unpkg.com/htmx.org@1.9.12` serves, so browsers block HTMX entirely. Don't build new UI on either until that is fixed.
+- **No Alpine.js.** The CSP in `main.py` has no `'unsafe-eval'` (keep it that way), which standard Alpine needs for every expression, so Alpine was removed. Show/hide uses the delegated script at the end of `layout.html`: `data-toggle="#id"` flips the target's `hidden` attribute (and `aria-expanded` on its toggles, focusing the first field), `data-dismiss="#id"` removes the target. Start toggled panels with the `hidden` attribute; a `[hidden] { display: none !important }` rule beats Tailwind display utilities. `tests/test_layout.py` fails if any Alpine directive reappears or a toggle points at a missing id.
+- **HTMX** is loaded from the exact file URL `unpkg.com/htmx.org@1.9.12/dist/htmx.min.js` with htmx's published SRI hash; the bare package URL redirects and never matched. In `hx-include`, `find <sel>` matches only the first element: use a plain CSS selector (e.g. `#ts-row-N input`) to include all of a row's inputs, and avoid `from:<sel>` triggers, which listen on every match on the page.
 
 ### Shared Jinja2 instance
 

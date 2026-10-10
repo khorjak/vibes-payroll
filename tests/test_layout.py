@@ -42,3 +42,83 @@ class TestMobileDrawer:
 
     def test_login_page_has_side_margins(self, client):
         assert 'class="w-full max-w-sm px-4"' in client.get("/auth/login").text
+
+
+# ── Front-end scripts must work under the app's CSP ─────────────────────────
+
+import pathlib
+import re
+
+ALPINE_DIRECTIVE = re.compile(r'\b(x-data|x-show|x-cloak|x-model|x-init|x-text|x-bind|x-on)\b|\s@[a-z]+=|\s:[a-z-]+="')
+
+
+class TestScriptsUnderCsp:
+    def test_htmx_pinned_to_exact_file_with_matching_sri(self, client):
+        page = client.get("/employees/").text
+        # The bare package URL redirects, and its old integrity hash never matched.
+        assert ('src="https://unpkg.com/htmx.org@1.9.12/dist/htmx.min.js" '
+                'integrity="sha384-ujb1lZYygJmzgSwoxRggbCHcjc0rB2XoQrxeTUQyRjrOnlCoYta87iKBWq3EsdM2"') in page
+
+    def test_alpine_not_loaded(self, client):
+        assert "alpinejs" not in client.get("/employees/").text
+
+    def test_csp_still_forbids_eval(self, client):
+        csp = client.get("/auth/login").headers["content-security-policy"]
+        assert "unsafe-eval" not in csp
+
+    def test_no_alpine_directives_left_in_templates(self):
+        offenders = []
+        for path in pathlib.Path("templates").rglob("*.html"):
+            for n, line in enumerate(path.read_text().splitlines(), 1):
+                if ALPINE_DIRECTIVE.search(line):
+                    offenders.append(f"{path}:{n}: {line.strip()}")
+        assert not offenders, offenders
+
+    def test_hidden_attribute_beats_display_utilities(self, client):
+        assert "[hidden] { display: none !important; }" in client.get("/employees/").text
+
+
+class TestToggleTargetsExist:
+    """Every data-toggle / data-dismiss must point at an element on the same page."""
+
+    def _assert_targets(self, html):
+        targets = re.findall(r'data-(?:toggle|dismiss)="#([\w-]+)"', html)
+        assert targets, "page has no toggles; test is not exercising anything"
+        for t in targets:
+            assert f'id="{t}"' in html, t
+
+    def test_company_detail(self, client, company):
+        self._assert_targets(client.get(f"/companies/{company.id}").text)
+
+    def test_employee_profile(self, client, db, salaried_employee, benefit_plan):
+        from datetime import date
+        from models.benefit import EmployeeBenefitEnrollment
+        db.add(EmployeeBenefitEnrollment(employee_id=salaried_employee.id,
+                                         benefit_plan_id=benefit_plan.id, effective_date=date(2026, 1, 1)))
+        db.commit()
+        html = client.get(f"/employees/{salaried_employee.id}").text
+        self._assert_targets(html)
+        assert 'id="end-enrollment-' in html and 'hidden method="POST"' in html
+
+    def test_paycheck_detail_void_panel_starts_hidden(self, client, db, company, salaried_employee, pay_period):
+        client.post(f"/payroll/{pay_period.id}/calculate")
+        from models.payroll import Paycheck
+        pc = db.query(Paycheck).first()
+        html = client.get(f"/payroll/paychecks/{pc.id}").text
+        self._assert_targets(html)
+        assert 'id="void-panel" hidden' in html
+
+    def test_flash_is_dismissible(self, client, salaried_employee):
+        html = client.get(f"/employees/{salaried_employee.id}?flash=updated").text
+        assert 'id="flash"' in html and 'data-dismiss="#flash"' in html
+        self._assert_targets(html)
+
+
+class TestTimesheetAutosave:
+    def test_row_posts_all_of_its_own_inputs_only(self, client, db, company, hourly_employee, pay_period):
+        html = client.get(f"/payroll/{pay_period.id}/timesheets").text
+        row = html.split(f'id="ts-row-{hourly_employee.id}"', 1)[1].split(">", 1)[0]
+        # "find input" matched only the first input (the CSRF token), so hours posted as 0.
+        assert f'hx-include="#ts-row-{hourly_employee.id} input"' in row
+        # "from:input" listened to every input on the page, re-posting every row.
+        assert 'hx-trigger="change delay:800ms"' in row

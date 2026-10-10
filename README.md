@@ -5,7 +5,7 @@ Self-hosted payroll application for small businesses operating in Oklahoma. Hand
 ## Stack
 
 - **Backend**: FastAPI + SQLAlchemy + SQLite
-- **Frontend**: Jinja2 + HTMX + Alpine.js + Tailwind CSS
+- **Frontend**: Jinja2 + HTMX + Tailwind CSS (small inline vanilla JS; no Alpine)
 - **PDF**: WeasyPrint (requires GTK on Windows — optional)
 
 ## Features

@@ -5,10 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}Payroll{% endblock %}</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://unpkg.com/htmx.org@1.9.12" integrity="sha384-SDoiYpX0Rds2uJxGagpIgvo8MRGg5n25bu3kbfNTWBJfryGubn1FzSa+q15lOiTt" crossorigin="anonymous"></script>
-  <script src="https://unpkg.com/alpinejs@3.14.1/dist/cdn.min.js" integrity="sha384-l8f0VcPi/M1iHPv8egOnY/15TDwqgbOR1anMIJWvU6nLRgZVLTLSaNqi/TOoT5Fh" crossorigin="anonymous" defer></script>
+  <!-- Exact file URL: the bare package URL redirects, and the SRI hash below is htmx's
+       published hash for dist/htmx.min.js. -->
+  <script src="https://unpkg.com/htmx.org@1.9.12/dist/htmx.min.js" integrity="sha384-ujb1lZYygJmzgSwoxRggbCHcjc0rB2XoQrxeTUQyRjrOnlCoYta87iKBWq3EsdM2" crossorigin="anonymous"></script>
   <style>
-    [x-cloak] { display: none !important; }
+    /* Beat display utilities (flex, grid...) so the hidden attribute always hides. */
+    [hidden] { display: none !important; }
     .htmx-indicator { opacity: 0; transition: opacity 200ms ease-in; }
     .htmx-request .htmx-indicator { opacity: 1; }
     /* Below md (768px) the sidebar is an off-canvas drawer, toggled by the small
@@ -158,7 +160,7 @@
 
     <!-- Flash messages -->
     {% if flash %}
-    <div x-data="{ show: true }" x-show="show" x-cloak
+    <div id="flash"
          class="mx-4 md:mx-6 mt-4 px-4 py-3 rounded-md text-sm flex items-center justify-between
                 {% if flash in ['created','updated','w4_updated','ok_updated','enrolled','enrollment_ended','wc_added','benefit_added','calculated','approved','paid','voided','password_reset','new_hire_reported','remitted'] %}
                   bg-green-50 text-green-800 ring-1 ring-green-200
@@ -184,7 +186,8 @@
         {% else %}An action was completed.
         {% endif %}
       </span>
-      <button @click="show = false" class="ml-4 opacity-60 hover:opacity-100">&#x2715;</button>
+      <button type="button" data-dismiss="#flash" aria-label="Dismiss"
+              class="ml-4 opacity-60 hover:opacity-100">&#x2715;</button>
     </div>
     {% endif %}
 
@@ -210,6 +213,30 @@
     closeBtn.addEventListener("click", function () { setNav(false); });
     document.getElementById("nav-backdrop").addEventListener("click", function () { setNav(false); });
     document.addEventListener("keydown", function (e) { if (e.key === "Escape") setNav(false); });
+
+    // Page-level show/hide, replacing Alpine (the CSP has no 'unsafe-eval').
+    //   data-toggle  = CSS selector of an element whose hidden attribute to flip
+    //   data-dismiss = CSS selector of an element to remove
+    document.addEventListener("click", function (e) {
+      var t = e.target.closest("[data-toggle]");
+      if (t) {
+        var el = document.querySelector(t.getAttribute("data-toggle"));
+        if (!el) return;
+        el.hidden = !el.hidden;
+        document.querySelectorAll('[data-toggle="' + t.getAttribute("data-toggle") + '"]')
+          .forEach(function (b) { b.setAttribute("aria-expanded", el.hidden ? "false" : "true"); });
+        if (!el.hidden) {
+          var first = el.querySelector("input:not([type=hidden]), select, textarea");
+          if (first) first.focus();
+        }
+        return;
+      }
+      var d = e.target.closest("[data-dismiss]");
+      if (d) {
+        var gone = document.querySelector(d.getAttribute("data-dismiss"));
+        if (gone) gone.remove();
+      }
+    });
   })();
 </script>
 </body>
