@@ -33,15 +33,16 @@
   </button>
 </form>
 
+{% include "_all_cols_toggle.html" %}
 <div class="bg-white rounded-lg border border-slate-200 overflow-x-auto">
   <table class="w-full text-sm">
     <thead class="bg-slate-50 border-b border-slate-200">
       <tr>
         <th class="text-left px-4 py-3 font-medium text-slate-600">Company</th>
-        <th class="text-left px-4 py-3 font-medium text-slate-600">Pay Period</th>
+        <th class="hidden sm:table-cell text-left px-4 py-3 font-medium text-slate-600">Pay Period</th>
         <th class="text-left px-4 py-3 font-medium text-slate-600">Pay Date</th>
-        <th class="text-left px-4 py-3 font-medium text-slate-600">Frequency</th>
-        <th class="text-left px-4 py-3 font-medium text-slate-600">Checks</th>
+        <th class="hidden sm:table-cell text-left px-4 py-3 font-medium text-slate-600">Frequency</th>
+        <th class="hidden sm:table-cell text-left px-4 py-3 font-medium text-slate-600">Checks</th>
         <th class="text-left px-4 py-3 font-medium text-slate-600">Status</th>
         <th class="px-4 py-3"></th>
       </tr>
@@ -50,10 +51,10 @@
       {% for pp in periods %}
       <tr class="hover:bg-slate-50">
         <td class="px-4 py-3 font-medium text-slate-800">{{ pp.company.name }}</td>
-        <td class="px-4 py-3 text-slate-600">{{ pp.start_date }} – {{ pp.end_date }}</td>
+        <td class="hidden sm:table-cell px-4 py-3 text-slate-600">{{ pp.start_date }} – {{ pp.end_date }}</td>
         <td class="px-4 py-3">{{ pp.pay_date }}</td>
-        <td class="px-4 py-3 text-slate-500 capitalize">{{ pp.frequency.replace("_", "-") }}</td>
-        <td class="px-4 py-3 text-slate-500">{{ pp.paychecks | length }}</td>
+        <td class="hidden sm:table-cell px-4 py-3 text-slate-500 capitalize">{{ pp.frequency.replace("_", "-") }}</td>
+        <td class="hidden sm:table-cell px-4 py-3 text-slate-500">{{ pp.paychecks | length }}</td>
         <td class="px-4 py-3">
           {% set s = pp.status %}
           <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium

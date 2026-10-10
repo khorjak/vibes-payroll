@@ -1,6 +1,6 @@
 # Mobile / responsive UI plan
 
-> Status: **Phases 1-2 implemented**; the Alpine/HTMX finding is fixed. Phase 3 pending.
+> Status: **All three phases implemented**; the Alpine/HTMX finding is fixed. The optional card view was not built.
 
 ## Problem
 
@@ -76,13 +76,37 @@ put title and action buttons on one row, and almost nothing used `sm:`/`md:`.
   area unless it is inside a horizontal scroller (9 pages failed before); at
   1280px nothing changed. Void panel and remit form checked at 375px.
 
-## Phase 3 — polish where phones are actually used
+## Phase 3 — polish where phones are actually used (done)
 
-- Hide low-value columns below `sm` on employee list, pay runs, pay period
-  paychecks, users.
-- Check timesheet grid input sizes for thumb editing.
-- Optional card view for employee list / pay period paychecks if scrolling
-  still feels bad after Phase 2.
+- **Columns hidden below `sm`** (`hidden sm:table-cell` on the `th` and every
+  `td`, including the pay period totals row): employee list (Department, Hire
+  Date), pay runs (Pay Period, Frequency, Checks), pay period paychecks
+  (Pre-tax Ded., Taxes, Check #), users (Created). The employee list and pay
+  runs now fit a 375px screen; pay period paychecks and users still scroll
+  about 100px, which was accepted rather than hiding Status or Companies.
+  `tests/test_layout.py` fails if a row hides a different set of columns
+  than its header (cells would shift under the wrong heading).
+- **Show all columns** (phones only, `templates/_all_cols_toggle.html` above
+  each of those four tables): a `data-all-cols` button toggles
+  `body.show-all-cols`, which a rule in the `layout.html` phone media query
+  turns into `display: table-cell` for the hidden columns. The choice is kept
+  in `localStorage` (`showAllCols`), so it covers all four tables and survives
+  navigation and the employee live-search swap. Added because hiding columns
+  with no way back was too restrictive.
+- **Form fields are 16px below `md`** (one `!important` rule in the
+  `layout.html` phone media query; the standalone login page uses
+  `text-base sm:text-sm`). iOS zooms the page in when a field under 16px gets
+  focus, which hit every form in the app. The payroll register filter selects
+  got `max-w-full`, as their long option text then overflowed by ~12px.
+- **Timesheet:** hour inputs are ~42px tall below `md` (34px from `md`), use
+  `inputmode="decimal"` for a numeric keypad, and the employee name column is
+  `sticky left-0` so it stays in view while swiping across the hour columns.
+- **Card view: not built.** After Phase 2 and the hidden columns, the tables
+  scroll at most ~100px; revisit if users on phones find that awkward.
+- Verified in headless Chromium at 375px and 1280px: hidden columns gone on
+  phones and shown on desktop, header/body/footer cells line up, timesheet
+  name stays put while scrolling and autosave still works, 0 of 37 pages
+  overflow at either width.
 
 ## Out of scope
 
