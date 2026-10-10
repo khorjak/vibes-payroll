@@ -92,7 +92,7 @@ The tax engine (`tax_engine/`) is pure calculation; the payroll service gathers 
 
 ```mermaid
 flowchart TD
-    G[Gross wages<br/>salary ÷ periods, or hours × rate<br/>OT 1.5×, double time 2×] --> PRE[Subtract pre-tax benefits<br/>fixed $ or % of gross]
+    G[Gross wages<br/>salary ÷ periods, or hours × rate<br/>OT 1.5×, double time 2×] --> PRE[Subtract pre-tax benefits<br/>fixed $ or % of gross<br/>401k lowers income-tax wages only]
     PRE --> TAX[Employee taxes<br/>federal income tax from W-4<br/>Oklahoma tax from OK election<br/>Social Security, Medicare]
     TAX --> POST[Subtract post-tax deductions]
     POST --> GARN[Garnishments on disposable earnings<br/>in legal priority order, CCPA limits]
@@ -113,7 +113,8 @@ Inputs the calculation reads:
 | Garnishments | Active garnishment orders |
 | SUTA rate | Company setting; 2.7% if blank |
 | Workers comp rate | Employee's workers comp code (rate per $100 of wages) |
-| Year-to-date wages | Earlier non-voided paychecks in the same calendar year: gross less pre-tax deductions. Post-tax deductions and garnishments are not subtracted, because the Social Security, FUTA and SUTA wage bases count wages paid, not take-home pay |
+| Pre-tax treatment | Every pre-tax plan lowers federal and Oklahoma income tax wages. Only non-401k pre-tax plans (health, dental, vision, FSA, HSA, other) also lower Social Security, Medicare, FUTA and SUTA wages; a traditional 401(k) deferral does not (`FICA_TAXABLE_PRE_TAX_TYPES`). Employer FICA follows the same wages. |
+| Year-to-date wages | Earlier non-voided paychecks in the same calendar year: gross less Section 125 pre-tax deductions. Post-tax deductions, garnishments and 401(k) deferrals are not subtracted, because the Social Security, FUTA and SUTA wage bases count wages paid, not take-home pay |
 
 **Employer match.** A plan with a match percentage adds an employer contribution line: the match percent of the employee's contribution, counting at most the cap percent of gross pay. For example, "100% up to 4%" on a $2,500 check matches at most $100. The match is employer money, so it never reduces the employee's net pay or appears in their deductions.
 
@@ -187,7 +188,7 @@ flowchart TD
 
 Reports count only approved and paid paychecks. Drafts and voided paychecks are left out, so totals do not change while a run is under review. The exception is the payroll register, which lists every paycheck in the chosen period, drafts included, for review before approval.
 
-**Oklahoma SUTA report.** For one company and quarter, lists each employee paid in the quarter with total wages, taxable wages, excess wages and contributions. Only approved and paid paychecks count. Taxable wages apply the Oklahoma wage base ($27,000 per employee per year, the tax engine's constant) to the employee's year-to-date subject wages (gross less pre-tax deductions) in pay date order, so earlier quarters and earlier paychecks use up the base first. Excess wages are total wages minus taxable wages. Contributions are the sum of the SUTA lines already calculated on the paychecks, so a mid-year rate change shows what was actually withheld. SSNs are shown as last four digits only.
+**Oklahoma SUTA report.** For one company and quarter, lists each employee paid in the quarter with total wages, taxable wages, excess wages and contributions. Only approved and paid paychecks count. Taxable wages apply the Oklahoma wage base ($27,000 per employee per year, the tax engine's constant) to the employee's year-to-date subject wages (gross less cafeteria-plan pre-tax deductions; 401(k) deferrals stay in) in pay date order, so earlier quarters and earlier paychecks use up the base first. Excess wages are total wages minus taxable wages. Contributions are the sum of the SUTA lines already calculated on the paychecks, so a mid-year rate change shows what was actually withheld. SSNs are shown as last four digits only.
 
 ## 10. Access and session flow
 

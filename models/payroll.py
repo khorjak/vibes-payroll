@@ -107,6 +107,8 @@ class PaycheckLine(Base):
     description: Mapped[str] = mapped_column(String(200))
     amount: Mapped[Decimal] = mapped_column(Numeric(12, 2))
     is_pre_tax: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Earnings: True. Deductions: True only for a pre-tax deferral that stays subject to
+    # FICA/FUTA/SUTA (traditional 401k); other pre-tax deductions reduce those wages too.
     is_taxable: Mapped[bool] = mapped_column(Boolean, default=True)
     hours: Mapped[Optional[Decimal]] = mapped_column(Numeric(6, 2))
     rate: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 4))

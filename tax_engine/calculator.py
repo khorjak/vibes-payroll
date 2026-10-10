@@ -25,7 +25,9 @@ from .garnishments import calc_garnishments, GarnishmentInput
 
 def calculate_paycheck(inp: PaycheckInput) -> PaycheckResult:
     gross = inp.gross_wages
-    taxable = gross - inp.pre_tax_deductions  # used for income tax and FICA
+    taxable = gross - inp.pre_tax_deductions  # income-tax wages
+    # Traditional 401k deferrals cut income-tax wages but remain FICA/FUTA/SUTA wages.
+    fica_wages = taxable + inp.pre_tax_retirement
 
     taxes = TaxResult()
 
@@ -42,16 +44,16 @@ def calculate_paycheck(inp: PaycheckInput) -> PaycheckResult:
         taxes.ok_income_tax = calc_ok_withholding(taxable, inp.pay_frequency, inp.ok_withholding)
 
     # Employee FICA
-    taxes.ss_employee = calc_ss_employee(taxable, inp.ytd_ss_wages_prior)
-    taxes.medicare_employee = calc_medicare_employee(taxable, inp.ytd_gross_prior)
+    taxes.ss_employee = calc_ss_employee(fica_wages, inp.ytd_ss_wages_prior)
+    taxes.medicare_employee = calc_medicare_employee(fica_wages, inp.ytd_gross_prior)
 
     # Employer FICA
-    taxes.ss_employer = calc_ss_employer(taxable, inp.ytd_ss_wages_prior)
-    taxes.medicare_employer = calc_medicare_employer(taxable)
+    taxes.ss_employer = calc_ss_employer(fica_wages, inp.ytd_ss_wages_prior)
+    taxes.medicare_employer = calc_medicare_employer(fica_wages)
 
     # Employer unemployment
-    taxes.futa = calc_futa(taxable, inp.ytd_futa_wages_prior)
-    taxes.suta = calc_suta(taxable, inp.ytd_suta_wages_prior, inp.suta_rate)
+    taxes.futa = calc_futa(fica_wages, inp.ytd_futa_wages_prior)
+    taxes.suta = calc_suta(fica_wages, inp.ytd_suta_wages_prior, inp.suta_rate)
 
     # Employer workers comp (on gross wages, not taxable wages)
     taxes.workers_comp = calc_workers_comp(gross, inp.workers_comp_rate)
@@ -91,5 +93,6 @@ def calculate_paycheck(inp: PaycheckInput) -> PaycheckResult:
         garnishment_total=garnishment_total,
         garnishment_results=garnishment_results,
         taxable_wages=taxable,
+        fica_wages=fica_wages,
         taxes=taxes,
     )

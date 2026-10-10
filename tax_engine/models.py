@@ -58,8 +58,13 @@ class PaycheckInput:
     ytd_futa_wages_prior: Decimal = field(default_factory=lambda: Decimal("0"))
     ytd_suta_wages_prior: Decimal = field(default_factory=lambda: Decimal("0"))
 
-    # Section 125 / cafeteria-plan deductions (reduce federal, state, and FICA taxable wages)
+    # Pre-tax deductions: reduce federal and state income-tax wages. Section 125 /
+    # cafeteria-plan items also reduce FICA, FUTA and SUTA wages.
     pre_tax_deductions: Decimal = field(default_factory=lambda: Decimal("0"))
+
+    # The part of pre_tax_deductions that reduces income-tax wages ONLY (traditional
+    # 401k deferrals): still subject to FICA, FUTA and SUTA.
+    pre_tax_retirement: Decimal = field(default_factory=lambda: Decimal("0"))
 
     # Post-tax deductions (Roth 401k, voluntary after-tax deductions)
     post_tax_deductions: Decimal = field(default_factory=lambda: Decimal("0"))
@@ -93,10 +98,11 @@ class PaycheckResult:
     gross_wages: Decimal
     pre_tax_deductions: Decimal
     post_tax_deductions: Decimal
-    taxable_wages: Decimal  # gross - pre_tax_deductions (used for income tax and FICA)
+    taxable_wages: Decimal  # gross - pre_tax_deductions (income-tax wages)
     taxes: TaxResult
     garnishment_total: Decimal = field(default_factory=lambda: Decimal("0"))
     garnishment_results: List[GarnishmentResultItem] = field(default_factory=list)
+    fica_wages: Optional[Decimal] = None  # wages for FICA/FUTA/SUTA; defaults to taxable_wages
 
     @property
     def total_deductions(self) -> Decimal:

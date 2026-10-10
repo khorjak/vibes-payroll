@@ -52,7 +52,7 @@ A self-hosted payroll application for small businesses operating in Oklahoma. Ha
 - Dental / vision premium
 - FSA contribution
 - HSA contribution
-- Traditional 401(k) / 403(b)
+- Traditional 401(k) / 403(b) (income tax only: still subject to FICA, FUTA and SUTA)
 
 **Post-tax:**
 - Roth 401(k)
@@ -196,7 +196,7 @@ The tax engine is a pure Python module with no database or HTTP side effects. Ev
 ### Calculation Order (per paycheck)
 
 1. **Gross earnings** — sum all earnings lines (regular + OT + bonuses + etc.)
-2. **Pre-tax deductions** — subtract to get federal/state taxable wages
+2. **Pre-tax deductions** — subtract to get federal/state taxable wages (traditional 401(k) deferrals reduce income-tax wages only; FICA, FUTA and SUTA wages exclude only cafeteria-plan items)
 3. **Federal income tax** — IRS Publication 15 percentage method tables, using W-4 elections (Single, no adjustments, when none is on file) and pay frequency
 4. **Oklahoma state income tax** — OTC withholding tables by filing status and pay period (single, 0 allowances, when no OK-W-4 is on file)
 5. **Social Security** — 6.2% up to annual wage base (check YTD accumulator)

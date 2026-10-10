@@ -16,6 +16,10 @@ BENEFIT_TYPES = [
 
 CONTRIBUTION_TYPES = ["fixed", "percent"]
 
+# Pre-tax types that cut income-tax wages only. Every other pre-tax type is a
+# Section 125 cafeteria item that also reduces FICA, FUTA and SUTA wages.
+FICA_TAXABLE_PRE_TAX_TYPES = {"traditional_401k"}
+
 
 class BenefitPlan(Base, TimestampMixin):
     __tablename__ = "benefit_plans"
@@ -30,6 +34,11 @@ class BenefitPlan(Base, TimestampMixin):
     employer_match_cap_percent: Mapped[Optional[Decimal]] = mapped_column(Numeric(6, 4))
     pre_tax: Mapped[bool] = mapped_column(Boolean, default=True)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+    @property
+    def deferral_is_fica_taxable(self) -> bool:
+        """Pre-tax deferral that is still subject to FICA/FUTA/SUTA (e.g. traditional 401k)."""
+        return bool(self.pre_tax) and self.benefit_type in FICA_TAXABLE_PRE_TAX_TYPES
 
     company: Mapped["Company"] = relationship("Company", back_populates="benefit_plans")
     enrollments: Mapped[List["EmployeeBenefitEnrollment"]] = relationship(
