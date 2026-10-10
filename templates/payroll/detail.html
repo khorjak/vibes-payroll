@@ -89,6 +89,13 @@
 </div>
 {% endif %}
 
+{% if federal_fallback_year %}
+<div class="mb-4 px-4 py-3 rounded-md bg-amber-50 ring-1 ring-amber-200 text-sm text-amber-800">
+  No {{ pp.pay_date.year }} federal withholding tables on file. Calculating uses the {{ federal_fallback_year }} tables.
+  {% if has_role(request, 'admin') %}<a href="/tax-settings/{{ pp.pay_date.year }}/federal" class="underline">Enter the {{ pp.pay_date.year }} tables in Tax Settings</a>{% else %}Ask an admin to enter them under Tax Settings.{% endif %}
+</div>
+{% endif %}
+
 {% if missing_wc_employees %}
 <div class="mb-4 px-4 py-3 rounded-md bg-amber-50 ring-1 ring-amber-200">
   <p class="text-sm font-medium text-amber-800">No workers comp code on file (coverage not verified):</p>

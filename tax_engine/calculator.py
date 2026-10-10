@@ -37,7 +37,7 @@ def calculate_paycheck(inp: PaycheckInput) -> PaycheckResult:
     elif inp.is_supplemental:
         taxes.federal_income_tax = calc_supplemental_federal(taxable)
     elif inp.w4 is not None:
-        taxes.federal_income_tax = calc_federal_withholding(taxable, inp.pay_frequency, inp.w4)
+        taxes.federal_income_tax = calc_federal_withholding(taxable, inp.pay_frequency, inp.w4, table=inp.federal_table)
 
     # Oklahoma state income tax
     if inp.ok_withholding is not None:

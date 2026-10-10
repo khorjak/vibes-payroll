@@ -46,7 +46,7 @@ Every user has one role. Your role applies to every company you are assigned to.
 | **Read-only** | Owners, auditors | View everything they can access. Change nothing. |
 | **Preparer** | Payroll clerks | Everything read-only can, plus add and edit employees, tax elections, benefit enrollments and garnishments; create pay periods; enter timesheets; calculate the draft payroll; create off-cycle payments. |
 | **Approver** | Payroll managers | Everything read-only can, plus approve a payroll run, mark it paid, and void a paycheck. |
-| **Admin** | Whoever runs the system | Everything, plus company, benefit plan and workers comp setup, user management, and yearly tax settings. |
+| **Admin** | Whoever runs the system | Everything, plus company, benefit plan and workers comp setup, user management, and yearly tax settings (wage bases and federal withholding tables). |
 
 Preparing and approving are separate on purpose, so one person cannot both build and release a payroll. Give a person both roles only if you accept that. An admin can do both.
 
@@ -116,23 +116,26 @@ Workers comp codes belong to one company. Changing a rate in one company never a
 
 ## 6. Tax settings (admins)
 
-Some payroll taxes stop once an employee's wages for the year reach a limit, the *wage base*, and the limits change every year. **Tax Settings** (admins only) lists them by year:
+Some tax figures change every year. **Tax Settings** (admins only) holds them by year:
 
-- **Social Security wage base**: published by the Social Security Administration each October for the following year (search "contribution and benefit base" on ssa.gov).
+- **Social Security wage base**: the wage limit for Social Security tax, published by the Social Security Administration each October for the following year (search "contribution and benefit base" on ssa.gov).
 - **Oklahoma SUTA wage base**: the "Taxable Wage Base" on the Oklahoma Employment Security Commission's *Important Numbers* sheet for the year, published each winter (oklahoma.gov/oesc).
+- **Federal withholding tables**: the IRS Publication 15-T *Annual Percentage Method Tables* for automated payroll (Worksheet 1A), published each December (irs.gov/publications/p15t).
 
-Each paycheck uses the figures for the calendar year of its pay date. The figures for 2024 to 2026 come with the system.
+Each paycheck uses the figures for the calendar year of its pay date. The wage bases for 2024 to 2026 and the federal tables for 2025 and 2026 come with the system.
 
-**Add next year.** As soon as the new figures are published, fill in **Add or update a year** with the year and both wage bases and choose **Save**. Amounts can be typed with or without `$` and commas.
+**Add next year's wage bases.** Fill in **Add or update a year** with the year and both wage bases and choose **Save**. Amounts can be typed with or without `$` and commas. Values outside $1,000 to $1,000,000 are refused.
 
-**Correct a year.** Choose **Edit** on the year, change the figures and **Save**. Draft paychecks pick up the change when you choose **Recalculate**; approved and paid paychecks keep the figures they were calculated with.
+**Enter next year's federal tables.** Choose **Enter tables** on the year (or the link in the warning) to open the table form. It has two line 1g amounts and six tables of 8 rows: *STANDARD* and *Form W-4, Step 2, Checkbox* schedules, each for Married Filing Jointly, Single or Married Filing Separately, and Head of Household, laid out as in Publication 15-T. For a year not yet on file the form starts from the latest earlier year's tables, so replace every amount. Enter each row's *at least* amount, *tentative amount to withhold* and *percentage* (12 for 12%), then choose **Save**. Every row is checked against the one above it: if a tentative amount doesn't match the row above plus that bracket's tax, the row is flagged with the amount expected and nothing is saved. Because the next row is checked against the mistyped one, a single typo usually flags two rows.
+
+**Correct a year.** Choose **Edit wage bases** or **Edit tables** on the year, change the figures and save. Draft paychecks pick up the change when you choose **Recalculate**; approved and paid paychecks keep the figures they were calculated with.
 
 **If a year is missing**, payroll still runs, using the latest earlier year's figures, and you are warned:
-- **Tax Settings** shows a notice for the current year, and from October also for next year.
-- A pay period that is open or in draft shows *No 2027 wage bases on file* (for example) with a link to add them.
+- **Tax Settings** shows a notice for the current year, and from October also for next year, for wage bases and federal tables separately.
+- A pay period that is open or in draft says, for example, *No 2027 wage bases on file* or *No 2027 federal withholding tables on file*, with a link to add them.
 - The **Oklahoma SUTA** report marks the wage base as an earlier year's figure.
 
-Every change is recorded in the audit log. Values outside $1,000 to $1,000,000 are refused, to catch typos.
+Every change is recorded in the audit log.
 
 ## 7. Managing employees
 
@@ -232,6 +235,7 @@ Timesheets can be changed while the period is *open* or *draft*, not after it is
 The period page flags things worth a second look:
 
 - **No workers comp code on file.** While the period is *open* or *draft*, active employees with no workers comp code are listed with a link to edit them. It is a warning only and never blocks calculating or approving, because some people (for example certain owners or officers) may legitimately be uncovered. Assign a code, or tick **Exempt from workers comp** on the employee for someone who is deliberately uncovered, and the warning clears. The employee profile shows the same note.
+- **No federal withholding tables for the pay year.** If **Tax Settings** has no federal tables for the pay date's year, the page says so and calculating uses the latest earlier year's. Ask an admin to enter the year's tables, then **Recalculate**.
 - **No wage bases for the pay year.** If **Tax Settings** has no figures for the pay date's year, the page says so and calculating uses the latest earlier year's. Ask an admin to add the year, then **Recalculate**.
 - **Variance flag.** A draft whose gross pay is more than 20% different from the employee's previous approved or paid paycheck. Often a typo in hours, or a rate change.
 - **Terminated employees needing a final paycheck.** See below.
@@ -321,7 +325,7 @@ Open **Reports** and pick a report. Every report lets you choose the company; mo
 5. Run **W-2 export** for each company and compare against the payroll register.
 6. Review employee addresses and SSNs on the profiles before producing W-2s.
 7. Back up the database and the encryption key (see your administrator).
-8. Admins: check **Tax Settings** has next year's wage bases before the first payroll of January.
+8. Admins: check **Tax Settings** has next year's wage bases and federal withholding tables before the first payroll of January.
 
 Confirm figures against the official IRS and Oklahoma Tax Commission instructions before filing.
 

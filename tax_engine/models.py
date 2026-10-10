@@ -22,6 +22,31 @@ class W4Input:
 
 
 @dataclass
+class FederalTable:
+    """One year's Pub. 15-T Annual Percentage Method tables (Worksheet 1A).
+
+    schedules[schedule][status] is a list of (at_least, tentative_amount, rate) rows;
+    schedule is "standard" or "step2" (W-4 Step 2 box checked).
+    """
+    line_1g_mfj: Decimal
+    line_1g_other: Decimal
+    schedules: dict
+
+    @classmethod
+    def from_data(cls, data: dict) -> "FederalTable":
+        """Build from the stored form: amounts as strings, rows as [at_least, tentative, rate]."""
+        return cls(
+            line_1g_mfj=Decimal(data["line_1g"]["married_filing_jointly"]),
+            line_1g_other=Decimal(data["line_1g"]["other"]),
+            schedules={
+                schedule: {status: [tuple(Decimal(v) for v in row) for row in rows]
+                           for status, rows in data[schedule].items()}
+                for schedule in ("standard", "step2")
+            },
+        )
+
+
+@dataclass
 class OKWithholdingInput:
     filing_status: str  # single | married
     allowances: int = 0
@@ -51,6 +76,7 @@ class GarnishmentResultItem:
 class PaycheckInput:
     gross_wages: Decimal
     pay_frequency: str  # weekly | biweekly | semi_monthly | monthly
+    federal_table: FederalTable  # the pay year's Pub. 15-T tables (Tax Settings)
     # The pay year's wage bases (tax_years table): Social Security and Oklahoma SUTA.
     ss_wage_base: Decimal
     suta_wage_base: Decimal

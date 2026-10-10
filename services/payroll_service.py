@@ -12,9 +12,11 @@ from models.payroll import PayPeriod, Timesheet, Paycheck, PaycheckLine, ClientL
 from models.benefit import EmployeeBenefitEnrollment
 from models.garnishment import GarnishmentOrder
 from models.company import Company
-from tax_engine.models import PAY_PERIOD_FACTORS, PaycheckInput, W4Input, OKWithholdingInput, GarnishmentInputItem
+from tax_engine.models import (
+    PAY_PERIOD_FACTORS, FederalTable, PaycheckInput, W4Input, OKWithholdingInput, GarnishmentInputItem,
+)
 from tax_engine.calculator import calculate_paycheck
-from services.tax_years import tax_year_for
+from services.tax_years import federal_table_for, tax_year_for
 
 _TWO = Decimal("0.01")
 
@@ -456,6 +458,7 @@ def draft_paycheck(
     inp = PaycheckInput(
         gross_wages=gross,
         pay_frequency=frequency,
+        federal_table=FederalTable.from_data(federal_table_for(db, pay_period.pay_date.year).data),
         ss_wage_base=bases.ss_wage_base,
         suta_wage_base=bases.ok_suta_wage_base,
         ytd_gross_prior=ytd["taxable"],

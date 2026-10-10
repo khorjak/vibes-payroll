@@ -5,12 +5,18 @@
 {% block content %}
 <div class="mb-6">
   <h1 class="text-2xl font-bold text-slate-900">Tax Settings</h1>
-  <p class="text-sm text-slate-500 mt-1">Wage bases change every year. Each paycheck uses the figures for its pay date's year.</p>
+  <p class="text-sm text-slate-500 mt-1">Wage bases and federal withholding tables change every year. Each paycheck uses the figures for its pay date's year.</p>
 </div>
 
-{% for y in missing_years %}
+{% for y in missing_wage_bases %}
 <div class="mb-4 px-4 py-3 rounded-md bg-amber-50 ring-1 ring-amber-200 text-sm text-amber-800">
   No wage bases on file for {{ y }}. Payroll for {{ y }} will use the latest earlier year's figures until you add them below.
+</div>
+{% endfor %}
+{% for y in missing_federal %}
+<div class="mb-4 px-4 py-3 rounded-md bg-amber-50 ring-1 ring-amber-200 text-sm text-amber-800">
+  No federal withholding tables on file for {{ y }}. Payroll for {{ y }} will use the latest earlier year's tables.
+  <a href="/tax-settings/{{ y }}/federal" class="underline">Enter the {{ y }} tables</a>
 </div>
 {% endfor %}
 
@@ -22,21 +28,26 @@
           <th class="text-left px-4 py-3 font-medium text-slate-600">Year</th>
           <th class="text-right px-4 py-3 font-medium text-slate-600">Social Security wage base</th>
           <th class="text-right px-4 py-3 font-medium text-slate-600">Oklahoma SUTA wage base</th>
+          <th class="text-left px-4 py-3 font-medium text-slate-600">Federal withholding</th>
           <th class="px-4 py-3"></th>
         </tr>
       </thead>
       <tbody class="divide-y divide-slate-100">
-        {% for y in years %}
+        {% for year in years %}
+        {% set wb = wage_bases.get(year) %}
         <tr>
-          <td class="px-4 py-3 font-medium text-slate-800">{{ y.year }}</td>
-          <td class="px-4 py-3 text-right tabular-nums">${{ "{:,.2f}".format(y.ss_wage_base) }}</td>
-          <td class="px-4 py-3 text-right tabular-nums">${{ "{:,.2f}".format(y.ok_suta_wage_base) }}</td>
-          <td class="px-4 py-3 text-right">
-            <a href="/tax-settings/?year={{ y.year }}" class="text-indigo-600 hover:underline">Edit</a>
+          <td class="px-4 py-3 font-medium text-slate-800">{{ year }}</td>
+          <td class="px-4 py-3 text-right tabular-nums">{% if wb %}${{ "{:,.2f}".format(wb.ss_wage_base) }}{% else %}<span class="text-amber-700">Missing</span>{% endif %}</td>
+          <td class="px-4 py-3 text-right tabular-nums">{% if wb %}${{ "{:,.2f}".format(wb.ok_suta_wage_base) }}{% else %}<span class="text-amber-700">Missing</span>{% endif %}</td>
+          <td class="px-4 py-3">
+            <a href="/tax-settings/{{ year }}/federal" class="text-indigo-600 hover:underline">{% if year in federal_years %}Edit tables{% else %}<span class="text-amber-700">Missing:</span> enter tables{% endif %}</a>
+          </td>
+          <td class="px-4 py-3 text-right whitespace-nowrap">
+            <a href="/tax-settings/?year={{ year }}" class="text-indigo-600 hover:underline">Edit wage bases</a>
           </td>
         </tr>
         {% else %}
-        <tr><td colspan="4" class="px-4 py-10 text-center text-slate-400">No years on file.</td></tr>
+        <tr><td colspan="5" class="px-4 py-10 text-center text-slate-400">No years on file.</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -59,6 +70,7 @@
     <div class="text-xs text-slate-500 space-y-1 border-t border-slate-100 pt-3">
       <p class="font-medium text-slate-600">Where to find them</p>
       <p><strong>Social Security:</strong> the SSA "contribution and benefit base", announced each October for the next year (<a href="https://www.ssa.gov/oact/cola/cbb.html" target="_blank" rel="noopener" class="text-indigo-600 hover:underline">ssa.gov</a>).</p>
+      <p><strong>Federal withholding tables:</strong> IRS Publication 15-T, "Annual Percentage Method Tables" for automated payroll, published each December (<a href="https://www.irs.gov/publications/p15t" target="_blank" rel="noopener" class="text-indigo-600 hover:underline">irs.gov</a>). After saving a year's wage bases, use its <strong>Enter tables</strong> link.</p>
       <p><strong>Oklahoma SUTA:</strong> the "Taxable Wage Base" on the OESC's Important Numbers sheet for the year, published each winter (<a href="https://oklahoma.gov/oesc" target="_blank" rel="noopener" class="text-indigo-600 hover:underline">oklahoma.gov/oesc</a>).</p>
     </div>
   </form>
