@@ -15,7 +15,7 @@ Four roles control *what* a user may do. A separate company assignment controls 
 | Approve a payroll run, void a paycheck, mark a period paid | ✓ | | ✓ | |
 | Company, benefit plan and workers comp code setup | ✓ | | | |
 | User management and company assignment | ✓ | | | |
-| Tax settings (yearly wage bases) | ✓ | | | |
+| Tax settings (yearly wage bases and federal withholding tables) | ✓ | | | |
 
 A user with no company assignment (other than an admin) sees no data. A record in a company the user cannot access returns "not found", not "forbidden".
 
@@ -109,7 +109,7 @@ Inputs the calculation reads:
 | Input | Source |
 |---|---|
 | Pay rate, employment type, pay frequency | Employee record (frequency falls back to the company's) |
-| Federal withholding | Employee's latest W-4 election; Single with no adjustments if none on file. An exempt W-4 withholds $0 through Feb 15 of the year after its effective date (compared with the pay date), then Single with no adjustments |
+| Federal withholding | IRS Publication 15-T tables for the pay date's year, from **Tax Settings** (latest earlier year if missing). Employee's latest W-4 election; Single with no adjustments if none on file. An exempt W-4 withholds $0 through Feb 15 of the year after its effective date (compared with the pay date), then Single with no adjustments |
 | Oklahoma withholding | Employee's latest Oklahoma election; single with 0 allowances if none on file. An exempt election withholds $0 and does not expire |
 | Pre-tax and post-tax deductions | Active benefit enrollments. Fixed plans deduct a dollar amount; percent plans deduct that percent of the period's gross. An enrollment override uses the same unit as its plan. |
 | Garnishments | Active garnishment orders |
@@ -210,7 +210,7 @@ Access is re-checked on every request. If an admin removes a company from a user
 
 ## 11. Audit trail
 
-The audit log records who changed what and when for: employee create and update, marking a new hire as reported, pay period create (including off-cycle), paycheck approve and void, user role and active-flag changes, company assignment grants and revokes, and Tax Settings changes (old and new wage bases).
+The audit log records who changed what and when for: employee create and update, marking a new hire as reported, pay period create (including off-cycle), paycheck approve and void, user role and active-flag changes, company assignment grants and revokes, and Tax Settings changes (old and new wage bases and federal tables).
 
 ## 12. Known limitations
 
@@ -221,6 +221,7 @@ These are current behaviors, not bugs in your data:
 - **Employer share of insurance premiums** is not modeled. Only the employee's deduction (plus any employer match on the plan) appears in client liabilities.
 - **Wage bases need a yearly update.** An admin adds each new year's Social Security and Oklahoma SUTA wage bases under **Tax Settings** once published (SSA in October, OESC in winter). Until then, a pay date in that year uses the latest earlier year's figures, with a warning on the pay period page, the Tax Settings page and the SUTA report. Changing a year's figures does not recalculate approved or paid paychecks; in particular, paychecks approved before per-year wage bases existed used $176,100 and $27,000 whatever the year.
 - **W-2 export has Box 12 code D only.** Code D (traditional 401(k) deferrals) and the Box 13 retirement plan mark come from deduction lines flagged as 401(k) deferrals. Roth 401(k) (code AA), employer health coverage cost (DD) and HSA (W) are not exported, and paychecks calculated before 401(k) deferrals were flagged (October 2026) are left out of code D.
-- **Income tax withholding tables are not per year.** Federal withholding uses the 2025 IRS Publication 15-T tables for every pay date; Oklahoma uses the rate schedule in effect from 2024.
+- **Federal withholding tables need a yearly update.** An admin enters each year's IRS Publication 15-T tables under **Tax Settings** (published in December); 2025 and 2026 come with the system. Until then a pay date in that year uses the latest earlier year's tables, with warnings. Paychecks approved in 2026 before the 2026 tables were added used 2025's and are not recalculated.
+- **Oklahoma withholding is not per year.** It uses the rate schedule in effect from 2024 for every pay date.
 - **Hourly minimum wage check** ($7.25) applies when creating an employee.
 - The site runs over plain HTTP in the Docker test deployment. Use test data only.

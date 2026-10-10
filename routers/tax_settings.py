@@ -1,15 +1,17 @@
 from datetime import date
 from decimal import Decimal, InvalidOperation
 
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
 from app_templates import templates
 from database import get_db
+from models.federal_withholding import SCHEDULES, STATUSES, FederalWithholdingTable
 from models.tax_year import TaxYear
 from routers.auth import AdminUser, get_current_user
 from services.audit import log_change
+from services.tax_years import ROWS_PER_TABLE, federal_table_for, form_values, parse_federal_form
 from utils.csrf import CsrfProtect
 
 router = APIRouter(prefix="/tax-settings", tags=["tax-settings"],
@@ -19,19 +21,22 @@ router = APIRouter(prefix="/tax-settings", tags=["tax-settings"],
 _MIN_BASE, _MAX_BASE = Decimal("1000"), Decimal("1000000")
 
 
-def _missing_years(years: list[TaxYear]) -> list[int]:
-    """This year if absent; next year too once SSA has announced it (October)."""
-    have = {y.year for y in years}
+def _missing(have: set[int]) -> list[int]:
+    """This year if absent; next year too from October (SSA and the IRS publish in Oct-Dec)."""
     today = date.today()
     wanted = [today.year] + ([today.year + 1] if today.month >= 10 else [])
     return [y for y in wanted if y not in have]
 
 
 def _page(request: Request, db: Session, form: dict, errors: dict, flash: str = "", status_code: int = 200):
-    years = db.query(TaxYear).order_by(TaxYear.year.desc()).all()
+    wage_bases = {y.year: y for y in db.query(TaxYear)}
+    federal_years = {y for (y,) in db.query(FederalWithholdingTable.year)}
     return templates.TemplateResponse(request, "tax_settings/index.html", {
-        "years": years,
-        "missing_years": _missing_years(years),
+        "years": sorted(wage_bases.keys() | federal_years, reverse=True),
+        "wage_bases": wage_bases,
+        "federal_years": federal_years,
+        "missing_wage_bases": _missing(set(wage_bases)),
+        "missing_federal": _missing(federal_years),
         "form": form,
         "errors": errors,
         "flash": flash,
@@ -94,6 +99,57 @@ def save_tax_year(
         row.ss_wage_base, row.ok_suta_wage_base = ss, suta
         log_change(db, "tax_years", tax_year, "update", changed_by=current_user.username,
                    old_values=old_values, new_values=new_values)
+        flash = "updated"
+    db.commit()
+    return RedirectResponse(f"/tax-settings/?flash={flash}", status_code=303)
+
+
+# ── Federal withholding tables ──────────────────────────────────────────────
+
+def _federal_page(request, year, values, errors, prefilled_from=None, status_code=200):
+    return templates.TemplateResponse(request, "tax_settings/federal.html", {
+        "year": year, "values": values, "errors": errors, "prefilled_from": prefilled_from,
+        "schedules": SCHEDULES, "statuses": STATUSES, "rows": range(ROWS_PER_TABLE),
+        "active_nav": "tax_settings",
+    }, status_code=status_code)
+
+
+def _valid_year(year: int) -> None:
+    if not 2000 <= year <= 2100:
+        raise HTTPException(status_code=404)
+
+
+@router.get("/{year}/federal", response_class=HTMLResponse)
+def federal_tables(request: Request, year: int, _: AdminUser, db: Session = Depends(get_db)):
+    _valid_year(year)
+    row = db.get(FederalWithholdingTable, year)
+    prefilled_from = None
+    if row is None:
+        # Start from the latest earlier year: the layout and rates rarely change, so the
+        # admin replaces amounts instead of typing 150 fields from scratch.
+        row = federal_table_for(db, year)
+        prefilled_from = row.year
+    return _federal_page(request, year, form_values(row.data), {}, prefilled_from)
+
+
+@router.post("/{year}/federal")
+async def save_federal_tables(
+    request: Request, year: int, current_user: AdminUser, _csrf: CsrfProtect, db: Session = Depends(get_db),
+):
+    _valid_year(year)
+    data, values, errors = parse_federal_form(await request.form())
+    if errors:
+        return _federal_page(request, year, values, errors, status_code=422)
+    row = db.get(FederalWithholdingTable, year)
+    if row is None:
+        db.add(FederalWithholdingTable(year=year, data=data))
+        log_change(db, "federal_withholding_tables", year, "insert",
+                   changed_by=current_user.username, new_values=data)
+        flash = "created"
+    else:
+        log_change(db, "federal_withholding_tables", year, "update",
+                   changed_by=current_user.username, old_values=row.data, new_values=data)
+        row.data = data
         flash = "updated"
     db.commit()
     return RedirectResponse(f"/tax-settings/?flash={flash}", status_code=303)

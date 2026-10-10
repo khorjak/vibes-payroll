@@ -4,6 +4,10 @@ import pytest
 from tax_engine.garnishments import calc_garnishments, GarnishmentInput, FEDERAL_MIN_WAGE
 from tax_engine.calculator import calculate_paycheck
 from tax_engine.models import PaycheckInput, W4Input, OKWithholdingInput, GarnishmentInputItem
+from models.federal_withholding import DEFAULT_FEDERAL_TABLES
+from tax_engine.models import FederalTable
+
+T2025 = FederalTable.from_data(DEFAULT_FEDERAL_TABLES[2025])
 
 
 # ── calc_garnishments unit tests ─────────────────────────────────────────────
@@ -124,7 +128,7 @@ class TestCalculatorGarnishmentIntegration:
     def test_garnishment_reduces_net_pay(self):
         inp = PaycheckInput(
             gross_wages=Decimal("2000"),
-            pay_frequency="biweekly", ss_wage_base=Decimal("176100"), suta_wage_base=Decimal("28200"),
+            pay_frequency="biweekly", federal_table=T2025, ss_wage_base=Decimal("176100"), suta_wage_base=Decimal("28200"),
             w4=W4Input(filing_status="single"),
             ok_withholding=OKWithholdingInput(filing_status="single", allowances=1),
             garnishments=[
@@ -149,7 +153,7 @@ class TestCalculatorGarnishmentIntegration:
     def test_no_garnishments_zero_total(self):
         inp = PaycheckInput(
             gross_wages=Decimal("2000"),
-            pay_frequency="biweekly", ss_wage_base=Decimal("176100"), suta_wage_base=Decimal("28200"),
+            pay_frequency="biweekly", federal_table=T2025, ss_wage_base=Decimal("176100"), suta_wage_base=Decimal("28200"),
             w4=W4Input(filing_status="single"),
         )
         result = calculate_paycheck(inp)
@@ -159,7 +163,7 @@ class TestCalculatorGarnishmentIntegration:
     def test_garnishment_result_items_populated(self):
         inp = PaycheckInput(
             gross_wages=Decimal("3000"),
-            pay_frequency="biweekly", ss_wage_base=Decimal("176100"), suta_wage_base=Decimal("28200"),
+            pay_frequency="biweekly", federal_table=T2025, ss_wage_base=Decimal("176100"), suta_wage_base=Decimal("28200"),
             w4=W4Input(filing_status="single"),
             garnishments=[
                 GarnishmentInputItem(
@@ -196,7 +200,7 @@ class TestDisposableEarningsCcpa:
 
     def _run(self, **kw):
         return calculate_paycheck(PaycheckInput(
-            gross_wages=Decimal("2000"), pay_frequency="biweekly", ss_wage_base=Decimal("176100"), suta_wage_base=Decimal("28200"),
+            gross_wages=Decimal("2000"), pay_frequency="biweekly", federal_table=T2025, ss_wage_base=Decimal("176100"), suta_wage_base=Decimal("28200"),
             w4=W4Input(filing_status="single"),
             ok_withholding=OKWithholdingInput(filing_status="single", allowances=1),
             garnishments=[GarnishmentInputItem(
@@ -221,7 +225,7 @@ class TestDisposableEarningsCcpa:
 
     def test_percent_order_uses_same_base(self):
         r = calculate_paycheck(PaycheckInput(
-            gross_wages=Decimal("2000"), pay_frequency="biweekly", ss_wage_base=Decimal("176100"), suta_wage_base=Decimal("28200"),
+            gross_wages=Decimal("2000"), pay_frequency="biweekly", federal_table=T2025, ss_wage_base=Decimal("176100"), suta_wage_base=Decimal("28200"),
             w4=W4Input(filing_status="single"),
             pre_tax_deductions=Decimal("400"),
             garnishments=[GarnishmentInputItem(

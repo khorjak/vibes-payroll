@@ -11,7 +11,8 @@ from models.payroll import Paycheck, PaycheckLine
 from models.tax_year import TaxYear
 from services.tax_years import seed_tax_years, tax_year_for
 from tax_engine.calculator import calculate_paycheck
-from tax_engine.models import PaycheckInput
+from models.federal_withholding import DEFAULT_FEDERAL_TABLES
+from tax_engine.models import FederalTable, PaycheckInput
 
 
 # ── Lookup and seed ─────────────────────────────────────────────────────────
@@ -50,7 +51,8 @@ def test_engine_uses_the_bases_it_is_given():
     def taxes(ss, suta, **ytd):
         return calculate_paycheck(PaycheckInput(
             gross_wages=Decimal("2000"), pay_frequency="biweekly", suta_rate=Decimal("0.027"),
-            ss_wage_base=Decimal(ss), suta_wage_base=Decimal(suta), **ytd)).taxes
+            ss_wage_base=Decimal(ss), suta_wage_base=Decimal(suta),
+            federal_table=FederalTable.from_data(DEFAULT_FEDERAL_TABLES[2026]), **ytd)).taxes
     # 26,000 prior: room under 28,200 (2025), none under 25,000 (2026).
     assert taxes("176100", "28200", ytd_suta_wages_prior=Decimal("26000")).suta == Decimal("54.00")
     assert taxes("184500", "25000", ytd_suta_wages_prior=Decimal("26000")).suta == Decimal("0.00")
@@ -174,3 +176,143 @@ def test_admin_sees_nav_link_and_can_save(auth_client, auth_db, admin_user):
     r = auth_client.post("/tax-settings/", data={"year": "2027", "ss_wage_base": "190200",
                                                  "ok_suta_wage_base": "26000", "csrf_token": _token(auth_client)})
     assert r.status_code == 303 and auth_db.get(TaxYear, 2027) is not None
+
+
+# ── Federal withholding table year ──────────────────────────────────────────
+
+def test_payroll_uses_the_pay_years_federal_table(client, db, company, salaried_employee, pay_period):
+    from tax_engine.federal import calc_federal_withholding
+    from tax_engine.models import W4Input
+    client.post(f"/payroll/{pay_period.id}/calculate")
+    pc = db.query(Paycheck).first()
+    fed = next(l.amount for l in db.query(PaycheckLine).filter_by(paycheck_id=pc.id)
+               if l.description == "Federal Income Tax")
+    taxable = Decimal(str(pc.gross_wages)) - Decimal(str(pc.total_deductions))
+    w4 = W4Input(filing_status="single")  # no W-4 on file: single default
+    t = {y: FederalTable.from_data(DEFAULT_FEDERAL_TABLES[y]) for y in (2025, 2026)}
+    assert Decimal(str(fed)) == calc_federal_withholding(taxable, "biweekly", w4, table=t[2026])
+    assert Decimal(str(fed)) != calc_federal_withholding(taxable, "biweekly", w4, table=t[2025])
+
+
+def test_pay_period_warns_when_no_federal_table_for_its_year(client, db, company, pay_period):
+    from models.payroll import PayPeriod
+    assert "federal withholding tables" not in client.get(f"/payroll/{pay_period.id}").text
+    pp = PayPeriod(company_id=company.id, start_date=date(2030, 1, 1), end_date=date(2030, 1, 14),
+                   pay_date=date(2030, 1, 20), frequency="biweekly", status="open")
+    db.add(pp)
+    db.commit()
+    page = client.get(f"/payroll/{pp.id}").text
+    assert "No 2030 federal withholding tables on file" in page and "uses the 2026 tables" in page
+    assert 'href="/tax-settings/2030/federal"' in page
+
+
+# ── Federal tables: lookup, seed and Tax Settings entry ─────────────────────
+
+from models.federal_withholding import FederalWithholdingTable
+from services.tax_years import federal_table_for, form_values
+
+
+def test_federal_lookup_falls_back_and_errors_when_empty(db):
+    assert federal_table_for(db, 2026).year == 2026
+    assert federal_table_for(db, 2027).year == 2026
+    assert federal_table_for(db, 2020).year == 2025
+    db.query(FederalWithholdingTable).delete()
+    db.commit()
+    with pytest.raises(ValueError, match="Tax Settings"):
+        federal_table_for(db, 2026)
+
+
+def test_existing_install_gets_federal_tables_seeded(db):
+    # Upgrading: tax_years already has rows, the new federal table is empty.
+    db.query(FederalWithholdingTable).delete()
+    db.commit()
+    seed_tax_years(db)
+    assert sorted(y for (y,) in db.query(FederalWithholdingTable.year)) == [2025, 2026]
+
+
+def _form(data):
+    return form_values(data)
+
+
+def test_federal_page_shows_a_years_tables(client):
+    page = client.get("/tax-settings/2026/federal").text
+    assert 'name="standard.single.2.at_least" value="19900"' in page
+    assert 'name="step2.head_of_household.7.tentative" value="95585.50"' in page
+    assert 'name="standard.single.3.rate" value="22"' in page
+    assert "starting point" not in page
+
+
+def test_missing_year_starts_from_the_latest_tables(client):
+    page = client.get("/tax-settings/2027/federal").text
+    assert "No 2027 tables on file yet" in page and "the 2026 tables as a starting point" in page
+    assert 'value="19900"' in page
+
+
+def test_save_a_new_year_is_used_by_payroll_and_logged(client, db, company, salaried_employee):
+    from datetime import date as d
+    from models.payroll import PayPeriod
+    data = DEFAULT_FEDERAL_TABLES[2026]
+    form = _form(data)
+    form["standard.single.0.at_least"] = "0"
+    r = client.post("/tax-settings/2027/federal", data=form)
+    assert r.status_code == 303 and r.headers["location"].endswith("flash=created")
+    saved = db.get(FederalWithholdingTable, 2027).data
+    assert saved["standard"]["single"][2] == ["19900", "1240.00", "0.12"]
+    log = db.query(AuditLog).filter_by(table_name="federal_withholding_tables", record_id=2027).one()
+    assert log.action == "insert"
+    pp = PayPeriod(company_id=company.id, start_date=d(2027, 1, 1), end_date=d(2027, 1, 14),
+                   pay_date=d(2027, 1, 20), frequency="biweekly", status="open")
+    db.add(pp)
+    db.commit()
+    assert "federal withholding tables on file" not in client.get(f"/payroll/{pp.id}").text
+
+
+def test_typo_is_caught_and_nothing_saved(client, db):
+    form = _form(DEFAULT_FEDERAL_TABLES[2026])
+    form["standard.single.3.tentative"] = "5880.00"  # published: 5,800.00
+    r = client.post("/tax-settings/2026/federal", data=form)
+    assert r.status_code == 422
+    assert "Expected about $5,800.00 from the row above" in r.text
+    assert 'value="5880.00"' in r.text  # the admin's entry is kept for correction
+    assert db.get(FederalWithholdingTable, 2026).data["standard"]["single"][3][1] == "5800.00"
+
+
+@pytest.mark.parametrize("name, value, message", [
+    ("step2.single.4.at_least", "lots", "Enter a number."),
+    ("standard.married_filing_jointly.5.rate", "320", "Must be between 0 and 100."),
+    ("standard.head_of_household.2.at_least", "10000", "Must be more than the row above."),
+    ("step2.single.0.at_least", "50", "The first row starts at $0"),
+])
+def test_rejects_malformed_rows(client, db, name, value, message):
+    form = _form(DEFAULT_FEDERAL_TABLES[2026])
+    form[name] = value
+    r = client.post("/tax-settings/2026/federal", data=form)
+    assert r.status_code == 422 and message in r.text
+
+
+def test_update_logs_old_and_new(client, db):
+    form = _form(DEFAULT_FEDERAL_TABLES[2026])
+    form["line_1g.other"] = "8700"
+    assert client.post("/tax-settings/2026/federal", data=form).status_code == 303
+    log = db.query(AuditLog).filter_by(table_name="federal_withholding_tables", record_id=2026).one()
+    assert log.action == "update"
+    assert json.loads(log.old_values)["line_1g"]["other"] == "8600"
+    assert json.loads(log.new_values)["line_1g"]["other"] == "8700"
+
+
+def test_year_out_of_range_is_404(client):
+    assert client.get("/tax-settings/1999/federal").status_code == 404
+
+
+def test_index_flags_a_year_without_federal_tables(client, db):
+    client.post("/tax-settings/", data={"year": "2027", "ss_wage_base": "190200", "ok_suta_wage_base": "26000"})
+    page = client.get("/tax-settings/").text
+    assert 'href="/tax-settings/2027/federal"' in page and "enter tables" in page
+
+
+def test_preparer_cannot_view_or_save_federal_tables(auth_client, auth_db, preparer_user):
+    _login(auth_client, "preparer", "preppass")
+    assert auth_client.get("/tax-settings/2026/federal").status_code == 403
+    form = _form(DEFAULT_FEDERAL_TABLES[2026]) | {"line_1g.other": "1", "csrf_token": _token(auth_client)}
+    assert auth_client.post("/tax-settings/2026/federal", data=form).status_code == 403
+    assert auth_db.get(FederalWithholdingTable, 2026).data["line_1g"]["other"] == "8600"

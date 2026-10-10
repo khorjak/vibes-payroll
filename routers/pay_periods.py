@@ -29,7 +29,7 @@ from utils.company_scope import (
 from utils.csrf import CsrfProtect
 from utils.forms import safe_float
 from services.audit import log_change
-from services.tax_years import tax_year_for
+from services.tax_years import federal_table_for, tax_year_for
 
 from app_templates import templates
 
@@ -492,17 +492,21 @@ def pay_period_detail(
         )
 
     # The pay year's wage bases are missing: calculating would use an earlier year's.
-    wage_base_fallback_year = None
+    wage_base_fallback_year = federal_fallback_year = None
     if pp.status in ("open", "draft"):
         used = tax_year_for(db, pp.pay_date.year).year
         if used != pp.pay_date.year:
             wage_base_fallback_year = used
+        used = federal_table_for(db, pp.pay_date.year).year
+        if used != pp.pay_date.year:
+            federal_fallback_year = used
 
     return templates.TemplateResponse(request, "payroll/detail.html", {
         "pp": pp,
         "flash": flash,
         "missing_wc_employees": missing_wc_employees,
         "wage_base_fallback_year": wage_base_fallback_year,
+        "federal_fallback_year": federal_fallback_year,
         "variance_flags": variance_flags,
         "terminated_needing_final": terminated_needing_final,
         "auto_final_ids": auto_final_ids,
