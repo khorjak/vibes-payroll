@@ -448,7 +448,7 @@ def draft_paycheck(
 
     suta_rate = Decimal(str(company.suta_rate or "0.027"))
     wc_rate = Decimal("0")
-    if employee.workers_comp_code:
+    if employee.workers_comp_code and not employee.workers_comp_exempt:
         wc_rate = Decimal(str(employee.workers_comp_code.rate_per_100_wages or 0))
 
     inp = PaycheckInput(

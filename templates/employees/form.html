@@ -176,6 +176,13 @@
           {% elif not wc_codes %}
           <p class="mt-1 text-xs text-slate-500">No codes defined for this company yet.</p>
           {% endif %}
+          <div class="flex items-center gap-2 mt-2">
+            <input type="checkbox" name="workers_comp_exempt" id="workers_comp_exempt"
+                   {{ 'checked' if employee and employee.workers_comp_exempt }}
+                   class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
+            <label for="workers_comp_exempt" class="text-sm text-slate-700">Exempt from workers comp</label>
+          </div>
+          <p class="mt-1 text-xs text-slate-500">For someone deliberately not covered (for example an officer who rejected coverage). No premium is calculated and any code above is cleared.</p>
         </div>
         <div class="flex items-center gap-2 pt-6">
           <input type="checkbox" name="flsa_exempt" id="flsa_exempt"

@@ -82,7 +82,7 @@ Notes on each step:
 - **Hourly and part-time** employees are paid from their timesheet. With no timesheet, gross pay is $0.00.
 - **Review flags** on the period page:
   - *Variance:* a draft whose gross differs from the employee's most recent approved or paid paycheck by more than 20%.
-  - *No workers comp code on file:* active employees of the company with no code, shown while the period is `open` or `draft`. Advisory only; it never blocks Calculate or Approve.
+  - *No workers comp code on file:* active employees of the company with no code and not marked exempt, shown while the period is `open` or `draft`. Advisory only; it never blocks Calculate or Approve.
   - *Terminated employees needing a final paycheck:* terminated employees whose termination date is on or before the pay date and who have no paycheck in this period. Those terminated within the period (start date through pay date) are labelled *included when you calculate*; earlier terminations that never got a final paycheck are labelled *not included automatically*.
 - **Approve** and **mark paid** only work from the expected prior status. Doing them out of order returns an error.
 - **Check numbers.** Mark paid can take a first check number and numbers the approved paychecks consecutively, in paycheck order. All numbers are checked for clashes first, so a clash fails the whole run with nothing changed. A number must be unique among non-voided paychecks of the same company (a voided check's number can be reused). Approvers can also set, change or clear a number on an approved or paid paycheck; each change is audit-logged.
@@ -113,7 +113,7 @@ Inputs the calculation reads:
 | Pre-tax and post-tax deductions | Active benefit enrollments. Fixed plans deduct a dollar amount; percent plans deduct that percent of the period's gross. An enrollment override uses the same unit as its plan. |
 | Garnishments | Active garnishment orders |
 | SUTA rate | Company setting; 2.7% if blank |
-| Workers comp rate | Employee's workers comp code (rate per $100 of wages) |
+| Workers comp rate | Employee's workers comp code (rate per $100 of wages); none for an employee marked exempt from workers comp |
 | Pre-tax treatment | Every pre-tax plan lowers federal and Oklahoma income tax wages. Only non-401k pre-tax plans (health, dental, vision, FSA, HSA, other) also lower Social Security, Medicare, FUTA and SUTA wages; a traditional 401(k) deferral does not (`FICA_TAXABLE_PRE_TAX_TYPES`). Employer FICA follows the same wages. |
 | Year-to-date wages | Earlier non-voided paychecks in the same calendar year: gross less Section 125 pre-tax deductions. Post-tax deductions, garnishments and 401(k) deferrals are not subtracted, because the Social Security, FUTA and SUTA wage bases count wages paid, not take-home pay |
 

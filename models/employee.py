@@ -41,6 +41,9 @@ class Employee(Base, TimestampMixin):
     department: Mapped[Optional[str]] = mapped_column(String(100))
     job_title: Mapped[Optional[str]] = mapped_column(String(100))
     workers_comp_code_id: Mapped[Optional[int]] = mapped_column(ForeignKey("workers_comp_codes.id"))
+    # Deliberately uncovered (e.g. an officer who rejected coverage): no WC cost, no
+    # missing-code warning. Saving it clears the code.
+    workers_comp_exempt: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     routing_number_encrypted: Mapped[Optional[str]] = mapped_column(Text)
     account_number_encrypted: Mapped[Optional[str]] = mapped_column(Text)
     new_hire_reported_at: Mapped[Optional[date]] = mapped_column(Date)
