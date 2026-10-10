@@ -2,6 +2,7 @@
 Smoke tests for Phase 5 report routes.
 """
 from datetime import date
+from decimal import Decimal
 import pytest
 from models.employee import Employee
 from models.payroll import PayPeriod, Paycheck, ClientLiability
@@ -814,6 +815,54 @@ class TestW2Box1Wages(_W2Helpers):
         row = self._rows(client, company)[0]
         assert row["Box1_FedWages"] == "2250.00"   # 2500 - 150 health - 100 401k; Roth + garnishment excluded
         assert row["Box16_StateWages"] == "2250.00"
+
+
+class TestW2Box12CodeD(_W2Helpers):
+    """Box 12 code D = traditional 401k elective deferrals; Box 13 Retirement plan checked with it."""
+
+    def test_deferrals_summed_across_the_year(self, client, db, company, salaried_employee):
+        for day in (6, 20):
+            self._check(db, company, salaried_employee, 3000,
+                        [("Health", 100, True, False), ("401k", 150.25, True, True)],
+                        pay_date=date(2026, 5, day))
+        row = self._rows(client, company)[0]
+        assert row["Box12_D"] == "300.50"
+        assert row["Box13_RetirementPlan"] == "X"
+
+    def test_only_401k_deferrals_count(self, client, db, company, salaried_employee):
+        # Cafeteria-plan and post-tax (e.g. Roth) deductions are not code D.
+        self._check(db, company, salaried_employee, 3000,
+                    [("Health", 100, True, False), ("Roth 401k", 200, False, False)])
+        row = self._rows(client, company)[0]
+        assert row["Box12_D"] == "0.00"
+        assert row["Box13_RetirementPlan"] == ""
+
+    def test_columns_sit_between_box_6_and_box_16(self, client, db, company, salaried_employee):
+        self._check(db, company, salaried_employee, 1000, [])
+        header = list(self._rows(client, company)[0])
+        assert header[header.index("Box6_MedTax") + 1:header.index("Box16_StateWages")] == [
+            "Box12_D", "Box13_RetirementPlan"]
+
+    def test_end_to_end_from_a_401k_enrollment(self, client, db, company, salaried_employee, pay_period):
+        # The deferral is flagged by draft_paycheck; the employer match is not an elective deferral.
+        from models.benefit import BenefitPlan, EmployeeBenefitEnrollment
+        plan = BenefitPlan(company_id=company.id, name="401k", benefit_type="traditional_401k",
+                           employee_contribution_type="fixed", employee_contribution_amount=100,
+                           employer_match_percent=50, employer_match_cap_percent=10,
+                           pre_tax=True, active=True)
+        db.add(plan)
+        db.flush()
+        db.add(EmployeeBenefitEnrollment(employee_id=salaried_employee.id, benefit_plan_id=plan.id,
+                                         effective_date=date(2026, 1, 1)))
+        db.commit()
+        client.post(f"/payroll/{pay_period.id}/calculate")
+        client.post(f"/payroll/{pay_period.id}/approve")
+        from models.payroll import PaycheckLine
+        match = db.query(PaycheckLine).filter_by(line_type="employer_contribution").one()
+        assert match.amount == Decimal("50.00")  # present, and not counted below
+        row = self._rows(client, company)[0]
+        assert row["Box12_D"] == "100.00"
+        assert row["Box13_RetirementPlan"] == "X"
 
 
 class TestW2MedicareAndSsWages(_W2Helpers):

@@ -187,7 +187,7 @@ flowchart TD
 | Quarterly 941 | No, run per company |
 | Oklahoma SUTA | No, run per company |
 | Oklahoma withholding | No, run per company |
-| W-2 CSV export | No, run per company |
+| W-2 CSV export (Boxes 1-6, 12 code D, 13 retirement plan, 16-17) | No, run per company |
 
 Reports count only approved and paid paychecks. Drafts and voided paychecks are left out, so totals do not change while a run is under review. The exception is the payroll register, which lists every paycheck in the chosen period, drafts included, for review before approval.
 
@@ -220,6 +220,7 @@ These are current behaviors, not bugs in your data:
 - **Recalculating an off-cycle period redrafts everyone.** An off-cycle payment lives in its own one-day pay period. Choosing Recalculate on it drafts every active employee in the company, not just the one paid, and a salaried employee's entered amount is replaced by their normal salary. Approve the off-cycle period as created; to change it, void the paycheck and create a new off-cycle payment.
 - **Employer share of insurance premiums** is not modeled. Only the employee's deduction (plus any employer match on the plan) appears in client liabilities.
 - **Wage bases need a yearly update.** An admin adds each new year's Social Security and Oklahoma SUTA wage bases under **Tax Settings** once published (SSA in October, OESC in winter). Until then, a pay date in that year uses the latest earlier year's figures, with a warning on the pay period page, the Tax Settings page and the SUTA report. Changing a year's figures does not recalculate approved or paid paychecks; in particular, paychecks approved before per-year wage bases existed used $176,100 and $27,000 whatever the year.
+- **W-2 export has Box 12 code D only.** Code D (traditional 401(k) deferrals) and the Box 13 retirement plan mark come from deduction lines flagged as 401(k) deferrals. Roth 401(k) (code AA), employer health coverage cost (DD) and HSA (W) are not exported, and paychecks calculated before 401(k) deferrals were flagged (October 2026) are left out of code D.
 - **Income tax withholding tables are not per year.** Federal withholding uses the 2025 IRS Publication 15-T tables for every pay date; Oklahoma uses the rate schedule in effect from 2024.
 - **Hourly minimum wage check** ($7.25) applies when creating an employee.
 - The site runs over plain HTTP in the Docker test deployment. Use test data only.
