@@ -11,6 +11,7 @@
   </a>
 </div>
 
+{% include "_all_cols_toggle.html" %}
 <div class="bg-white rounded-lg border border-slate-200 overflow-x-auto">
   <table class="w-full text-sm">
     <thead class="bg-slate-50 border-b border-slate-200">
@@ -19,7 +20,7 @@
         <th class="text-left px-4 py-3 font-medium text-slate-600">Role</th>
         <th class="text-left px-4 py-3 font-medium text-slate-600">Companies</th>
         <th class="text-left px-4 py-3 font-medium text-slate-600">Status</th>
-        <th class="text-left px-4 py-3 font-medium text-slate-600">Created</th>
+        <th class="hidden sm:table-cell text-left px-4 py-3 font-medium text-slate-600">Created</th>
         <th class="px-4 py-3"></th>
       </tr>
     </thead>
@@ -51,7 +52,7 @@
           <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-700">Inactive</span>
           {% endif %}
         </td>
-        <td class="px-4 py-3 text-slate-500">{{ u.created_at.strftime('%m/%d/%Y') if u.created_at else '—' }}</td>
+        <td class="hidden sm:table-cell px-4 py-3 text-slate-500">{{ u.created_at.strftime('%m/%d/%Y') if u.created_at else '—' }}</td>
         <td class="px-4 py-3 text-right">
           <a href="/users/{{ u.id }}/edit" class="text-indigo-600 hover:underline text-sm">Edit</a>
           <span class="text-slate-300 mx-1">|</span>

@@ -55,7 +55,7 @@ Preparing and approving are separate on purpose, so one person cannot both build
 
 The left navigation has: **Dashboard**, **Employees**, **Companies**, **Users** (admins only), **Pay Runs**, and **Reports**.
 
-**On a phone** (screens narrower than a tablet), the navigation is hidden to leave room for the page. Tap the menu button (three lines) at the top left to open it; tap a page, the close button, the dimmed area beside it, or press Esc to close it. Wide tables (pay runs, reports, users and so on) scroll sideways inside their box: swipe left on the table to see the remaining columns. Forms stack their fields in a single column.
+**On a phone** (screens narrower than a tablet), the navigation is hidden to leave room for the page. Tap the menu button (three lines) at the top left to open it; tap a page, the close button, the dimmed area beside it, or press Esc to close it. Wide tables (pay runs, reports, users and so on) scroll sideways inside their box: swipe left on the table to see the remaining columns. Forms stack their fields in a single column. To save room, a few less-used columns are left out on a phone (they always appear on a wider screen): Department and Hire Date on **Employees**; Pay Period, Frequency and Checks on **Pay Runs**; Pre-tax Ded., Taxes and Check # on a pay period's paychecks; Created on **Users**. Tap **Show all columns** above any of these tables to bring them back, then swipe sideways to see them; **Fewer columns** hides them again. Your choice applies to all four tables and is remembered on that phone.
 
 **Dashboard.** Shows three counts: active employees, companies, and open pay runs, with quick actions to add an employee or start a pay period.
 
@@ -194,7 +194,7 @@ Only needed for **hourly and part-time** employees. Salaried employees are paid 
 
 1. Open the pay period and choose **Timesheets**.
 2. For each employee enter hours in: regular, overtime, double time, PTO, sick, and holiday.
-3. Each row saves on its own about a second after you change a value; a saved confirmation appears on the row. Only the row you edited is saved.
+3. Each row saves on its own about a second after you change a value; a saved confirmation appears on the row. Only the row you edited is saved. On a phone the hour boxes are larger and bring up a number keypad, and the employee name stays in view while you swipe across the hour columns.
 
 How hours turn into pay: regular, PTO, sick and holiday hours are paid at the hourly rate; overtime at 1.5 times; double time at 2 times. **Enter overtime hours yourself.** The system does not calculate overtime from a total.
 

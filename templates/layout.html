@@ -27,6 +27,11 @@
                                transition: transform 200ms ease, visibility 0s; }
       body.nav-open #nav-backdrop { display: block; }
       body.nav-open { overflow: hidden; }
+      /* iOS zooms the page in when a field under 16px gets focus. !important
+         beats the text-sm/text-xs utilities on form fields. */
+      input, select, textarea { font-size: 16px !important; }
+      /* "Show all columns" brings back the hidden sm:table-cell columns. */
+      body.show-all-cols .hidden.sm\:table-cell { display: table-cell; }
     }
   </style>
 </head>
@@ -235,8 +240,27 @@
       if (d) {
         var gone = document.querySelector(d.getAttribute("data-dismiss"));
         if (gone) gone.remove();
+        return;
+      }
+      if (e.target.closest("[data-all-cols]")) {
+        var on = !document.body.classList.contains("show-all-cols");
+        setAllCols(on);
+        try { localStorage.setItem("showAllCols", on ? "1" : "0"); } catch (_) {}
       }
     });
+
+    // Phone tables hide some columns (hidden sm:table-cell); [data-all-cols]
+    // buttons show them on every table, remembered per browser.
+    function setAllCols(on) {
+      document.body.classList.toggle("show-all-cols", on);
+      document.querySelectorAll("[data-all-cols]").forEach(function (b) {
+        b.setAttribute("aria-pressed", on ? "true" : "false");
+        b.textContent = on ? "Fewer columns" : "Show all columns";
+      });
+    }
+    var savedCols = null;
+    try { savedCols = localStorage.getItem("showAllCols"); } catch (_) {}
+    setAllCols(savedCols === "1");
   })();
 </script>
 </body>

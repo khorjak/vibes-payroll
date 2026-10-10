@@ -5,37 +5,37 @@
     hx-target="#ts-row-{{ employee.id }}"
     hx-swap="outerHTML">
   <td style="display:none"><input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}"></td>
-  <td class="px-4 py-2 font-medium text-slate-800">{{ employee.full_name }}</td>
+  <td class="sticky left-0 z-10 bg-white px-4 py-2 font-medium text-slate-800">{{ employee.full_name }}</td>
 
-  {% set inp_cls = "w-20 text-sm text-center rounded border border-slate-200 px-2 py-1.5 focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-300" %}
+  {% set inp_cls = "w-20 text-sm text-center rounded border border-slate-200 px-2 py-2.5 md:py-1.5 focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-300" %}
 
   <td class="px-2 py-2 text-center">
-    <input type="number" name="regular_hours" step="0.25" min="0"
+    <input type="number" name="regular_hours" step="0.25" min="0" inputmode="decimal"
            value="{{ ts.regular_hours if ts and ts.regular_hours else '' }}"
            class="{{ inp_cls }}">
   </td>
   <td class="px-2 py-2 text-center">
-    <input type="number" name="overtime_hours" step="0.25" min="0"
+    <input type="number" name="overtime_hours" step="0.25" min="0" inputmode="decimal"
            value="{{ ts.overtime_hours if ts and ts.overtime_hours else '' }}"
            class="{{ inp_cls }}">
   </td>
   <td class="px-2 py-2 text-center">
-    <input type="number" name="double_time_hours" step="0.25" min="0"
+    <input type="number" name="double_time_hours" step="0.25" min="0" inputmode="decimal"
            value="{{ ts.double_time_hours if ts and ts.double_time_hours else '' }}"
            class="{{ inp_cls }}">
   </td>
   <td class="px-2 py-2 text-center">
-    <input type="number" name="pto_hours" step="0.25" min="0"
+    <input type="number" name="pto_hours" step="0.25" min="0" inputmode="decimal"
            value="{{ ts.pto_hours if ts and ts.pto_hours else '' }}"
            class="{{ inp_cls }}">
   </td>
   <td class="px-2 py-2 text-center">
-    <input type="number" name="sick_hours" step="0.25" min="0"
+    <input type="number" name="sick_hours" step="0.25" min="0" inputmode="decimal"
            value="{{ ts.sick_hours if ts and ts.sick_hours else '' }}"
            class="{{ inp_cls }}">
   </td>
   <td class="px-2 py-2 text-center">
-    <input type="number" name="holiday_hours" step="0.25" min="0"
+    <input type="number" name="holiday_hours" step="0.25" min="0" inputmode="decimal"
            value="{{ ts.holiday_hours if ts and ts.holiday_hours else '' }}"
            class="{{ inp_cls }}">
   </td>

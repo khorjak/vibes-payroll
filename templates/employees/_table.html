@@ -4,9 +4,9 @@
     <tr class="text-xs text-slate-500 border-b border-slate-200">
       <th class="text-left pb-3 font-semibold">Name</th>
       <th class="text-left pb-3 font-semibold">Type</th>
-      <th class="text-left pb-3 font-semibold">Department</th>
+      <th class="hidden sm:table-cell text-left pb-3 font-semibold">Department</th>
       <th class="text-right pb-3 font-semibold">Pay Rate</th>
-      <th class="text-left pb-3 font-semibold">Hire Date</th>
+      <th class="hidden sm:table-cell text-left pb-3 font-semibold">Hire Date</th>
       <th class="text-left pb-3 font-semibold">Status</th>
     </tr>
   </thead>
@@ -29,7 +29,7 @@
           <span class="inline-flex px-2 py-0.5 text-xs font-medium rounded-full bg-amber-50 text-amber-700">Part-time</span>
         {% endif %}
       </td>
-      <td class="py-3 pr-4 text-slate-500">{{ emp.department or '—' }}</td>
+      <td class="hidden sm:table-cell py-3 pr-4 text-slate-500">{{ emp.department or '—' }}</td>
       <td class="py-3 pr-4 text-right text-slate-900 tabular-nums">
         {% if emp.employment_type == 'salaried' %}
           ${{ "{:,.2f}".format(emp.pay_rate) }}/yr
@@ -37,7 +37,7 @@
           ${{ "{:.2f}".format(emp.pay_rate) }}/hr
         {% endif %}
       </td>
-      <td class="py-3 pr-4 text-slate-500">
+      <td class="hidden sm:table-cell py-3 pr-4 text-slate-500">
         {{ emp.hire_date.strftime('%m/%d/%Y') if emp.hire_date else '—' }}
       </td>
       <td class="py-3">

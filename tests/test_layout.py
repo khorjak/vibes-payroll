@@ -135,3 +135,53 @@ class TestTablesScrollOnPhones:
                 if "<table" in line and "overflow-hidden" in lines[n - 2]:
                     offenders.append(f"{path}:{n - 1}")
         assert not offenders, offenders
+
+
+class TestPhoneColumns:
+    """Columns hidden below sm must be hidden in every row, or cells shift under the wrong header."""
+
+    def _assert_rows_line_up(self, html):
+        table = html.split('<table', 1)[1].split('</table>', 1)[0]
+        shapes = set()
+        for row in table.split('<tr')[1:]:
+            cells = re.findall(r'<t[hd][\s>][^>]*', row)
+            if len(cells) == 1:  # a full-width row (void reason, empty state)
+                continue
+            span = sum(int(m.group(1)) if (m := re.search(r'colspan="(\d+)"', c)) else 1 for c in cells)
+            shapes.add((span, row.count('hidden sm:table-cell')))
+        assert shapes, "need a header and a body row"
+        # Phone users can always bring the hidden columns back.
+        assert '<button type="button" data-all-cols' in html
+        assert len(shapes) == 1, shapes
+        assert shapes.pop()[1] > 0, "no phone-hidden columns; test is not exercising anything"
+
+    def test_employee_list(self, client, salaried_employee):
+        self._assert_rows_line_up(client.get("/employees/").text)
+
+    def test_pay_runs(self, client, pay_period):
+        self._assert_rows_line_up(client.get("/payroll/").text)
+
+    def test_pay_period_paychecks_including_totals(self, client, salaried_employee, pay_period):
+        client.post(f"/payroll/{pay_period.id}/calculate")
+        html = client.get(f"/payroll/{pay_period.id}").text
+        assert "<tfoot" in html
+        self._assert_rows_line_up(html)
+
+    def test_users(self, client, db):
+        from models.user import User
+        db.add(User(username="pat", hashed_password="x", role="preparer"))
+        db.commit()
+        self._assert_rows_line_up(client.get("/users/").text)
+
+
+def test_show_all_columns_rule_overrides_hidden(client):
+    assert "body.show-all-cols .hidden.sm\\:table-cell { display: table-cell; }" in client.get("/employees/").text
+
+
+class TestPhoneInputs:
+    def test_fields_are_16px_on_phones_so_ios_does_not_zoom(self, client):
+        assert "input, select, textarea { font-size: 16px !important; }" in client.get("/employees/").text
+
+    def test_timesheet_inputs_bring_up_decimal_keypad(self, client, hourly_employee, pay_period):
+        html = client.get(f"/payroll/{pay_period.id}/timesheets").text
+        assert html.count('inputmode="decimal"') == 6

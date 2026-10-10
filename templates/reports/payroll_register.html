@@ -19,11 +19,11 @@
 </div>
 {% endif %}
 <form method="get" class="bg-white rounded-lg border border-slate-200 p-4 mb-6 flex flex-wrap gap-4 items-end">
-  <div class="flex flex-col gap-1">
+  <div class="flex flex-col gap-1 max-w-full">
     <label class="text-xs font-medium text-slate-600">Company</label>
     <select name="company_id"
             onchange="this.form.submit()"
-            class="text-sm rounded-md border border-slate-300 px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            class="max-w-full text-sm rounded-md border border-slate-300 px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
       <option value="0">— Select Company —</option>
       {% if allow_consolidated %}
       <option value="-1" {% if consolidated %}selected{% endif %}>All my companies</option>
@@ -34,10 +34,10 @@
     </select>
   </div>
 
-  <div class="flex flex-col gap-1">
+  <div class="flex flex-col gap-1 max-w-full">
     <label class="text-xs font-medium text-slate-600">Pay Period</label>
     <select name="pay_period_id"
-            class="text-sm rounded-md border border-slate-300 px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            class="max-w-full text-sm rounded-md border border-slate-300 px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
             {% if not periods %}disabled{% endif %}>
       <option value="0">— Select Period —</option>
       {% for pp in periods %}
