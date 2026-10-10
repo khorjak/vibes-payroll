@@ -171,6 +171,7 @@ def create_employee(
     state: str = Form("OK"),
     zip_code: str = Form(""),
     workers_comp_code_id: str = Form(""),
+    workers_comp_exempt: str = Form(""),
     routing_number: str = Form(""),
     account_number: str = Form(""),
 ):
@@ -186,7 +187,11 @@ def create_employee(
     elif employment_type in ("hourly", "part_time") and safe_float(pay_rate, "pay_rate") < 7.25:
         errors["pay_rate"] = "Pay rate must be at least $7.25/hr (federal minimum wage)."
 
-    wc_code_id, wc_error = _validate_wc_code(db, company_id, workers_comp_code_id)
+    wc_exempt = workers_comp_exempt == "on"
+    # Exempt wins: any code chosen alongside it is dropped, not validated.
+    wc_code_id, wc_error = (
+        (None, None) if wc_exempt else _validate_wc_code(db, company_id, workers_comp_code_id)
+    )
     if wc_error:
         errors["workers_comp_code_id"] = wc_error
 
@@ -224,6 +229,7 @@ def create_employee(
         state=state.strip() or "OK",
         zip_code=zip_code.strip() or None,
         workers_comp_code_id=wc_code_id,
+        workers_comp_exempt=wc_exempt,
     )
     db.add(employee)
     db.commit()
@@ -317,6 +323,7 @@ def update_employee(
     state: str = Form("OK"),
     zip_code: str = Form(""),
     workers_comp_code_id: str = Form(""),
+    workers_comp_exempt: str = Form(""),
     routing_number: str = Form(""),
     account_number: str = Form(""),
 ):
@@ -328,7 +335,11 @@ def update_employee(
     if employment_type in ("hourly", "part_time") and pay_rate and safe_float(pay_rate, "pay_rate") < 7.25:
         errors["pay_rate"] = "Pay rate must be at least $7.25/hr (federal minimum wage)."
 
-    wc_code_id, wc_error = _validate_wc_code(db, company_id, workers_comp_code_id)
+    wc_exempt = workers_comp_exempt == "on"
+    # Exempt wins: any code chosen alongside it is dropped, not validated.
+    wc_code_id, wc_error = (
+        (None, None) if wc_exempt else _validate_wc_code(db, company_id, workers_comp_code_id)
+    )
     if wc_error:
         errors["workers_comp_code_id"] = wc_error
 
@@ -363,6 +374,7 @@ def update_employee(
     employee.state = state.strip() or "OK"
     employee.zip_code = zip_code.strip() or None
     employee.workers_comp_code_id = wc_code_id
+    employee.workers_comp_exempt = wc_exempt
     if routing_number.strip():
         employee.routing_number_encrypted = encrypt(routing_number.strip())
     if account_number.strip():

@@ -515,11 +515,12 @@ def _workers_comp_rows(db: Session, paychecks: list, company_ids: list[int]) -> 
     )
     emp_map = {e.id: e for e in employees}
 
-    by_code: dict[Optional[int], dict] = {}
+    by_code: dict[Optional[int] | str, dict] = {}
     for pc in paychecks:
         emp = emp_map.get(pc.employee_id)
-        code_id = emp.workers_comp_code_id if emp else None
-        wcc = emp.workers_comp_code if emp else None
+        exempt = bool(emp and emp.workers_comp_exempt)
+        code_id = "exempt" if exempt else (emp.workers_comp_code_id if emp else None)
+        wcc = None if exempt else (emp.workers_comp_code if emp else None)
 
         if code_id not in by_code:
             by_code[code_id] = {"code": wcc, "gross": Decimal("0"), "employees": set()}
@@ -534,8 +535,11 @@ def _workers_comp_rows(db: Session, paychecks: list, company_ids: list[int]) -> 
         rate = Decimal(str(wcc.rate_per_100_wages)) if wcc and wcc.rate_per_100_wages else Decimal("0")
         premium = (gross / Decimal("100") * rate).quantize(Decimal("0.01"))
         rows.append({
-            "ncci_code": wcc.ncci_code if wcc else "N/A",
-            "description": wcc.description if wcc else "Unclassified",
+            "ncci_code": wcc.ncci_code if wcc else ("EXEMPT" if code_id == "exempt" else "N/A"),
+            "description": (
+                wcc.description if wcc
+                else "Exempt from workers comp" if code_id == "exempt" else "Unclassified"
+            ),
             "rate": rate,
             "gross": gross,
             "premium": premium,

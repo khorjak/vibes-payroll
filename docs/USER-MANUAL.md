@@ -131,6 +131,7 @@ Workers comp codes belong to one company. Changing a rate in one company never a
 | FLSA exempt | Tick if exempt from overtime. |
 | Department, job title, contact, address | Optional. |
 | Workers comp code | Only codes from the employee's own company are offered. |
+| Exempt from workers comp | Tick for someone deliberately not covered (for example an officer who rejected coverage). Saving it clears any code, no workers comp premium is calculated for them, and they are left out of the missing-code warning. Untick and choose a code to cover them again. |
 | Bank routing and account number | Optional, stored encrypted. |
 
 3. Save. You land on the employee's profile.
@@ -207,7 +208,7 @@ Timesheets can be changed while the period is *open* or *draft*, not after it is
 
 The period page flags things worth a second look:
 
-- **No workers comp code on file.** While the period is *open* or *draft*, active employees with no workers comp code are listed with a link to edit them. It is a warning only and never blocks calculating or approving, because some people (for example certain owners or officers) may legitimately be uncovered. Assign a code and the warning clears. The employee profile shows the same note.
+- **No workers comp code on file.** While the period is *open* or *draft*, active employees with no workers comp code are listed with a link to edit them. It is a warning only and never blocks calculating or approving, because some people (for example certain owners or officers) may legitimately be uncovered. Assign a code, or tick **Exempt from workers comp** on the employee for someone who is deliberately uncovered, and the warning clears. The employee profile shows the same note.
 - **Variance flag.** A draft whose gross pay is more than 20% different from the employee's previous approved or paid paycheck. Often a typo in hours, or a rate change.
 - **Terminated employees needing a final paycheck.** See below.
 
@@ -277,7 +278,7 @@ Open **Reports** and pick a report. Every report lets you choose the company; mo
 | **Payroll register** | Every paycheck in a pay period with gross, deductions, taxes, and net. | Reviewing a run; bookkeeping. |
 | **Tax liability** | Federal, Oklahoma, FICA, FUTA and SUTA amounts. | Knowing what you owe and when. |
 | **Quarterly 941** | Figures for the quarterly federal return. Choose year and quarter. | Preparing Form 941. |
-| **Workers comp** | Wages by workers comp code with premium. Wages paid to employees with no code are grouped as *Unclassified*, and the row names those employees. | Insurance audit. |
+| **Workers comp** | Wages by workers comp code with premium. Wages paid to employees with no code are grouped as *Unclassified* (the row names those employees), and wages paid to exempt employees get their own *EXEMPT* row with no premium. | Insurance audit. |
 | **Oklahoma SUTA (OESC)** | Choose company, year and quarter. Per employee: total wages, excess wages, taxable wages and the SUTA contributions calculated, with totals, the company's rate and the taxable wage base. Approved and paid paychecks only. A **Print** button is provided. Only the last four SSN digits are shown. | Preparing your OESC quarterly contribution report. |
 | **Oklahoma withholding** | Oklahoma tax withheld. | State withholding filings. |
 | **W-2 export** | Downloads a CSV of per-employee W-2 box amounts. Box 1 (and Box 16) is gross pay less **pre-tax** deductions only: health and other cafeteria plans and traditional 401(k). Roth contributions, other post-tax deductions and garnishments do not reduce it. Box 3 (Social Security wages, capped at the wage base) and Box 5 (Medicare wages) are gross pay less cafeteria-plan items only, so 401(k) deferrals stay in them. SSN is not exported. **Box 12 code D (401(k) deferrals) is not included**; take it from the **Deductions and benefits** report. | Year-end W-2 preparation. |

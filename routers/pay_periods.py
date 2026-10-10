@@ -484,6 +484,7 @@ def pay_period_detail(
                 Employee.company_id == pp.company_id,
                 Employee.status == "active",
                 Employee.workers_comp_code_id.is_(None),
+                Employee.workers_comp_exempt.is_(False),
             )
             .order_by(Employee.last_name, Employee.first_name)
             .all()
