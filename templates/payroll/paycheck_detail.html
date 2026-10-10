@@ -28,6 +28,20 @@
       Pay date {{ paycheck.pay_period.pay_date }} &nbsp;·&nbsp;
       Period {{ paycheck.pay_period.start_date }} – {{ paycheck.pay_period.end_date }}
     </p>
+    {% if ps != 'draft' %}
+    <p class="text-sm text-slate-500 mt-1">Check # <span class="font-mono">{{ paycheck.check_number or "—" }}</span></p>
+    {% endif %}
+    {% if ps in ('approved', 'paid') and has_role(request, 'approver') %}
+    <form method="post" action="/payroll/paychecks/{{ paycheck.id }}/check-number" class="flex gap-2 items-center mt-2">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+      <input type="text" name="check_number" maxlength="20" value="{{ paycheck.check_number or '' }}"
+             placeholder="Check number"
+             class="text-sm border border-slate-300 rounded px-2 py-1 w-36 focus:outline-none focus:ring-1 focus:ring-indigo-400">
+      <button type="submit" class="px-3 py-1 text-sm text-slate-600 border border-slate-300 rounded hover:bg-slate-50">
+        Save Check #
+      </button>
+    </form>
+    {% endif %}
     {% if ps == 'voided' and paycheck.void_reason %}
     <p class="text-sm text-red-600 mt-1">Void reason: {{ paycheck.void_reason }}</p>
     {% endif %}

@@ -12,6 +12,7 @@ from services.payroll_service import (
     calculate_payroll_run,
     approve_payroll_run,
     mark_period_paid,
+    set_check_number,
     void_paycheck,
 )
 from routers.auth import (
@@ -619,12 +620,46 @@ def mark_paid_period(
     _csrf: CsrfProtect,
     period_id: int,
     db: Session = Depends(get_db),
+    first_check_number: str = Form(""),
 ):
     pp = get_scoped_pay_period(db, current_user, period_id, joinedload(PayPeriod.paychecks))
+    first = first_check_number.strip()
+    if first and not first.isdigit():
+        raise HTTPException(status_code=422, detail="First check number must be a whole number")
     try:
-        mark_period_paid(pp, db)
+        mark_period_paid(pp, db, int(first) if first else None)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     return RedirectResponse(f"/payroll/{period_id}?flash=paid", status_code=303)
+
+
+@router.post("/paychecks/{paycheck_id}/check-number")
+def set_paycheck_check_number(
+    current_user: ApproverUser,
+    _csrf: CsrfProtect,
+    paycheck_id: int,
+    db: Session = Depends(get_db),
+    check_number: str = Form(""),
+):
+    paycheck = get_scoped_paycheck(
+        db, current_user, paycheck_id, joinedload(Paycheck.pay_period),
+    )
+    if paycheck.status not in ("approved", "paid"):
+        raise HTTPException(
+            status_code=400, detail=f"Cannot set check number: paycheck is '{paycheck.status}'",
+        )
+    if len(check_number.strip()) > 20:
+        raise HTTPException(status_code=422, detail="Check number is at most 20 characters")
+    old = paycheck.check_number
+    try:
+        set_check_number(paycheck, check_number, db)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    log_change(db, "paychecks", paycheck_id, "update",
+               changed_by=current_user.username,
+               old_values={"check_number": old},
+               new_values={"check_number": paycheck.check_number})
+    db.commit()
+    return RedirectResponse(f"/payroll/paychecks/{paycheck_id}?flash=updated", status_code=303)
 
 

@@ -84,6 +84,7 @@ Notes on each step:
   - *Variance:* a draft whose gross differs from the employee's most recent approved or paid paycheck by more than 20%.
   - *Terminated employees needing a final paycheck:* terminated employees whose termination date is on or before the pay date and who have no approved or paid paycheck on or after that date.
 - **Approve** and **mark paid** only work from the expected prior status. Doing them out of order returns an error.
+- **Check numbers.** Mark paid can take a first check number and numbers the approved paychecks consecutively, in paycheck order. All numbers are checked for clashes first, so a clash fails the whole run with nothing changed. A number must be unique among non-voided paychecks of the same company (a voided check's number can be reused). Approvers can also set, change or clear a number on an approved or paid paycheck; each change is audit-logged.
 
 ## 5. What happens when a paycheck is calculated
 
@@ -116,7 +117,7 @@ Inputs the calculation reads:
 
 **Employer match.** A plan with a match percentage adds an employer contribution line: the match percent of the employee's contribution, counting at most the cap percent of gross pay. For example, "100% up to 4%" on a $2,500 check matches at most $100. The match is employer money, so it never reduces the employee's net pay or appears in their deductions.
 
-**Client liabilities.** Each calculated paycheck also records what must be sent to outside parties: one entry per garnishment order (to its payee), and one per benefit plan (to the plan, including any employer match). Retirement plans are typed as retirement deposits, other plans as benefit premiums, child support as child support remittances. The Client liabilities report counts these once the paycheck is approved. Drafts owe nothing, recalculating replaces them, and a voided paycheck drops out.
+**Client liabilities.** Each calculated paycheck also records what must be sent to outside parties: one entry per garnishment order (to its payee), and one per benefit plan (to the plan, including any employer match). Retirement plans are typed as retirement deposits, other plans as benefit premiums, child support as child support remittances. The Client liabilities report counts these once the paycheck is approved. Drafts owe nothing, recalculating replaces them, and a voided paycheck drops out. An approver marks them sent from the report with **Mark Remitted**, which stamps `remitted_at` and an optional reference on every outstanding entry for that payee, company and year (audit-logged per entry).
 
 Garnishment priority: child support, federal tax levy, state tax levy, student loan, creditor and bankruptcy, then other. Amounts are capped by the Consumer Credit Protection Act limits.
 
@@ -208,7 +209,7 @@ The audit log records who changed what and when for: employee create and update,
 
 These are current behaviors, not bugs in your data:
 
-- **Remittances cannot be marked as sent.** The Client liabilities report lists what is owed and shows the remitted amount, but no screen records a remittance yet, so remitted stays at $0.00.
+- **Remittances are marked per payee, not per payment.** **Mark Remitted** covers everything outstanding for a payee, company and year. There is no partial amount and no undo.
 - **Recalculating an off-cycle period redrafts everyone.** An off-cycle payment lives in its own one-day pay period. Choosing Recalculate on it drafts every active employee in the company, not just the one paid, and a salaried employee's entered amount is replaced by their normal salary. Approve the off-cycle period as created; to change it, void the paycheck and create a new off-cycle payment.
 - **Employer share of insurance premiums** is not modeled. Only the employee's deduction (plus any employer match on the plan) appears in client liabilities.
 - **Hourly minimum wage check** ($7.25) applies when creating an employee.

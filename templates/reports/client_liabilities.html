@@ -54,6 +54,7 @@
         <th class="px-4 py-3 text-right text-xs font-medium text-slate-500 uppercase">Total Owed</th>
         <th class="px-4 py-3 text-right text-xs font-medium text-slate-500 uppercase">Remitted</th>
         <th class="px-4 py-3 text-right text-xs font-medium text-slate-500 uppercase">Outstanding</th>
+        {% if has_role(request, 'approver') %}<th class="px-4 py-3"></th>{% endif %}
       </tr>
     </thead>
     <tbody class="divide-y divide-slate-100">
@@ -67,6 +68,25 @@
         <td class="px-4 py-2 text-right tabular-nums {{ 'text-red-600 font-medium' if row.total - row.remitted > 0 else 'text-slate-600' }}">
           ${{ "%.2f"|format(row.total - row.remitted) }}
         </td>
+        {% if has_role(request, 'approver') %}
+        <td class="px-4 py-2 text-right">
+          {% if row.total - row.remitted > 0 %}
+          <form method="post" action="/reports/client-liabilities/remit" class="flex gap-2 justify-end"
+                onsubmit="return confirm('Mark all outstanding for {{ row.payee_name | e }} as remitted?')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+            <input type="hidden" name="company_id" value="{{ section.company.id if section.company else company_id }}">
+            <input type="hidden" name="view" value="{{ company_id if consolidated else 0 }}">
+            <input type="hidden" name="year" value="{{ year }}">
+            <input type="hidden" name="payee_name" value="{{ row.payee_name }}">
+            <input type="text" name="reference" maxlength="100" placeholder="Check/ACH ref (optional)"
+                   class="w-44 text-sm border border-slate-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-indigo-400">
+            <button type="submit" class="px-3 py-1 text-sm bg-emerald-600 text-white rounded hover:bg-emerald-700">
+              Mark Remitted
+            </button>
+          </form>
+          {% endif %}
+        </td>
+        {% endif %}
       </tr>
       {% endfor %}
     </tbody>
@@ -76,6 +96,7 @@
         <td class="px-4 py-2 text-right tabular-nums">${{ "%.2f"|format(section.totals.total) }}</td>
         <td class="px-4 py-2 text-right tabular-nums">${{ "%.2f"|format(section.totals.remitted) }}</td>
         <td class="px-4 py-2 text-right tabular-nums">${{ "%.2f"|format(section.totals.total - section.totals.remitted) }}</td>
+        {% if has_role(request, 'approver') %}<td></td>{% endif %}
       </tr>
     </tfoot>
   </table>

@@ -56,9 +56,11 @@
     </form>
     {% endif %}
     {% if s == 'approved' and has_role(request, 'approver') %}
-    <form method="post" action="/payroll/{{ pp.id }}/mark-paid"
+    <form method="post" action="/payroll/{{ pp.id }}/mark-paid" class="flex items-center gap-2"
           onsubmit="return confirm('Mark all paychecks as paid?')">
       <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+      <input type="number" name="first_check_number" min="1" placeholder="First check # (optional)"
+             class="w-44 text-sm border border-slate-300 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-emerald-500">
       <button type="submit"
               class="px-3 py-1.5 text-sm bg-emerald-600 text-white rounded-md hover:bg-emerald-700">
         Mark Paid
@@ -91,6 +93,7 @@
         <th class="text-right px-4 py-3 font-medium text-slate-600">Taxes</th>
         <th class="text-right px-4 py-3 font-medium text-slate-600">Net Pay</th>
         <th class="text-left px-4 py-3 font-medium text-slate-600">Status</th>
+        <th class="text-left px-4 py-3 font-medium text-slate-600">Check #</th>
         <th class="px-4 py-3"></th>
       </tr>
     </thead>
@@ -120,6 +123,7 @@
             {{ ps | capitalize }}
           </span>
         </td>
+        <td class="px-4 py-3 font-mono text-slate-600">{{ pc.check_number or "—" }}</td>
         <td class="px-4 py-3 text-right">
           <a href="/payroll/paychecks/{{ pc.id }}"
              class="text-indigo-600 hover:underline text-sm">Detail</a>
@@ -132,7 +136,7 @@
       </tr>
       {% if pc.status in ('draft', 'approved') and has_role(request, 'approver') %}
       <tr id="void-{{ pc.id }}" class="hidden bg-red-50">
-        <td colspan="7" class="px-4 py-3">
+        <td colspan="8" class="px-4 py-3">
           <form method="post" action="/payroll/paychecks/{{ pc.id }}/void" class="flex gap-3 items-center">
             <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
             <span class="text-sm text-red-700 font-medium">Void reason:</span>
@@ -168,7 +172,7 @@
         <td class="px-4 py-3 text-right font-mono font-medium">
           ${{ "%.2f"|format(pp.paychecks | sum(attribute='net_pay')) }}
         </td>
-        <td colspan="2"></td>
+        <td colspan="3"></td>
       </tr>
     </tfoot>
   </table>
