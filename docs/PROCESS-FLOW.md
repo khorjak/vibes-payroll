@@ -82,6 +82,7 @@ Notes on each step:
 - **Hourly and part-time** employees are paid from their timesheet. With no timesheet, gross pay is $0.00.
 - **Review flags** on the period page:
   - *Variance:* a draft whose gross differs from the employee's most recent approved or paid paycheck by more than 20%.
+  - *No workers comp code on file:* active employees of the company with no code, shown while the period is `open` or `draft`. Advisory only; it never blocks Calculate or Approve.
   - *Terminated employees needing a final paycheck:* terminated employees whose termination date is on or before the pay date and who have no paycheck in this period. Those terminated within the period (start date through pay date) are labelled *included when you calculate*; earlier terminations that never got a final paycheck are labelled *not included automatically*.
 - **Approve** and **mark paid** only work from the expected prior status. Doing them out of order returns an error.
 - **Check numbers.** Mark paid can take a first check number and numbers the approved paychecks consecutively, in paycheck order. All numbers are checked for clashes first, so a clash fails the whole run with nothing changed. A number must be unique among non-voided paychecks of the same company (a voided check's number can be reused). Approvers can also set, change or clear a number on an approved or paid paycheck; each change is audit-logged.

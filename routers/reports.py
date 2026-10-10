@@ -522,8 +522,10 @@ def _workers_comp_rows(db: Session, paychecks: list, company_ids: list[int]) -> 
         wcc = emp.workers_comp_code if emp else None
 
         if code_id not in by_code:
-            by_code[code_id] = {"code": wcc, "gross": Decimal("0")}
+            by_code[code_id] = {"code": wcc, "gross": Decimal("0"), "employees": set()}
         by_code[code_id]["gross"] += Decimal(str(pc.gross_wages))
+        if code_id is None and emp:
+            by_code[code_id]["employees"].add(emp.full_name)
 
     rows = []
     for code_id, data in by_code.items():
@@ -537,6 +539,8 @@ def _workers_comp_rows(db: Session, paychecks: list, company_ids: list[int]) -> 
             "rate": rate,
             "gross": gross,
             "premium": premium,
+            # Who was paid with no code on file (empty for a real code).
+            "employees": sorted(data["employees"]),
         })
     rows.sort(key=lambda r: r["ncci_code"])
     return rows

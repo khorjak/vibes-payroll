@@ -60,7 +60,12 @@
       {% for row in section.rows %}
       <tr class="hover:bg-slate-50">
         <td class="px-4 py-3 font-mono text-slate-700">{{ row.ncci_code }}</td>
-        <td class="px-4 py-3 text-slate-700">{{ row.description }}</td>
+        <td class="px-4 py-3 text-slate-700">
+          {{ row.description }}
+          {% if row.employees %}
+          <p class="text-xs text-amber-700 mt-0.5">No workers comp code on file for: {{ row.employees | join(", ") }}</p>
+          {% endif %}
+        </td>
         <td class="px-4 py-3 text-right tabular-nums text-slate-600">
           {% if row.rate %}${{ "%.4f"|format(row.rate) }}{% else %}—{% endif %}
         </td>

@@ -326,7 +326,7 @@ open → draft → approved → paid → closed
 
 - [x] State income tax withholding using current OTC tables
 - [x] SUTA reporting (Oklahoma Employment Security Commission) — quarterly per-employee wage report (total, taxable, excess wages, contributions); it is a data summary, not the OESC upload format, and shows only the last four SSN digits
-- [ ] Workers comp coverage verification per employee — the workers comp report groups wages by code and shows employees with no code as "Unclassified"; nothing flags or blocks an employee missing a code
+- [x] Workers comp coverage verification per employee — advisory warnings for active employees with no code (pay period page while open/draft, employee profile) and the workers comp report names them under Unclassified; not blocking, and there is no exempt flag for intentionally uncovered employees
 - [x] New hire reporting within 20 days of hire to Oklahoma DHS — new hire report plus a Mark as reported action
 - [x] Pay stub provided each pay period (Oklahoma requirement) — PDF pay stub per paycheck
 - [x] Final paycheck on next scheduled payday upon termination — drafted automatically in the run covering the termination date (salary prorated by calendar days); accrued time-off payout is not modeled
