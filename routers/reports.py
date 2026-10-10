@@ -15,6 +15,7 @@ from models.employee import Employee
 from models.payroll import PayPeriod, Paycheck, PaycheckLine, ClientLiability
 from models.user import User
 from models.workers_comp import WorkersCompCode
+from tax_engine.fica import SS_WAGE_BASE
 from tax_engine.unemployment import OK_SUTA_WAGE_BASE
 from utils.crypto import decrypt
 from routers.auth import ActiveCompany, ApproverUser, CurrentUser, get_current_user
@@ -731,7 +732,18 @@ def w2_export(
         pcs = by_employee[emp_id]
 
         gross = sum(Decimal(str(pc.gross_wages)) for pc in pcs)
-        deductions = sum(Decimal(str(pc.total_deductions)) for pc in pcs)
+        # Box 1 is reduced by PRE-tax deductions only (cafeteria plans and 401k deferrals).
+        # Post-tax deductions and garnishments are paid out of Box 1 wages.
+        pre_tax_lines = [
+            l for pc in pcs for l in pc.lines if l.line_type == "deduction" and l.is_pre_tax
+        ]
+        pre_tax = sum((Decimal(str(l.amount)) for l in pre_tax_lines), Decimal("0"))
+        # Boxes 3 and 5: only cafeteria-plan items (is_taxable False) come off; 401k
+        # deferrals stay in FICA wages. Computed from wages, not backed out of the tax,
+        # because the Medicare tax line includes Additional Medicare above $200,000.
+        fica_wages = gross - sum(
+            (Decimal(str(l.amount)) for l in pre_tax_lines if not l.is_taxable), Decimal("0"),
+        )
         s = _sum_lines(pcs)
         zero = Decimal("0")
         fed_tax = s.get("Federal Income Tax", zero)
@@ -739,9 +751,9 @@ def w2_export(
         med_emp = s.get("Medicare (Employee)", zero)
         ok_tax = s.get("Oklahoma Income Tax", zero)
 
-        box1 = (gross - deductions).quantize(Decimal("0.01"))
-        box3 = (ss_emp / Decimal("0.062")).quantize(Decimal("0.01")) if ss_emp else Decimal("0")
-        box5 = (med_emp / Decimal("0.0145")).quantize(Decimal("0.01")) if med_emp else Decimal("0")
+        box1 = (gross - pre_tax).quantize(Decimal("0.01"))
+        box3 = min(fica_wages, SS_WAGE_BASE).quantize(Decimal("0.01"))
+        box5 = fica_wages.quantize(Decimal("0.01"))
 
         ssn_display = "ENCRYPTED" if emp.ssn_encrypted else ""
 

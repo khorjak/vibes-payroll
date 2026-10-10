@@ -64,7 +64,9 @@ def calculate_paycheck(inp: PaycheckInput) -> PaycheckResult:
     if inp.garnishments:
         employee_taxes = (taxes.federal_income_tax + taxes.ok_income_tax +
                           taxes.ss_employee + taxes.medicare_employee)
-        disposable = gross - inp.pre_tax_deductions - employee_taxes
+        # CCPA: only amounts required by law (income tax, FICA) come off. Voluntary
+        # pre-tax benefits and 401k deferrals do not reduce disposable earnings.
+        disposable = gross - employee_taxes
         garn_inputs = [
             GarnishmentInput(
                 garnishment_type=g.garnishment_type,
