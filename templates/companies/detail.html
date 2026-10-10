@@ -6,7 +6,7 @@
 {% endblock %}
 
 {% block content %}
-<div class="flex items-start justify-between mb-6">
+<div class="flex flex-wrap items-start justify-between gap-3 mb-6">
   <div>
     <h1 class="text-2xl font-bold text-slate-900">{{ company.name }}</h1>
     {% if company.ein %}<p class="text-sm text-slate-500 mt-0.5">EIN {{ company.ein }}</p>{% endif %}
@@ -52,7 +52,7 @@
     </div>
 
     <!-- Benefit Plans -->
-    <div class="bg-white rounded-lg ring-1 ring-slate-200 p-5">
+    <div class="bg-white rounded-lg ring-1 ring-slate-200 p-5 overflow-x-auto">
       <div class="flex items-center justify-between mb-4">
         <h2 class="text-sm font-semibold text-slate-700">Benefit Plans</h2>
         <div class="flex gap-3">
@@ -70,7 +70,7 @@
             action="/companies/{{ company.id }}/benefits/new"
             class="mb-4 p-4 bg-slate-50 rounded-md ring-1 ring-slate-200 space-y-3">
         <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
-        <div class="grid grid-cols-2 gap-3">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label class="text-xs font-medium text-slate-700">Plan Name</label>
             <input type="text" name="name" required
