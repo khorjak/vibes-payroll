@@ -727,3 +727,115 @@ class TestSutaReport401k:
         db.commit()
         page = client.get(f"/reports/suta?company_id={company.id}&year=2026&quarter=2").text
         assert TestSutaReport._first_row(page) == ["1000.00", "50.00", "950.00", "0.00"]
+
+
+# ── W-2 export: Box 1 / Box 16 wages ────────────────────────────────────────
+
+class _W2Helpers:
+    def _rows(self, client, company, year=2026):
+        import csv, io
+        r = client.get(f"/reports/w2-export?company_id={company.id}&year={year}")
+        return list(csv.DictReader(io.StringIO(r.text)))
+
+    def _check(self, db, company, employee, gross, lines, pay_date=date(2026, 5, 20), taxes=()):
+        from models.payroll import PaycheckLine
+        pp = PayPeriod(company_id=company.id, start_date=pay_date, end_date=pay_date,
+                       pay_date=pay_date, frequency="biweekly", status="approved")
+        db.add(pp)
+        db.flush()
+        pc = Paycheck(employee_id=employee.id, pay_period_id=pp.id, status="approved",
+                      gross_wages=gross, net_pay=gross)
+        db.add(pc)
+        db.flush()
+        for desc, amount in taxes:
+            db.add(PaycheckLine(paycheck_id=pc.id, line_type="tax", description=desc, amount=amount))
+        for desc, amount, is_pre, is_taxable in lines:
+            db.add(PaycheckLine(paycheck_id=pc.id, line_type="deduction", description=desc,
+                                amount=amount, is_pre_tax=is_pre, is_taxable=is_taxable))
+        db.commit()
+
+
+class TestW2Box1Wages(_W2Helpers):
+    def test_only_pre_tax_deductions_reduce_box1(self, client, db, company, salaried_employee):
+        self._check(db, company, salaried_employee, 3000, [
+            ("Health", 100, True, False),       # cafeteria, pre-tax
+            ("401k", 200, True, True),          # 401k deferral, pre-tax
+            ("Roth", 100, False, False),        # post-tax
+            ("Garnishment - Creditor", 300, False, False),
+        ])
+        row = self._rows(client, company)[0]
+        assert row["Box1_FedWages"] == "2700.00"   # 3000 - 100 - 200
+        assert row["Box16_StateWages"] == "2700.00"
+
+    def test_post_tax_and_garnishments_alone_leave_box1_at_gross(self, client, db, company, salaried_employee):
+        self._check(db, company, salaried_employee, 1000, [
+            ("Roth", 150, False, False), ("Garnishment - Creditor", 250, False, False)])
+        assert self._rows(client, company)[0]["Box1_FedWages"] == "1000.00"
+
+    def test_sums_across_paychecks(self, client, db, company, salaried_employee):
+        self._check(db, company, salaried_employee, 1000, [("Health", 50, True, False)])
+        self._check(db, company, salaried_employee, 1000, [("Health", 50, True, False)],
+                    pay_date=date(2026, 6, 20))
+        assert self._rows(client, company)[0]["Box1_FedWages"] == "1900.00"
+
+    def test_no_deductions(self, client, db, company, salaried_employee):
+        self._check(db, company, salaried_employee, 1234.56, [])
+        assert self._rows(client, company)[0]["Box1_FedWages"] == "1234.56"
+
+    def test_end_to_end_with_real_plans_and_garnishment(self, client, db, company, salaried_employee, benefit_plan):
+        from models.benefit import BenefitPlan, EmployeeBenefitEnrollment
+        from models.garnishment import GarnishmentOrder
+        k401 = BenefitPlan(company_id=company.id, name="401k", benefit_type="traditional_401k",
+                           employee_contribution_type="fixed", employee_contribution_amount=100,
+                           pre_tax=True, active=True)
+        roth = BenefitPlan(company_id=company.id, name="Roth", benefit_type="roth_401k",
+                           employee_contribution_type="fixed", employee_contribution_amount=75,
+                           pre_tax=False, active=True)
+        db.add_all([k401, roth])
+        db.flush()
+        for plan in (benefit_plan, k401, roth):  # benefit_plan: $150 pre-tax health
+            db.add(EmployeeBenefitEnrollment(employee_id=salaried_employee.id,
+                                             benefit_plan_id=plan.id, effective_date=date(2026, 1, 1)))
+        db.add(GarnishmentOrder(employee_id=salaried_employee.id, garnishment_type="creditor",
+                                payee_name="Collections", amount=200, amount_type="fixed",
+                                effective_date=date(2026, 1, 1), active=True))
+        db.commit()
+        _run_payroll(client, db, company, salaried_employee)
+        row = self._rows(client, company)[0]
+        assert row["Box1_FedWages"] == "2250.00"   # 2500 - 150 health - 100 401k; Roth + garnishment excluded
+        assert row["Box16_StateWages"] == "2250.00"
+
+
+class TestW2MedicareAndSsWages(_W2Helpers):
+    """Boxes 3 and 5 come from wages, not backed out of the tax withheld."""
+
+    def test_box5_excludes_additional_medicare_tax_from_the_division(self, client, db, company, salaried_employee):
+        # Medicare tax of 4,800 on 250,000 is 1.45% plus 0.9% above 200,000; dividing by
+        # 1.45% would overstate wages (~331k).
+        self._check(db, company, salaried_employee, 250000, [("Health", 1000, True, False)],
+                    taxes=[("Medicare (Employee)", 4800), ("Social Security (Employee)", 10918.20)])
+        row = self._rows(client, company)[0]
+        assert row["Box5_MedWages"] == "249000.00"
+        assert row["Box6_MedTax"] == "4800.00"   # the tax itself still includes Additional Medicare
+
+    def test_box3_capped_at_ss_wage_base(self, client, db, company, salaried_employee):
+        self._check(db, company, salaried_employee, 250000, [], taxes=[("Social Security (Employee)", 10918.20)])
+        assert self._rows(client, company)[0]["Box3_SSWages"] == "176100.00"
+
+    def test_box3_and_box5_below_the_cap_equal_fica_wages(self, client, db, company, salaried_employee):
+        self._check(db, company, salaried_employee, 3000, [("Health", 100, True, False)],
+                    taxes=[("Social Security (Employee)", 1), ("Medicare (Employee)", 1)])
+        row = self._rows(client, company)[0]
+        assert row["Box3_SSWages"] == row["Box5_MedWages"] == "2900.00"
+
+    def test_401k_deferral_stays_in_boxes_3_and_5_but_not_box_1(self, client, db, company, salaried_employee):
+        self._check(db, company, salaried_employee, 3000,
+                    [("Health", 100, True, False), ("401k", 200, True, True)])
+        row = self._rows(client, company)[0]
+        assert row["Box1_FedWages"] == "2700.00"
+        assert row["Box3_SSWages"] == row["Box5_MedWages"] == "2900.00"
+
+    def test_wages_do_not_depend_on_tax_lines_being_present(self, client, db, company, salaried_employee):
+        self._check(db, company, salaried_employee, 1000, [])
+        row = self._rows(client, company)[0]
+        assert row["Box3_SSWages"] == row["Box5_MedWages"] == "1000.00"

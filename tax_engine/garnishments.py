@@ -8,7 +8,8 @@ Priority order (federal law):
   4. Federal student loans
   5. Creditor garnishments / bankruptcy / other
 
-CCPA disposable earnings = gross - mandatory deductions (taxes + pre-tax benefits).
+CCPA disposable earnings = gross - amounts required by law to be withheld (income
+tax and FICA). Voluntary deductions (health premiums, 401k) are NOT subtracted.
 Max garnishment per pay period:
   - Non-child-support: lesser of 25% of disposable earnings OR disposable minus 30× federal min wage
   - Child support (not in arrears): 50% if supporting another spouse/child, else 60%

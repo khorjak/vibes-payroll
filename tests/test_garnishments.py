@@ -188,3 +188,44 @@ class TestZeroAmountOrder:
         real = GarnishmentInput(garnishment_type="creditor", amount=Decimal("100"), order_id=2)
         results = calc_garnishments(Decimal("2000"), [zero, real])
         assert [r.order_id for r in results] == [2]
+
+
+class TestDisposableEarningsCcpa:
+    """CCPA disposable earnings = gross - taxes required by law. Voluntary pre-tax
+    deductions (health premiums, 401k) are not subtracted."""
+
+    def _run(self, **kw):
+        return calculate_paycheck(PaycheckInput(
+            gross_wages=Decimal("2000"), pay_frequency="biweekly",
+            w4=W4Input(filing_status="single"),
+            ok_withholding=OKWithholdingInput(filing_status="single", allowances=1),
+            garnishments=[GarnishmentInputItem(
+                garnishment_type="creditor", amount=Decimal("5000"), amount_type="fixed", order_id=1)],
+            **kw,
+        ))
+
+    def test_capped_at_25_percent_of_gross_less_taxes(self):
+        r = self._run()
+        disposable = Decimal("2000") - r.total_employee_taxes
+        assert r.garnishment_total == (disposable * Decimal("0.25")).quantize(Decimal("0.01"))
+
+    def test_pre_tax_deductions_do_not_shrink_the_garnishment_base(self):
+        r = self._run(pre_tax_deductions=Decimal("400"))
+        disposable = Decimal("2000") - r.total_employee_taxes   # NOT minus the 400
+        assert r.garnishment_total == (disposable * Decimal("0.25")).quantize(Decimal("0.01"))
+
+    def test_401k_deferral_does_not_shrink_the_garnishment_base(self):
+        r = self._run(pre_tax_deductions=Decimal("400"), pre_tax_retirement=Decimal("400"))
+        disposable = Decimal("2000") - r.total_employee_taxes
+        assert r.garnishment_total == (disposable * Decimal("0.25")).quantize(Decimal("0.01"))
+
+    def test_percent_order_uses_same_base(self):
+        r = calculate_paycheck(PaycheckInput(
+            gross_wages=Decimal("2000"), pay_frequency="biweekly",
+            w4=W4Input(filing_status="single"),
+            pre_tax_deductions=Decimal("400"),
+            garnishments=[GarnishmentInputItem(
+                garnishment_type="child_support", percent=Decimal("20"), amount_type="percent", order_id=1)],
+        ))
+        disposable = Decimal("2000") - r.total_employee_taxes
+        assert r.garnishment_total == (disposable * Decimal("0.20")).quantize(Decimal("0.01"))

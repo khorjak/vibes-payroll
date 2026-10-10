@@ -167,6 +167,8 @@ Oklahoma requires new hires to be reported within 20 days. After you report some
 
 Payroll applies active orders in legal priority order (child support first, then tax levies, student loans, creditors) and never withholds more than federal limits allow. The amount actually withheld can therefore be less than the order amount.
 
+"Disposable earnings" is gross pay minus the taxes required by law (income tax, Social Security, Medicare). Health premiums, 401(k) contributions and other voluntary deductions are **not** subtracted, so they never reduce what an order can take. If a support order in your state allows health premiums to be deducted first, check with your accountant or attorney; that adjustment is not modeled.
+
 ### Editing, leaves, and terminations
 
 - **Edit** changes any field. Pay rate changes apply to paychecks calculated afterwards.
@@ -277,7 +279,7 @@ Open **Reports** and pick a report. Every report lets you choose the company; mo
 | **Workers comp** | Wages by workers comp code with premium. | Insurance audit. |
 | **Oklahoma SUTA (OESC)** | Choose company, year and quarter. Per employee: total wages, excess wages, taxable wages and the SUTA contributions calculated, with totals, the company's rate and the taxable wage base. Approved and paid paychecks only. A **Print** button is provided. Only the last four SSN digits are shown. | Preparing your OESC quarterly contribution report. |
 | **Oklahoma withholding** | Oklahoma tax withheld. | State withholding filings. |
-| **W-2 export** | Downloads a CSV of per-employee W-2 box amounts. | Year-end W-2 preparation. |
+| **W-2 export** | Downloads a CSV of per-employee W-2 box amounts. Box 1 (and Box 16) is gross pay less **pre-tax** deductions only: health and other cafeteria plans and traditional 401(k). Roth contributions, other post-tax deductions and garnishments do not reduce it. Box 3 (Social Security wages, capped at the wage base) and Box 5 (Medicare wages) are gross pay less cafeteria-plan items only, so 401(k) deferrals stay in them. SSN is not exported. **Box 12 code D (401(k) deferrals) is not included**; take it from the **Deductions and benefits** report. | Year-end W-2 preparation. |
 | **Deductions and benefits** | Benefit and deduction totals. | Reconciling with carriers. |
 | **Client liabilities** | Amounts to send to garnishment payees, benefit carriers and retirement plans, once a payroll is approved. Voided paychecks drop out. Approvers get a **Mark Remitted** button on every payee row that still has an outstanding amount, with an optional check or ACH reference. | Knowing what to remit, and recording that you did. |
 | **New hire reporting** | Hires from the last 20 days not yet marked as reported, with a **Mark as reported** button on each row. | Meeting new hire reporting deadlines. |

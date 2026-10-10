@@ -120,7 +120,7 @@ Inputs the calculation reads:
 
 **Client liabilities.** Each calculated paycheck also records what must be sent to outside parties: one entry per garnishment order (to its payee), and one per benefit plan (to the plan, including any employer match). Retirement plans are typed as retirement deposits, other plans as benefit premiums, child support as child support remittances. The Client liabilities report counts these once the paycheck is approved. Drafts owe nothing, recalculating replaces them, and a voided paycheck drops out. An approver marks them sent from the report with **Mark Remitted**, which stamps `remitted_at` and an optional reference on every outstanding entry for that payee, company and year (audit-logged per entry).
 
-Garnishment priority: child support, federal tax levy, state tax levy, student loan, creditor and bankruptcy, then other. Amounts are capped by the Consumer Credit Protection Act limits.
+Garnishment priority: child support, federal tax levy, state tax levy, student loan, creditor and bankruptcy, then other. Amounts are capped by the Consumer Credit Protection Act limits. Disposable earnings are gross pay less the taxes required by law (federal and Oklahoma income tax, Social Security, Medicare). Voluntary deductions such as health premiums and 401(k) deferrals are not subtracted, so they do not reduce the amount a creditor or support order can take. Some states let certain support orders net out health insurance premiums; that is not modeled.
 
 ## 6. Off-cycle payment
 
