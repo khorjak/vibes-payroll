@@ -51,6 +51,9 @@ class GarnishmentResultItem:
 class PaycheckInput:
     gross_wages: Decimal
     pay_frequency: str  # weekly | biweekly | semi_monthly | monthly
+    # The pay year's wage bases (tax_years table): Social Security and Oklahoma SUTA.
+    ss_wage_base: Decimal
+    suta_wage_base: Decimal
 
     # YTD accumulators *before* this paycheck
     ytd_gross_prior: Decimal = field(default_factory=lambda: Decimal("0"))

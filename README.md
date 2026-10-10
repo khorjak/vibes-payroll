@@ -52,12 +52,12 @@ pytest tests/test_auth.py::TestLoginLogout   # single class
 
 | Tax | Rate |
 |-----|------|
-| Social Security | 6.2% employee + 6.2% employer (wage base $176,100) |
+| Social Security | 6.2% employee + 6.2% employer up to the pay year's wage base ($184,500 for 2026), set by admins under Tax Settings |
 | Medicare | 1.45% + 1.45%; +0.9% additional above $200,000 |
 | Federal income | IRS Publication 15 percentage method |
 | Oklahoma income | OTC withholding tables (0.25%–4.75%) |
 | FUTA | 0.6% net on first $7,000 wages |
-| Oklahoma SUTA | Configurable rate per company |
+| Oklahoma SUTA | Configurable rate per company, up to the pay year's wage base ($25,000 for 2026), set under Tax Settings |
 
 ## License
 

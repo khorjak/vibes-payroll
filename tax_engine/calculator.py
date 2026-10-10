@@ -44,16 +44,16 @@ def calculate_paycheck(inp: PaycheckInput) -> PaycheckResult:
         taxes.ok_income_tax = calc_ok_withholding(taxable, inp.pay_frequency, inp.ok_withholding)
 
     # Employee FICA
-    taxes.ss_employee = calc_ss_employee(fica_wages, inp.ytd_ss_wages_prior)
+    taxes.ss_employee = calc_ss_employee(fica_wages, inp.ytd_ss_wages_prior, wage_base=inp.ss_wage_base)
     taxes.medicare_employee = calc_medicare_employee(fica_wages, inp.ytd_gross_prior)
 
     # Employer FICA
-    taxes.ss_employer = calc_ss_employer(fica_wages, inp.ytd_ss_wages_prior)
+    taxes.ss_employer = calc_ss_employer(fica_wages, inp.ytd_ss_wages_prior, wage_base=inp.ss_wage_base)
     taxes.medicare_employer = calc_medicare_employer(fica_wages)
 
     # Employer unemployment
     taxes.futa = calc_futa(fica_wages, inp.ytd_futa_wages_prior)
-    taxes.suta = calc_suta(fica_wages, inp.ytd_suta_wages_prior, inp.suta_rate)
+    taxes.suta = calc_suta(fica_wages, inp.ytd_suta_wages_prior, inp.suta_rate, wage_base=inp.suta_wage_base)
 
     # Employer workers comp (on gross wages, not taxable wages)
     taxes.workers_comp = calc_workers_comp(gross, inp.workers_comp_rate)

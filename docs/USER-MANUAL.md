@@ -11,15 +11,16 @@ Button and menu names below match the screens as closely as possible. If a butto
 3. [Finding your way around](#3-finding-your-way-around)
 4. [Setting up a company (admins)](#4-setting-up-a-company-admins)
 5. [Managing users (admins)](#5-managing-users-admins)
-6. [Managing employees](#6-managing-employees)
-7. [Running payroll](#7-running-payroll)
-8. [Off-cycle payments](#8-off-cycle-payments)
-9. [Voiding a paycheck](#9-voiding-a-paycheck)
-10. [Pay stubs](#10-pay-stubs)
-11. [Reports](#11-reports)
-12. [Year-end checklist](#12-year-end-checklist)
-13. [Troubleshooting](#13-troubleshooting)
-14. [Things to know](#14-things-to-know)
+6. [Tax settings (admins)](#6-tax-settings-admins)
+7. [Managing employees](#7-managing-employees)
+8. [Running payroll](#8-running-payroll)
+9. [Off-cycle payments](#9-off-cycle-payments)
+10. [Voiding a paycheck](#10-voiding-a-paycheck)
+11. [Pay stubs](#11-pay-stubs)
+12. [Reports](#12-reports)
+13. [Year-end checklist](#13-year-end-checklist)
+14. [Troubleshooting](#14-troubleshooting)
+15. [Things to know](#15-things-to-know)
 
 ---
 
@@ -45,7 +46,7 @@ Every user has one role. Your role applies to every company you are assigned to.
 | **Read-only** | Owners, auditors | View everything they can access. Change nothing. |
 | **Preparer** | Payroll clerks | Everything read-only can, plus add and edit employees, tax elections, benefit enrollments and garnishments; create pay periods; enter timesheets; calculate the draft payroll; create off-cycle payments. |
 | **Approver** | Payroll managers | Everything read-only can, plus approve a payroll run, mark it paid, and void a paycheck. |
-| **Admin** | Whoever runs the system | Everything, plus company, benefit plan and workers comp setup, and user management. |
+| **Admin** | Whoever runs the system | Everything, plus company, benefit plan and workers comp setup, user management, and yearly tax settings. |
 
 Preparing and approving are separate on purpose, so one person cannot both build and release a payroll. Give a person both roles only if you accept that. An admin can do both.
 
@@ -53,7 +54,7 @@ Preparing and approving are separate on purpose, so one person cannot both build
 
 ## 3. Finding your way around
 
-The left navigation has: **Dashboard**, **Employees**, **Companies**, **Users** (admins only), **Pay Runs**, and **Reports**.
+The left navigation has: **Dashboard**, **Employees**, **Companies**, **Users** and **Tax Settings** (admins only), **Pay Runs**, and **Reports**.
 
 **On a phone** (screens narrower than a tablet), the navigation is hidden to leave room for the page. Tap the menu button (three lines) at the top left to open it; tap a page, the close button, the dimmed area beside it, or press Esc to close it. Wide tables (pay runs, reports, users and so on) scroll sideways inside their box: swipe left on the table to see the remaining columns. Forms stack their fields in a single column. To save room, a few less-used columns are left out on a phone (they always appear on a wider screen): Department and Hire Date on **Employees**; Pay Period, Frequency and Checks on **Pay Runs**; Pre-tax Ded., Taxes and Check # on a pay period's paychecks; Created on **Users**. Tap **Show all columns** above any of these tables to bring them back, then swipe sideways to see them; **Fewer columns** hides them again. Your choice applies to all four tables and is remembered on that phone.
 
@@ -113,7 +114,27 @@ Workers comp codes belong to one company. Changing a rate in one company never a
 - You cannot demote or deactivate the last active admin.
 - Reactivating a deactivated non-admin does **not** restore their company access. Re-assign companies yourself; the list shows an amber "None" for such accounts. This is deliberate, because accounts can view Social Security and bank data.
 
-## 6. Managing employees
+## 6. Tax settings (admins)
+
+Some payroll taxes stop once an employee's wages for the year reach a limit, the *wage base*, and the limits change every year. **Tax Settings** (admins only) lists them by year:
+
+- **Social Security wage base**: published by the Social Security Administration each October for the following year (search "contribution and benefit base" on ssa.gov).
+- **Oklahoma SUTA wage base**: the "Taxable Wage Base" on the Oklahoma Employment Security Commission's *Important Numbers* sheet for the year, published each winter (oklahoma.gov/oesc).
+
+Each paycheck uses the figures for the calendar year of its pay date. The figures for 2024 to 2026 come with the system.
+
+**Add next year.** As soon as the new figures are published, fill in **Add or update a year** with the year and both wage bases and choose **Save**. Amounts can be typed with or without `$` and commas.
+
+**Correct a year.** Choose **Edit** on the year, change the figures and **Save**. Draft paychecks pick up the change when you choose **Recalculate**; approved and paid paychecks keep the figures they were calculated with.
+
+**If a year is missing**, payroll still runs, using the latest earlier year's figures, and you are warned:
+- **Tax Settings** shows a notice for the current year, and from October also for next year.
+- A pay period that is open or in draft shows *No 2027 wage bases on file* (for example) with a link to add them.
+- The **Oklahoma SUTA** report marks the wage base as an earlier year's figure.
+
+Every change is recorded in the audit log. Values outside $1,000 to $1,000,000 are refused, to catch typos.
+
+## 7. Managing employees
 
 ### Add an employee (preparers and admins)
 
@@ -178,7 +199,7 @@ Payroll applies active orders in legal priority order (child support first, then
 - **On leave:** set the status to *On leave*. The employee is skipped in payroll runs until set back to *Active*.
 - **Terminating:** set the status to *Terminated* and enter the termination date. A terminated employee gets a final paycheck automatically in the pay run that covers their last day, then drops out of later runs. See [Final paychecks](#final-paychecks).
 
-## 7. Running payroll
+## 8. Running payroll
 
 The run has four stages, done by two roles: preparer (stages 1-3), approver (stage 4).
 
@@ -211,6 +232,7 @@ Timesheets can be changed while the period is *open* or *draft*, not after it is
 The period page flags things worth a second look:
 
 - **No workers comp code on file.** While the period is *open* or *draft*, active employees with no workers comp code are listed with a link to edit them. It is a warning only and never blocks calculating or approving, because some people (for example certain owners or officers) may legitimately be uncovered. Assign a code, or tick **Exempt from workers comp** on the employee for someone who is deliberately uncovered, and the warning clears. The employee profile shows the same note.
+- **No wage bases for the pay year.** If **Tax Settings** has no figures for the pay date's year, the page says so and calculating uses the latest earlier year's. Ask an admin to add the year, then **Recalculate**.
 - **Variance flag.** A draft whose gross pay is more than 20% different from the employee's previous approved or paid paycheck. Often a typo in hours, or a rate change.
 - **Terminated employees needing a final paycheck.** See below.
 
@@ -237,9 +259,9 @@ Before you calculate, the period page lists terminated employees as *included wh
 
 The system records payroll. It does not send money or file returns for you.
 
-> Once approved, a period cannot be recalculated or edited. To correct one paycheck, void it (see [Voiding a paycheck](#9-voiding-a-paycheck)).
+> Once approved, a period cannot be recalculated or edited. To correct one paycheck, void it (see [Voiding a paycheck](#10-voiding-a-paycheck)).
 
-## 8. Off-cycle payments
+## 9. Off-cycle payments
 
 Use for a one-off payment to one employee outside the regular schedule.
 
@@ -252,7 +274,7 @@ The gross amount you enter is what the paycheck pays. For **hourly and part-time
 
 Do not choose **Recalculate** on an off-cycle period. It redrafts every active employee in the company and replaces a salaried employee's entered amount with their normal salary. To change an off-cycle payment, void the paycheck and create a new one.
 
-## 9. Voiding a paycheck
+## 10. Voiding a paycheck
 
 Approvers and admins can void a paycheck that is *draft* or *approved*.
 
@@ -265,13 +287,13 @@ Things to know:
 - A voided paycheck is excluded from reports and from year-to-date totals.
 - The period's status does not change, and no replacement paycheck is created. If the employee is still owed pay, create an off-cycle payment.
 
-## 10. Pay stubs
+## 11. Pay stubs
 
 Open any paycheck and choose **Pay Stub PDF**. The stub shows earnings, deductions, taxes, net pay, and year-to-date totals.
 
 If the site reports the PDF service is unavailable (HTTP 503), a system library is missing on the server; tell your administrator. Everything else keeps working.
 
-## 11. Reports
+## 12. Reports
 
 Open **Reports** and pick a report. Every report lets you choose the company; most also take a pay period or date range. Reports count only **approved** and **paid** paychecks: drafts (not yet approved) and voided paychecks are left out, so figures do not move while a run is still being reviewed. The one exception is the **Payroll register**, which lists every paycheck in the period you pick so you can review a draft before approving it.
 
@@ -281,7 +303,7 @@ Open **Reports** and pick a report. Every report lets you choose the company; mo
 | **Tax liability** | Federal, Oklahoma, FICA, FUTA and SUTA amounts. | Knowing what you owe and when. |
 | **Quarterly 941** | Figures for the quarterly federal return. Choose year and quarter. | Preparing Form 941. |
 | **Workers comp** | Wages by workers comp code with premium. Wages paid to employees with no code are grouped as *Unclassified* (the row names those employees), and wages paid to exempt employees get their own *EXEMPT* row with no premium. | Insurance audit. |
-| **Oklahoma SUTA (OESC)** | Choose company, year and quarter. Per employee: total wages, excess wages, taxable wages and the SUTA contributions calculated, with totals, the company's rate and the taxable wage base. Approved and paid paychecks only. A **Print** button is provided. Only the last four SSN digits are shown. | Preparing your OESC quarterly contribution report. |
+| **Oklahoma SUTA (OESC)** | Choose company, year and quarter. Per employee: total wages, excess wages, taxable wages and the SUTA contributions calculated, with totals, the company's rate and the taxable wage base for the chosen year. Approved and paid paychecks only. A **Print** button is provided. Only the last four SSN digits are shown. | Preparing your OESC quarterly contribution report. |
 | **Oklahoma withholding** | Oklahoma tax withheld. | State withholding filings. |
 | **W-2 export** | Downloads a CSV of per-employee W-2 box amounts. Box 1 (and Box 16) is gross pay less **pre-tax** deductions only: health and other cafeteria plans and traditional 401(k). Roth contributions, other post-tax deductions and garnishments do not reduce it. Box 3 (Social Security wages, capped at the wage base) and Box 5 (Medicare wages) are gross pay less cafeteria-plan items only, so 401(k) deferrals stay in them. SSN is not exported. **Box 12 code D (401(k) deferrals) is not included**; take it from the **Deductions and benefits** report. | Year-end W-2 preparation. |
 | **Deductions and benefits** | Benefit and deduction totals. | Reconciling with carriers. |
@@ -290,7 +312,7 @@ Open **Reports** and pick a report. Every report lets you choose the company; mo
 
 **Running across companies.** If you can access more than one company, six reports (register, tax liability, workers comp, deductions, client liabilities, new hires) can be run for *all* your companies at once. They show a subtotal per company and a grand total. The **941**, **Oklahoma SUTA**, **Oklahoma withholding**, and **W-2 export** must be run one company at a time, because each is filed under that company's own EIN.
 
-## 12. Year-end checklist
+## 13. Year-end checklist
 
 1. Make sure every pay period for the year is **paid** and no drafts are left open.
 2. Void anything wrong *before* running year-end reports.
@@ -299,10 +321,11 @@ Open **Reports** and pick a report. Every report lets you choose the company; mo
 5. Run **W-2 export** for each company and compare against the payroll register.
 6. Review employee addresses and SSNs on the profiles before producing W-2s.
 7. Back up the database and the encryption key (see your administrator).
+8. Admins: check **Tax Settings** has next year's wage bases before the first payroll of January.
 
 Confirm figures against the official IRS and Oklahoma Tax Commission instructions before filing.
 
-## 13. Troubleshooting
+## 14. Troubleshooting
 
 | Problem | Likely cause and fix |
 |---|---|
@@ -324,7 +347,7 @@ Confirm figures against the official IRS and Oklahoma Tax Commission instruction
 | Workers comp code will not save | The code belongs to a different company than the employee. |
 | PDF pay stub fails | Server is missing a PDF library. Tell your administrator. |
 
-## 14. Things to know
+## 15. Things to know
 
 - **Remittances are marked per payee, not per payment.** **Mark Remitted** marks everything outstanding for that payee, company and year in one go. There is no undo and no partial amount; ask an administrator if one was marked by mistake.
 - **Employer insurance premiums** are not modeled. Client liabilities include the employee's deduction and any employer match, not a company-paid premium share.

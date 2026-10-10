@@ -68,13 +68,13 @@ A self-hosted payroll application for small businesses operating in Oklahoma. Ha
 ### Taxes Withheld (Employee)
 - Federal income tax (IRS Publication 15, W-4 elections)
 - Oklahoma state income tax (OTC withholding tables, 0.25%–4.75%)
-- Social Security (6.2%, wage base $176,100 for 2025)
+- Social Security (6.2%, wage base per pay year from the `tax_years` table, edited under Tax Settings)
 - Medicare (1.45%; additional 0.9% on wages over $200,000)
 
 ### Employer-Side Taxes
 - FICA match — Social Security 6.2%, Medicare 1.45%
 - FUTA — 6.0% on first $7,000 wages (net 0.6% after state credit)
-- Oklahoma SUTA — variable rate, ~$27,000 wage base
+- Oklahoma SUTA — variable rate, wage base per pay year from the `tax_years` table ($25,000 for 2026)
 - Workers compensation — rate per $100 wages by NCCI job class code
 
 ### Client Liabilities

@@ -55,7 +55,7 @@
   <span class="text-slate-500">EIN</span><span class="font-medium">{{ company.ein or "—" }}</span>
   <span class="text-slate-500">Quarter</span><span class="font-medium">Q{{ quarter }} {{ year }}</span>
   <span class="text-slate-500">Contribution rate</span><span class="font-medium tabular-nums">{{ "%.2f"|format(suta_rate * 100) }}%</span>
-  <span class="text-slate-500">Taxable wage base (per employee, per year)</span><span class="font-medium tabular-nums">${{ "{:,.2f}".format(wage_base) }}</span>
+  <span class="text-slate-500">Taxable wage base (per employee, per year)</span><span class="font-medium tabular-nums">${{ "{:,.2f}".format(wage_base) }}{% if wage_base_year != year %} <span class="text-amber-700 font-normal">({{ wage_base_year }} figure: no {{ year }} wage base on file)</span>{% endif %}</span>
   <span class="text-slate-500">Employees paid</span><span class="font-medium tabular-nums">{{ totals.employee_count }}</span>
 </div>
 

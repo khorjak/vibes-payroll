@@ -605,11 +605,21 @@ class TestSutaReport:
         assert "No approved or paid payroll" in self._get(client, company).text
 
     def test_wage_base_spans_quarters(self, client, db, company, salaried_employee):
-        # 26,000 earned in Q1 leaves 1,000 of the 27,000 base for Q2.
-        self._check(db, company, salaried_employee, date(2026, 3, 20), 26000)
+        # 24,000 earned in Q1 leaves 1,000 of the 2026 base (25,000) for Q2.
+        self._check(db, company, salaried_employee, date(2026, 3, 20), 24000)
         self._check(db, company, salaried_employee, date(2026, 5, 20), 5000)
         assert self._first_row(self._get(client, company).text) == [
             "5000.00", "4000.00", "1000.00", "0.00"]
+
+    def test_wage_base_follows_the_report_year(self, client, db, company, salaried_employee):
+        # 26,000 is under the 2025 base (28,200) but over the 2026 base (25,000).
+        for year in (2025, 2026):
+            self._check(db, company, salaried_employee, date(year, 5, 20), 26000)
+        assert self._first_row(self._get(client, company, year=2025).text) == [
+            "26000.00", "0.00", "26000.00", "0.00"]
+        assert self._first_row(self._get(client, company, year=2026).text) == [
+            "26000.00", "1000.00", "25000.00", "0.00"]
+        assert "$28,200.00" in self._get(client, company, year=2025).text
 
     def test_wage_base_exhausted_means_no_taxable_wages(self, client, db, company, salaried_employee):
         self._check(db, company, salaried_employee, date(2026, 3, 20), 30000)
@@ -819,8 +829,13 @@ class TestW2MedicareAndSsWages(_W2Helpers):
         assert row["Box6_MedTax"] == "4800.00"   # the tax itself still includes Additional Medicare
 
     def test_box3_capped_at_ss_wage_base(self, client, db, company, salaried_employee):
-        self._check(db, company, salaried_employee, 250000, [], taxes=[("Social Security (Employee)", 10918.20)])
-        assert self._rows(client, company)[0]["Box3_SSWages"] == "176100.00"
+        self._check(db, company, salaried_employee, 250000, [], taxes=[("Social Security (Employee)", 11439.00)])
+        assert self._rows(client, company)[0]["Box3_SSWages"] == "184500.00"  # 2026 wage base
+
+    def test_box3_uses_the_export_years_wage_base(self, client, db, company, salaried_employee):
+        self._check(db, company, salaried_employee, 250000, [], pay_date=date(2025, 5, 20))
+        rows = client.get(f"/reports/w2-export?company_id={company.id}&year=2025").text
+        assert "176100.00" in rows and "184500.00" not in rows
 
     def test_box3_and_box5_below_the_cap_equal_fica_wages(self, client, db, company, salaried_employee):
         self._check(db, company, salaried_employee, 3000, [("Health", 100, True, False)],
