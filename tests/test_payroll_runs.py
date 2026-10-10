@@ -1362,14 +1362,17 @@ class TestYtdWageBaseBasis:
         assert self._line(db, self._draft(db, salaried_employee, pay_period), "FUTA") == Decimal("0.60")
 
     def test_suta_base_not_understated_by_garnishments(self, db, company, salaried_employee, pay_period):
-        self._prior(db, company, salaried_employee, "26900.00", post_tax="5000.00")
+        from services.tax_years import tax_year_for
+        base = tax_year_for(db, pay_period.pay_date.year).ok_suta_wage_base
+        self._prior(db, company, salaried_employee, str(base - 100), post_tax="5000.00")
         assert self._line(db, self._draft(db, salaried_employee, pay_period), "SUTA") == Decimal("2.70")
 
     def test_social_security_base_not_understated_by_garnishments(
         self, db, company, salaried_employee, pay_period,
     ):
-        from tax_engine.fica import SS_WAGE_BASE
-        self._prior(db, company, salaried_employee, str(SS_WAGE_BASE - 100), post_tax="5000.00")
+        from services.tax_years import tax_year_for
+        self._prior(db, company, salaried_employee, str(tax_year_for(db, pay_period.pay_date.year).ss_wage_base - 100),
+                    post_tax="5000.00")
         pc = self._draft(db, salaried_employee, pay_period)
         assert self._line(db, pc, "Social Security (Employee)") == Decimal("6.20")  # 6.2% of $100
 
@@ -1466,7 +1469,8 @@ class TestRetirementDeferralFica:
         assert pc.total_deductions == Decimal("0.00")
 
     def test_ytd_wage_base_counts_401k_deferrals(self, db, company, salaried_employee, pay_period):
-        from tax_engine.fica import SS_WAGE_BASE
+        from services.tax_years import tax_year_for
+        SS_WAGE_BASE = tax_year_for(db, 2026).ss_wage_base
         prior_pp = PayPeriod(company_id=company.id, start_date=date(2026, 4, 1), end_date=date(2026, 4, 14),
                              pay_date=date(2026, 4, 20), frequency="biweekly", status="paid")
         db.add(prior_pp)

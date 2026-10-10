@@ -14,6 +14,7 @@ from models.garnishment import GarnishmentOrder
 from models.company import Company
 from tax_engine.models import PAY_PERIOD_FACTORS, PaycheckInput, W4Input, OKWithholdingInput, GarnishmentInputItem
 from tax_engine.calculator import calculate_paycheck
+from services.tax_years import tax_year_for
 
 _TWO = Decimal("0.01")
 
@@ -451,9 +452,12 @@ def draft_paycheck(
     if employee.workers_comp_code and not employee.workers_comp_exempt:
         wc_rate = Decimal(str(employee.workers_comp_code.rate_per_100_wages or 0))
 
+    bases = tax_year_for(db, pay_period.pay_date.year)
     inp = PaycheckInput(
         gross_wages=gross,
         pay_frequency=frequency,
+        ss_wage_base=bases.ss_wage_base,
+        suta_wage_base=bases.ok_suta_wage_base,
         ytd_gross_prior=ytd["taxable"],
         ytd_ss_wages_prior=ytd["ss_wages"],
         ytd_futa_wages_prior=ytd["futa_wages"],

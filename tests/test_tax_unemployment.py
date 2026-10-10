@@ -1,6 +1,8 @@
 """Tests for FUTA and SUTA calculations."""
 from decimal import Decimal
-from tax_engine.unemployment import calc_futa, calc_suta, FUTA_WAGE_BASE, OK_SUTA_WAGE_BASE
+from tax_engine.unemployment import calc_futa, calc_suta, FUTA_WAGE_BASE
+
+OK_SUTA_WAGE_BASE = Decimal("28200")  # 2025
 
 
 class TestFUTA:
@@ -44,22 +46,22 @@ class TestSUTA:
     def test_standard_suta(self):
         rate = Decimal("0.027")  # 2.7%
         # $2,000 wages, no prior → $2,000 × 2.7% = $54
-        assert calc_suta(Decimal("2000"), Decimal("0"), rate) == Decimal("54.00")
+        assert calc_suta(Decimal("2000"), Decimal("0"), rate, wage_base=OK_SUTA_WAGE_BASE) == Decimal("54.00")
 
     def test_partial_wage_base(self):
         rate = Decimal("0.027")
-        # $25,000 prior, $4,000 wages → only $2,000 subject ($27,000 cap)
-        result = calc_suta(Decimal("4000"), Decimal("25000"), rate)
+        # $2,000 left under the base, $4,000 wages → only $2,000 subject
+        result = calc_suta(Decimal("4000"), OK_SUTA_WAGE_BASE - Decimal("2000"), rate, wage_base=OK_SUTA_WAGE_BASE)
         assert result == Decimal("54.00")
 
     def test_at_wage_base_no_tax(self):
         rate = Decimal("0.027")
-        result = calc_suta(Decimal("2000"), OK_SUTA_WAGE_BASE, rate)
+        result = calc_suta(Decimal("2000"), OK_SUTA_WAGE_BASE, rate, wage_base=OK_SUTA_WAGE_BASE)
         assert result == Decimal("0.00")
 
     def test_zero_rate(self):
-        result = calc_suta(Decimal("5000"), Decimal("0"), Decimal("0"))
+        result = calc_suta(Decimal("5000"), Decimal("0"), Decimal("0"), wage_base=OK_SUTA_WAGE_BASE)
         assert result == Decimal("0.00")
 
     def test_zero_wages(self):
-        assert calc_suta(Decimal("0"), Decimal("0"), Decimal("0.027")) == Decimal("0.00")
+        assert calc_suta(Decimal("0"), Decimal("0"), Decimal("0.027"), wage_base=OK_SUTA_WAGE_BASE) == Decimal("0.00")

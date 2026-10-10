@@ -15,6 +15,7 @@ Four roles control *what* a user may do. A separate company assignment controls 
 | Approve a payroll run, void a paycheck, mark a period paid | ✓ | | ✓ | |
 | Company, benefit plan and workers comp code setup | ✓ | | | |
 | User management and company assignment | ✓ | | | |
+| Tax settings (yearly wage bases) | ✓ | | | |
 
 A user with no company assignment (other than an admin) sees no data. A record in a company the user cannot access returns "not found", not "forbidden".
 
@@ -113,6 +114,7 @@ Inputs the calculation reads:
 | Pre-tax and post-tax deductions | Active benefit enrollments. Fixed plans deduct a dollar amount; percent plans deduct that percent of the period's gross. An enrollment override uses the same unit as its plan. |
 | Garnishments | Active garnishment orders |
 | SUTA rate | Company setting; 2.7% if blank |
+| Wage bases | **Tax Settings** row for the pay date's calendar year (`tax_years` table): Social Security and Oklahoma SUTA wage bases. Shipped with 2024 to 2026: Social Security $168,600 / $176,100 / $184,500, Oklahoma SUTA $27,000 / $28,200 / $25,000. A missing year uses the latest earlier year and the period page warns. FUTA's $7,000 is fixed by law |
 | Workers comp rate | Employee's workers comp code (rate per $100 of wages); none for an employee marked exempt from workers comp |
 | Pre-tax treatment | Every pre-tax plan lowers federal and Oklahoma income tax wages. Only non-401k pre-tax plans (health, dental, vision, FSA, HSA, other) also lower Social Security, Medicare, FUTA and SUTA wages; a traditional 401(k) deferral does not (`FICA_TAXABLE_PRE_TAX_TYPES`). Employer FICA follows the same wages. |
 | Year-to-date wages | Earlier non-voided paychecks in the same calendar year: gross less Section 125 pre-tax deductions. Post-tax deductions, garnishments and 401(k) deferrals are not subtracted, because the Social Security, FUTA and SUTA wage bases count wages paid, not take-home pay |
@@ -189,7 +191,7 @@ flowchart TD
 
 Reports count only approved and paid paychecks. Drafts and voided paychecks are left out, so totals do not change while a run is under review. The exception is the payroll register, which lists every paycheck in the chosen period, drafts included, for review before approval.
 
-**Oklahoma SUTA report.** For one company and quarter, lists each employee paid in the quarter with total wages, taxable wages, excess wages and contributions. Only approved and paid paychecks count. Taxable wages apply the Oklahoma wage base ($27,000 per employee per year, the tax engine's constant) to the employee's year-to-date subject wages (gross less cafeteria-plan pre-tax deductions; 401(k) deferrals stay in) in pay date order, so earlier quarters and earlier paychecks use up the base first. Excess wages are total wages minus taxable wages. Contributions are the sum of the SUTA lines already calculated on the paychecks, so a mid-year rate change shows what was actually withheld. SSNs are shown as last four digits only.
+**Oklahoma SUTA report.** For one company and quarter, lists each employee paid in the quarter with total wages, taxable wages, excess wages and contributions. Only approved and paid paychecks count. Taxable wages apply the report year's Oklahoma wage base from **Tax Settings** (per employee; marked if an earlier year's figure is used) to the employee's year-to-date subject wages (gross less cafeteria-plan pre-tax deductions; 401(k) deferrals stay in) in pay date order, so earlier quarters and earlier paychecks use up the base first. Excess wages are total wages minus taxable wages. Contributions are the sum of the SUTA lines already calculated on the paychecks, so a mid-year rate change shows what was actually withheld. SSNs are shown as last four digits only.
 
 ## 10. Access and session flow
 
@@ -208,7 +210,7 @@ Access is re-checked on every request. If an admin removes a company from a user
 
 ## 11. Audit trail
 
-The audit log records who changed what and when for: employee create and update, marking a new hire as reported, pay period create (including off-cycle), paycheck approve and void, user role and active-flag changes, and company assignment grants and revokes.
+The audit log records who changed what and when for: employee create and update, marking a new hire as reported, pay period create (including off-cycle), paycheck approve and void, user role and active-flag changes, company assignment grants and revokes, and Tax Settings changes (old and new wage bases).
 
 ## 12. Known limitations
 
@@ -217,5 +219,7 @@ These are current behaviors, not bugs in your data:
 - **Remittances are marked per payee, not per payment.** **Mark Remitted** covers everything outstanding for a payee, company and year. There is no partial amount and no undo.
 - **Recalculating an off-cycle period redrafts everyone.** An off-cycle payment lives in its own one-day pay period. Choosing Recalculate on it drafts every active employee in the company, not just the one paid, and a salaried employee's entered amount is replaced by their normal salary. Approve the off-cycle period as created; to change it, void the paycheck and create a new off-cycle payment.
 - **Employer share of insurance premiums** is not modeled. Only the employee's deduction (plus any employer match on the plan) appears in client liabilities.
+- **Wage bases need a yearly update.** An admin adds each new year's Social Security and Oklahoma SUTA wage bases under **Tax Settings** once published (SSA in October, OESC in winter). Until then, a pay date in that year uses the latest earlier year's figures, with a warning on the pay period page, the Tax Settings page and the SUTA report. Changing a year's figures does not recalculate approved or paid paychecks; in particular, paychecks approved before per-year wage bases existed used $176,100 and $27,000 whatever the year.
+- **Income tax withholding tables are not per year.** Federal withholding uses the 2025 IRS Publication 15-T tables for every pay date; Oklahoma uses the rate schedule in effect from 2024.
 - **Hourly minimum wage check** ($7.25) applies when creating an employee.
 - The site runs over plain HTTP in the Docker test deployment. Use test data only.

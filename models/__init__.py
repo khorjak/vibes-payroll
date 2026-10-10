@@ -8,6 +8,7 @@ from .garnishment import GarnishmentOrder
 from .audit import AuditLog
 from .user import User
 from .user_company import UserCompany
+from .tax_year import TaxYear
 
 __all__ = [
     "Base",
@@ -27,4 +28,5 @@ __all__ = [
     "AuditLog",
     "User",
     "UserCompany",
+    "TaxYear",
 ]

@@ -17,6 +17,7 @@ from routers.auth import (
     get_active_company, get_current_user, require_admin, require_preparer,
     require_approver, hash_password,
 )
+from services.tax_years import seed_tax_years
 from utils.csrf import _csrf_dep
 from main import app
 
@@ -33,6 +34,7 @@ def db():
     Base.metadata.create_all(engine)
     Session = sessionmaker(bind=engine)
     session = Session()
+    seed_tax_years(session)
     try:
         yield session
     finally:
@@ -94,6 +96,7 @@ def auth_db():
     Base.metadata.create_all(engine)
     Session = sessionmaker(bind=engine)
     session = Session()
+    seed_tax_years(session)
     try:
         yield session
     finally:

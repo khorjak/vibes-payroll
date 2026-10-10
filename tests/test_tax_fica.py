@@ -4,45 +4,47 @@ from decimal import Decimal
 from tax_engine.fica import (
     calc_ss_employee, calc_ss_employer,
     calc_medicare_employee, calc_medicare_employer,
-    SS_WAGE_BASE, ADDITIONAL_MEDICARE_THRESHOLD,
+    ADDITIONAL_MEDICARE_THRESHOLD,
 )
+
+SS_WAGE_BASE = Decimal("176100")  # 2025
 
 
 class TestSocialSecurity:
     def test_standard_withholding_no_prior_ytd(self):
         # 6.2% of $2,000
-        assert calc_ss_employee(Decimal("2000"), Decimal("0")) == Decimal("124.00")
+        assert calc_ss_employee(Decimal("2000"), Decimal("0"), wage_base=SS_WAGE_BASE) == Decimal("124.00")
 
     def test_employer_matches_employee(self):
         wages = Decimal("2000")
-        assert calc_ss_employee(wages, Decimal("0")) == calc_ss_employer(wages, Decimal("0"))
+        assert calc_ss_employee(wages, Decimal("0"), wage_base=SS_WAGE_BASE) == calc_ss_employer(wages, Decimal("0"), wage_base=SS_WAGE_BASE)
 
     def test_partial_wage_base_remaining(self):
         # $1,000 remaining before cap: only $1,000 is taxable
         prior = SS_WAGE_BASE - Decimal("1000")
-        result = calc_ss_employee(Decimal("2000"), prior)
+        result = calc_ss_employee(Decimal("2000"), prior, wage_base=SS_WAGE_BASE)
         assert result == Decimal("62.00")  # $1,000 × 6.2%
 
     def test_at_wage_base_no_tax(self):
         # YTD already at cap — no SS owed
-        result = calc_ss_employee(Decimal("2000"), SS_WAGE_BASE)
+        result = calc_ss_employee(Decimal("2000"), SS_WAGE_BASE, wage_base=SS_WAGE_BASE)
         assert result == Decimal("0.00")
 
     def test_over_wage_base_no_tax(self):
-        result = calc_ss_employee(Decimal("5000"), SS_WAGE_BASE + Decimal("1000"))
+        result = calc_ss_employee(Decimal("5000"), SS_WAGE_BASE + Decimal("1000"), wage_base=SS_WAGE_BASE)
         assert result == Decimal("0.00")
 
     def test_exact_wage_base_in_single_paycheck(self):
-        result = calc_ss_employee(SS_WAGE_BASE, Decimal("0"))
+        result = calc_ss_employee(SS_WAGE_BASE, Decimal("0"), wage_base=SS_WAGE_BASE)
         expected = (SS_WAGE_BASE * Decimal("0.062")).quantize(Decimal("0.01"))
         assert result == expected
 
     def test_zero_wages(self):
-        assert calc_ss_employee(Decimal("0"), Decimal("0")) == Decimal("0.00")
+        assert calc_ss_employee(Decimal("0"), Decimal("0"), wage_base=SS_WAGE_BASE) == Decimal("0.00")
 
     def test_small_wages_rounds_correctly(self):
         # $100 × 6.2% = $6.20
-        assert calc_ss_employee(Decimal("100"), Decimal("0")) == Decimal("6.20")
+        assert calc_ss_employee(Decimal("100"), Decimal("0"), wage_base=SS_WAGE_BASE) == Decimal("6.20")
 
 
 class TestMedicare:

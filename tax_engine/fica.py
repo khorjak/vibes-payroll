@@ -1,7 +1,7 @@
 """
-FICA calculations for 2025.
+FICA calculations.
 
-Social Security: 6.2% employee + 6.2% employer on wages up to $176,100.
+Social Security: 6.2% employee + 6.2% employer on wages up to the year's wage base.
 Medicare: 1.45% employee + 1.45% employer on all wages.
 Additional Medicare: 0.9% employee-only on wages above $200,000 YTD.
 """
@@ -11,24 +11,25 @@ SS_RATE = Decimal("0.062")
 MEDICARE_RATE = Decimal("0.0145")
 ADDITIONAL_MEDICARE_RATE = Decimal("0.009")
 
-SS_WAGE_BASE = Decimal("176100")           # 2025
-ADDITIONAL_MEDICARE_THRESHOLD = Decimal("200000")
+# The Social Security wage base changes every year; callers pass the pay year's
+# figure (tax_years table, maintained under Tax Settings).
+ADDITIONAL_MEDICARE_THRESHOLD = Decimal("200000")  # statutory, not indexed
 
 
 def _round(d: Decimal) -> Decimal:
     return d.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 
-def calc_ss_employee(wages: Decimal, ytd_ss_wages_prior: Decimal) -> Decimal:
-    """Employee Social Security: 6.2% on wages up to annual wage base."""
-    subject = max(Decimal("0"), SS_WAGE_BASE - ytd_ss_wages_prior)
+def calc_ss_employee(wages: Decimal, ytd_ss_wages_prior: Decimal, *, wage_base: Decimal) -> Decimal:
+    """Employee Social Security: 6.2% on wages up to the pay year's wage base."""
+    subject = max(Decimal("0"), wage_base - ytd_ss_wages_prior)
     taxable = min(wages, subject)
     return _round(taxable * SS_RATE)
 
 
-def calc_ss_employer(wages: Decimal, ytd_ss_wages_prior: Decimal) -> Decimal:
+def calc_ss_employer(wages: Decimal, ytd_ss_wages_prior: Decimal, *, wage_base: Decimal) -> Decimal:
     """Employer Social Security matches employee exactly."""
-    return calc_ss_employee(wages, ytd_ss_wages_prior)
+    return calc_ss_employee(wages, ytd_ss_wages_prior, wage_base=wage_base)
 
 
 def calc_medicare_employee(wages: Decimal, ytd_gross_prior: Decimal) -> Decimal:

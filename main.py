@@ -8,7 +8,7 @@ from database import engine, get_db, SessionLocal
 from models import Base
 from config import settings
 from app_templates import templates
-from routers import companies, employees, pay_periods, reports, users
+from routers import companies, employees, pay_periods, reports, tax_settings, users
 from routers.auth import (
     ActiveCompany, CurrentUser, router as auth_router, hash_password,
 )
@@ -27,6 +27,8 @@ with SessionLocal() as _db:
             is_active=True,
         ))
         _db.commit()
+    from services.tax_years import seed_tax_years
+    seed_tax_years(_db)
 
 app = FastAPI(title="Payroll", docs_url="/api/docs" if settings.debug else None)
 
@@ -45,6 +47,7 @@ app.include_router(employees.router)
 app.include_router(pay_periods.router)
 app.include_router(reports.router)
 app.include_router(users.router)
+app.include_router(tax_settings.router)
 
 @app.middleware("http")
 async def security_headers(request: Request, call_next) -> Response:

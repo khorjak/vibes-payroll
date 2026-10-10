@@ -7,11 +7,16 @@ import pytest
 from tax_engine.calculator import calculate_paycheck
 from tax_engine.models import PaycheckInput, W4Input, OKWithholdingInput
 
+SS_WAGE_BASE = Decimal("176100")       # 2025
+OK_SUTA_WAGE_BASE = Decimal("28200")   # 2025
+
 
 def make_input(**kwargs):
     defaults = dict(
         gross_wages=Decimal("2000"),
         pay_frequency="biweekly",
+        ss_wage_base=SS_WAGE_BASE,
+        suta_wage_base=OK_SUTA_WAGE_BASE,
         w4=W4Input(filing_status="single"),
         ok_withholding=OKWithholdingInput(filing_status="single", allowances=1),
         suta_rate=Decimal("0.027"),
@@ -124,7 +129,7 @@ class TestYTDWageBases:
         # Already at SS wage base — no more SS
         inp = make_input(
             gross_wages=Decimal("5000"),
-            ytd_ss_wages_prior=Decimal("176100"),
+            ytd_ss_wages_prior=SS_WAGE_BASE,
         )
         result = calculate_paycheck(inp)
         assert result.taxes.ss_employee == Decimal("0.00")
@@ -141,7 +146,7 @@ class TestYTDWageBases:
     def test_suta_stops_at_wage_base(self):
         inp = make_input(
             gross_wages=Decimal("2000"),
-            ytd_suta_wages_prior=Decimal("27000"),
+            ytd_suta_wages_prior=OK_SUTA_WAGE_BASE,
         )
         result = calculate_paycheck(inp)
         assert result.taxes.suta == Decimal("0.00")

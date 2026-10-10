@@ -15,8 +15,7 @@ from models.employee import Employee
 from models.payroll import PayPeriod, Paycheck, PaycheckLine, ClientLiability
 from models.user import User
 from models.workers_comp import WorkersCompCode
-from tax_engine.fica import SS_WAGE_BASE
-from tax_engine.unemployment import OK_SUTA_WAGE_BASE
+from services.tax_years import tax_year_for
 from utils.crypto import decrypt
 from routers.auth import ActiveCompany, ApproverUser, CurrentUser, get_current_user
 from utils.company_scope import (
@@ -405,7 +404,7 @@ def _masked_ssn(emp: Employee) -> str:
     return f"***-**-{raw[-4:]}" if raw and len(raw) >= 4 else ""
 
 
-def _suta_rows(paychecks: list, year: int, quarter: int) -> list[dict]:
+def _suta_rows(paychecks: list, year: int, quarter: int, wage_base: Decimal) -> list[dict]:
     """Per-employee SUTA wage detail for one quarter.
 
     `paychecks` must cover the whole year: the wage base is applied to year-to-date
@@ -435,7 +434,7 @@ def _suta_rows(paychecks: list, year: int, quarter: int) -> list[dict]:
                 Decimal("0"),
             )
             subject = max(Decimal("0"), gross - pre_tax)
-            taxable = min(subject, max(Decimal("0"), OK_SUTA_WAGE_BASE - ytd))
+            taxable = min(subject, max(Decimal("0"), wage_base - ytd))
             ytd += subject
             pay_date = pc.pay_period.pay_date
             if pay_date < q_start:
@@ -474,13 +473,14 @@ def suta_report(
     )
     if not year:
         year = date.today().year
+    tax_year = tax_year_for(db, year)
 
     company = None
     rows = []
     totals = {}
     if company_ids and quarter in _QUARTER_MONTHS:
         company = db.query(Company).filter(Company.id == company_ids[0]).first()
-        rows = _suta_rows(_load_paychecks(db, company_ids, year), year, quarter)
+        rows = _suta_rows(_load_paychecks(db, company_ids, year), year, quarter, tax_year.ok_suta_wage_base)
         totals = {
             key: sum((r[key] for r in rows), Decimal("0"))
             for key in ("total_wages", "excess_wages", "taxable_wages", "contributions")
@@ -499,7 +499,8 @@ def suta_report(
         "quarter": quarter,
         "rows": rows,
         "totals": totals,
-        "wage_base": OK_SUTA_WAGE_BASE,
+        "wage_base": tax_year.ok_suta_wage_base,
+        "wage_base_year": tax_year.year,
         "suta_rate": (company.suta_rate or Decimal("0.027")) if company else None,
     })
 
@@ -696,6 +697,7 @@ def w2_export(
 ):
     if not year:
         year = date.today().year
+    ss_base = tax_year_for(db, year).ss_wage_base
 
     # W-2s are issued per EIN. A consolidated export would produce forms that
     # belong to no single employer, so refuse rather than silently merge.
@@ -760,7 +762,7 @@ def w2_export(
         ok_tax = s.get("Oklahoma Income Tax", zero)
 
         box1 = (gross - pre_tax).quantize(Decimal("0.01"))
-        box3 = min(fica_wages, SS_WAGE_BASE).quantize(Decimal("0.01"))
+        box3 = min(fica_wages, ss_base).quantize(Decimal("0.01"))
         box5 = fica_wages.quantize(Decimal("0.01"))
 
         ssn_display = "ENCRYPTED" if emp.ssn_encrypted else ""
