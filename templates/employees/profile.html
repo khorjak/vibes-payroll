@@ -108,6 +108,9 @@
             {% if employee.workers_comp_code %}
               {{ employee.workers_comp_code.ncci_code }} — {{ employee.workers_comp_code.description }}
             {% else %}—{% endif %}
+            {% if not employee.workers_comp_code and employee.status == 'active' %}
+            <p class="text-xs text-amber-700 mt-0.5">No code on file: workers comp coverage is not verified.</p>
+            {% endif %}
           </dd>
         </div>
       </dl>

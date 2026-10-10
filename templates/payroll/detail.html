@@ -82,6 +82,17 @@
 </div>
 {% endif %}
 
+{% if missing_wc_employees %}
+<div class="mb-4 px-4 py-3 rounded-md bg-amber-50 ring-1 ring-amber-200">
+  <p class="text-sm font-medium text-amber-800">No workers comp code on file (coverage not verified):</p>
+  <ul class="mt-1 text-sm text-amber-700 list-disc list-inside">
+    {% for emp in missing_wc_employees %}
+    <li><a href="/employees/{{ emp.id }}/edit" class="underline">{{ emp.full_name }}</a></li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+
 {# Paycheck table #}
 {% if pp.paychecks %}
 <div class="bg-white rounded-lg border border-slate-200 overflow-hidden">

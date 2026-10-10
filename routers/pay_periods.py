@@ -475,9 +475,24 @@ def pay_period_detail(
             emp for emp in candidates if emp.id in auto_final_ids or emp.id not in has_final_ids
         ]
 
+    # Coverage check: employees about to be paid with no workers comp code on file.
+    missing_wc_employees = []
+    if pp.status in ("open", "draft"):
+        missing_wc_employees = (
+            db.query(Employee)
+            .filter(
+                Employee.company_id == pp.company_id,
+                Employee.status == "active",
+                Employee.workers_comp_code_id.is_(None),
+            )
+            .order_by(Employee.last_name, Employee.first_name)
+            .all()
+        )
+
     return templates.TemplateResponse(request, "payroll/detail.html", {
         "pp": pp,
         "flash": flash,
+        "missing_wc_employees": missing_wc_employees,
         "variance_flags": variance_flags,
         "terminated_needing_final": terminated_needing_final,
         "auto_final_ids": auto_final_ids,
