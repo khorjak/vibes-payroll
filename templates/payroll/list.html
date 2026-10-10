@@ -3,7 +3,7 @@
 {% block breadcrumb %}Pay Runs{% endblock %}
 
 {% block content %}
-<div class="flex items-center justify-between mb-6">
+<div class="flex flex-wrap items-center justify-between gap-3 mb-6">
   <h1 class="text-xl font-semibold text-slate-800">Pay Runs</h1>
   {% if has_role(request, 'preparer') %}
   <div class="flex gap-3">
@@ -33,7 +33,7 @@
   </button>
 </form>
 
-<div class="bg-white rounded-lg border border-slate-200 overflow-hidden">
+<div class="bg-white rounded-lg border border-slate-200 overflow-x-auto">
   <table class="w-full text-sm">
     <thead class="bg-slate-50 border-b border-slate-200">
       <tr>

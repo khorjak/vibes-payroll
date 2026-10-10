@@ -1,6 +1,6 @@
 # Mobile / responsive UI plan
 
-> Status: **Phase 1 implemented**; the Alpine/HTMX finding is fixed. Phases 2-3 pending.
+> Status: **Phases 1-2 implemented**; the Alpine/HTMX finding is fixed. Phase 3 pending.
 
 ## Problem
 
@@ -51,14 +51,30 @@ put title and action buttons on one row, and almost nothing used `sm:`/`md:`.
   latent timesheet bug: `hx-include="find input"` sent only the CSRF token, so
   autosave stored 0 hours, and `from:input` re-posted every row; both fixed.
 
-## Phase 2 — page sweep (all templates)
+## Phase 2 — page sweep (done)
 
-- Wrap every table in `overflow-x-auto`.
-- `grid-cols-N` → `grid-cols-1 sm:grid-cols-N` (employee form/profile, company
-  form/detail, paycheck detail, reports index, SUTA, etc.).
-- Page headers `flex-col gap-3 sm:flex-row sm:justify-between`; action groups
-  `flex-wrap` (pay period page: Calculate / Approve / Mark Paid + check number).
-- Inline row forms (Mark Remitted, void reason, Save Check #) stack on phones.
+- **Tables.** 13 tables sat directly in an `overflow-hidden` card, so on a phone
+  their right-hand columns were cut off and unreachable. Those cards are now
+  `overflow-x-auto`, as are the payroll register card and the benefit cards on
+  the company and employee pages. The paycheck detail tables needed no scroller:
+  they had been squeezed by a two-column grid that now stacks below `lg`.
+  `tests/test_layout.py` fails if a `<table>` sits directly inside an
+  `overflow-hidden` wrapper again.
+- **Grids.** Form and summary grids are `grid-cols-1 sm:grid-cols-N` (employee
+  form, company form, benefit plan edit, new pay period, the company and profile
+  add forms, reports index, paycheck summary). The label/value detail grids on
+  the employee profile, company detail and SUTA summary stay two columns; they
+  read fine at 375px.
+- **Headers.** Page header rows got `flex-wrap gap-3` rather than a
+  `flex-col`/`sm:flex-row` switch: the actions drop below the title only when
+  they don't fit, and desktop is unchanged. The pay period and paycheck action
+  groups wrap too.
+- **Inline forms.** Mark Remitted stacks its reference field above the button
+  on phones; the void reason form wraps. Save Check # and Mark Paid already fit.
+- Verified in headless Chromium on 37 pages with seeded data (open, draft and
+  paid runs, a benefit liability): at 375px no element overflows the content
+  area unless it is inside a horizontal scroller (9 pages failed before); at
+  1280px nothing changed. Void panel and remit form checked at 375px.
 
 ## Phase 3 — polish where phones are actually used
 

@@ -24,7 +24,7 @@
     <div class="bg-white rounded-lg ring-1 ring-slate-200 divide-y divide-slate-100">
       <div class="p-5">
         <h2 class="text-sm font-semibold text-slate-700 mb-4">Personal Information</h2>
-        <div class="grid grid-cols-2 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label class="block text-sm font-medium text-slate-700 mb-1">First Name <span class="text-red-500">*</span></label>
             <input type="text" name="first_name"
@@ -68,7 +68,7 @@
                    value="{{ employee.address or '' if employee else '' }}"
                    class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
           </div>
-          <div class="grid grid-cols-3 gap-3">
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <label class="block text-sm font-medium text-slate-700 mb-1">City</label>
               <input type="text" name="city"
@@ -95,7 +95,7 @@
     <!-- Employment -->
     <div class="bg-white rounded-lg ring-1 ring-slate-200 p-5">
       <h2 class="text-sm font-semibold text-slate-700 mb-4">Employment</h2>
-      <div class="grid grid-cols-2 gap-4">
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label class="block text-sm font-medium text-slate-700 mb-1">Company <span class="text-red-500">*</span></label>
           <select name="company_id" required
@@ -196,7 +196,7 @@
     <!-- Direct Deposit -->
     <div class="bg-white rounded-lg ring-1 ring-slate-200 p-5">
       <h2 class="text-sm font-semibold text-slate-700 mb-4">Direct Deposit</h2>
-      <div class="grid grid-cols-2 gap-4">
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label class="block text-sm font-medium text-slate-700 mb-1">Routing Number</label>
           <input type="password" name="routing_number" maxlength="9" autocomplete="off"
@@ -220,7 +220,7 @@
     <!-- Pay -->
     <div class="bg-white rounded-lg ring-1 ring-slate-200 p-5">
       <h2 class="text-sm font-semibold text-slate-700 mb-4">Pay</h2>
-      <div class="grid grid-cols-2 gap-4">
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label class="block text-sm font-medium text-slate-700 mb-1">
             Pay Rate <span class="text-red-500">*</span>

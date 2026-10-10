@@ -122,3 +122,16 @@ class TestTimesheetAutosave:
         assert f'hx-include="#ts-row-{hourly_employee.id} input"' in row
         # "from:input" listened to every input on the page, re-posting every row.
         assert 'hx-trigger="change delay:800ms"' in row
+
+
+class TestTablesScrollOnPhones:
+    def test_no_table_is_clipped_by_an_overflow_hidden_card(self):
+        # A table wider than a phone inside an overflow-hidden card is cut off
+        # and unreachable; the card must scroll (overflow-x-auto) instead.
+        offenders = []
+        for path in pathlib.Path("templates").rglob("*.html"):
+            lines = path.read_text().splitlines()
+            for n, line in enumerate(lines[1:], 2):
+                if "<table" in line and "overflow-hidden" in lines[n - 2]:
+                    offenders.append(f"{path}:{n - 1}")
+        assert not offenders, offenders

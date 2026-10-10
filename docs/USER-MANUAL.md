@@ -55,7 +55,7 @@ Preparing and approving are separate on purpose, so one person cannot both build
 
 The left navigation has: **Dashboard**, **Employees**, **Companies**, **Users** (admins only), **Pay Runs**, and **Reports**.
 
-**On a phone** (screens narrower than a tablet), the navigation is hidden to leave room for the page. Tap the menu button (three lines) at the top left to open it; tap a page, the close button, the dimmed area beside it, or press Esc to close it.
+**On a phone** (screens narrower than a tablet), the navigation is hidden to leave room for the page. Tap the menu button (three lines) at the top left to open it; tap a page, the close button, the dimmed area beside it, or press Esc to close it. Wide tables (pay runs, reports, users and so on) scroll sideways inside their box: swipe left on the table to see the remaining columns. Forms stack their fields in a single column.
 
 **Dashboard.** Shows three counts: active employees, companies, and open pay runs, with quick actions to add an employee or start a pay period.
 

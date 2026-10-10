@@ -3,7 +3,7 @@
 {% block breadcrumb %}<a href="/reports/" class="hover:underline">Reports</a> / Payroll Register{% endblock %}
 
 {% block content %}
-<div class="flex items-center justify-between mb-6">
+<div class="flex flex-wrap items-center justify-between gap-3 mb-6">
   <h1 class="text-xl font-semibold text-slate-800">Payroll Register</h1>
   {% if paychecks %}
   <button onclick="window.print()"
@@ -55,7 +55,7 @@
 </form>
 
 {% if pay_period_id and paychecks %}
-<div class="bg-white rounded-lg border border-slate-200 overflow-hidden">
+<div class="bg-white rounded-lg border border-slate-200 overflow-x-auto">
   <div class="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
     <span class="text-sm font-medium text-slate-700">
       Pay Date: {{ pay_period.pay_date }}
