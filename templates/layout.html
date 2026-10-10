@@ -11,18 +11,43 @@
     [x-cloak] { display: none !important; }
     .htmx-indicator { opacity: 0; transition: opacity 200ms ease-in; }
     .htmx-request .htmx-indicator { opacity: 1; }
+    /* Below md (768px) the sidebar is an off-canvas drawer, toggled by the small
+       script at the end of <body>. Plain CSS + vanilla JS on purpose: it must not
+       depend on Alpine/HTMX loading. visibility keeps the closed drawer's links
+       out of the tab order. */
+    #nav-backdrop { display: none; }
+    @media (max-width: 767.98px) {
+      /* visibility flips at once on open (so focus can move in) and only after
+         the slide-out on close. */
+      #sidebar { transform: translateX(-100%); visibility: hidden;
+                 transition: transform 200ms ease, visibility 0s linear 200ms; }
+      body.nav-open #sidebar { transform: none; visibility: visible;
+                               transition: transform 200ms ease, visibility 0s; }
+      body.nav-open #nav-backdrop { display: block; }
+      body.nav-open { overflow: hidden; }
+    }
   </style>
 </head>
 <body class="h-full bg-slate-50 text-slate-900 font-sans antialiased">
 <div class="flex h-full">
 
-  <!-- Sidebar -->
-  <aside class="w-56 bg-slate-900 text-slate-100 flex-shrink-0 flex flex-col">
-    <div class="px-4 py-5 border-b border-slate-700">
+  <!-- Drawer backdrop (phones only) -->
+  <div id="nav-backdrop" class="fixed inset-0 z-30 bg-slate-900/50 md:hidden" aria-hidden="true"></div>
+
+  <!-- Sidebar: fixed drawer below md, static column from md up -->
+  <aside id="sidebar"
+         class="fixed inset-y-0 left-0 z-40 w-64 md:static md:z-auto md:w-56 bg-slate-900 text-slate-100 flex-shrink-0 flex flex-col">
+    <div class="px-4 py-5 border-b border-slate-700 flex items-center justify-between">
       <span class="text-lg font-bold tracking-tight text-white">Payroll</span>
+      <button type="button" id="nav-close" aria-label="Close menu"
+              class="md:hidden -mr-1 p-2 rounded-md text-slate-400 hover:text-white hover:bg-slate-800">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+      </button>
     </div>
     <nav class="flex-1 px-3 py-4 space-y-0.5">
-      {% set nav_base = "flex items-center gap-2.5 px-3 py-2 rounded-md text-sm font-medium transition-colors" %}
+      {% set nav_base = "flex items-center gap-2.5 px-3 py-2.5 md:py-2 rounded-md text-sm font-medium transition-colors" %}
       {% set nav_active = "bg-indigo-600 text-white" %}
       {% set nav_idle = "text-slate-300 hover:bg-slate-800 hover:text-white" %}
 
@@ -92,17 +117,26 @@
   <div class="flex-1 flex flex-col min-w-0 overflow-hidden">
 
     <!-- Top bar -->
-    <header class="bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between shrink-0">
-      <div id="page-title" class="text-sm text-slate-500">{% block breadcrumb %}{% endblock %}</div>
-      <div class="flex items-center gap-4">
+    <header class="bg-white border-b border-slate-200 px-4 md:px-6 py-3 flex items-center justify-between gap-3 shrink-0">
+      <div class="flex items-center gap-3 min-w-0">
+        <button type="button" id="nav-open" aria-label="Open menu" aria-controls="sidebar"
+                aria-expanded="false"
+                class="md:hidden -ml-1 p-2 rounded-md text-slate-600 hover:bg-slate-100">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+          </svg>
+        </button>
+        <div id="page-title" class="text-sm text-slate-500 truncate">{% block breadcrumb %}{% endblock %}</div>
+      </div>
+      <div class="flex items-center gap-3 md:gap-4 shrink-0">
         {% set cc = company_context(request) %}
         {% if cc.available | length > 1 %}
         <form method="post" action="/companies/switch" class="flex items-center gap-2">
           <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
           <input type="hidden" name="next" value="{{ request.url.path }}">
-          <label for="company-switcher" class="text-xs text-slate-400">Company</label>
+          <label for="company-switcher" class="text-xs text-slate-400 hidden sm:inline">Company</label>
           <select id="company-switcher" name="company_id" onchange="this.form.submit()"
-                  class="rounded-md border border-slate-300 px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                  class="max-w-[9rem] sm:max-w-none rounded-md border border-slate-300 px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500">
             {% for c in cc.available %}
             <option value="{{ c.id }}" {{ 'selected' if cc.active and cc.active.id == c.id }}>{{ c.name }}</option>
             {% endfor %}
@@ -110,9 +144,9 @@
           <noscript><button type="submit" class="text-xs text-indigo-600">Go</button></noscript>
         </form>
         {% elif cc.active %}
-        <span class="text-xs text-slate-500">{{ cc.active.name }}</span>
+        <span class="text-xs text-slate-500 truncate max-w-[9rem] sm:max-w-none">{{ cc.active.name }}</span>
         {% endif %}
-        <span class="text-xs text-slate-500">{{ request.session.get("username", "") }}</span>
+        <span class="text-xs text-slate-500 hidden sm:inline">{{ request.session.get("username", "") }}</span>
         <form method="post" action="/auth/logout" class="inline">
           <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
           <button type="submit" class="text-xs text-slate-400 hover:text-slate-700 transition-colors">
@@ -125,7 +159,7 @@
     <!-- Flash messages -->
     {% if flash %}
     <div x-data="{ show: true }" x-show="show" x-cloak
-         class="mx-6 mt-4 px-4 py-3 rounded-md text-sm flex items-center justify-between
+         class="mx-4 md:mx-6 mt-4 px-4 py-3 rounded-md text-sm flex items-center justify-between
                 {% if flash in ['created','updated','w4_updated','ok_updated','enrolled','enrollment_ended','wc_added','benefit_added','calculated','approved','paid','voided','password_reset','new_hire_reported','remitted'] %}
                   bg-green-50 text-green-800 ring-1 ring-green-200
                 {% else %}
@@ -155,11 +189,28 @@
     {% endif %}
 
     <!-- Page content -->
-    <main class="flex-1 overflow-auto p-6">
+    <main class="flex-1 overflow-auto p-4 md:p-6">
       {% block content %}{% endblock %}
     </main>
 
   </div>
 </div>
+<script>
+  (function () {
+    var body = document.body;
+    var openBtn = document.getElementById("nav-open");
+    var closeBtn = document.getElementById("nav-close");
+    function setNav(open) {
+      if (body.classList.contains("nav-open") === open) return;
+      body.classList.toggle("nav-open", open);
+      openBtn.setAttribute("aria-expanded", open ? "true" : "false");
+      (open ? closeBtn : openBtn).focus();
+    }
+    openBtn.addEventListener("click", function () { setNav(true); });
+    closeBtn.addEventListener("click", function () { setNav(false); });
+    document.getElementById("nav-backdrop").addEventListener("click", function () { setNav(false); });
+    document.addEventListener("keydown", function (e) { if (e.key === "Escape") setNav(false); });
+  })();
+</script>
 </body>
 </html>

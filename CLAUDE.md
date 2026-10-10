@@ -31,6 +31,11 @@ Install deps: `pip install -r requirements-dev.txt`
 
 Self-hosted Oklahoma payroll application. FastAPI backend, Jinja2 + HTMX + Alpine.js + Tailwind frontend, SQLite + SQLAlchemy ORM.
 
+### Frontend / responsive layout
+
+- `templates/layout.html`: below `md` (768px) the sidebar is an off-canvas drawer (`#sidebar`, `#nav-open`, `#nav-close`, `#nav-backdrop`), shown via a `body.nav-open` class in a `<style>` media query and toggled by a small inline vanilla script. It deliberately does **not** use Alpine or HTMX. From `md` up it is the original fixed column. Mobile work is phased in `plans/MOBILE-PLAN.md`.
+- **Known issue:** the CSP in `main.py` has no `'unsafe-eval'`, so standard Alpine.js cannot evaluate any expression (`x-data`, `x-show`, `@click` all fail; `x-show` elements stay visible). The HTMX `<script>` SRI hash does not match what `unpkg.com/htmx.org@1.9.12` serves, so browsers block HTMX entirely. Don't build new UI on either until that is fixed.
+
 ### Shared Jinja2 instance
 
 All routers import `templates` from **`app_templates.py`** — a single `Jinja2Templates` instance. This matters because `main.py` registers the `csrf_token` Jinja2 global on this instance. Creating a new `Jinja2Templates` per-router breaks that global.

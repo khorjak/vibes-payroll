@@ -53,7 +53,9 @@ Preparing and approving are separate on purpose, so one person cannot both build
 
 ## 3. Finding your way around
 
-The left navigation has: **Dashboard**, **Employees**, **Companies**, **Users** (admins only), **Payroll**, and **Reports**.
+The left navigation has: **Dashboard**, **Employees**, **Companies**, **Users** (admins only), **Pay Runs**, and **Reports**.
+
+**On a phone** (screens narrower than a tablet), the navigation is hidden to leave room for the page. Tap the menu button (three lines) at the top left to open it; tap a page, the close button, the dimmed area beside it, or press Esc to close it.
 
 **Dashboard.** Shows three counts: active employees, companies, and open pay runs, with quick actions to add an employee or start a pay period.
 
