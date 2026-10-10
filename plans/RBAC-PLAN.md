@@ -109,6 +109,7 @@ Update button-visibility gates (UX only — the router dependency is the real se
 - `templates/employees/list.html:8`, `templates/employees/profile.html:26`, `templates/payroll/list.html:8` → `{% if has_role(request, 'preparer') %}`
 - `templates/companies/detail.html:14` → unchanged, stays `is_admin(request)`
 - `templates/payroll/detail.html` (Calculate / Approve / Mark-Paid / Void forms, currently ungated) and `templates/payroll/_timesheet_row.html`: gate Calculate + timesheet-save with `has_role(request, 'preparer')`; gate Approve/Mark-Paid/Void with `has_role(request, 'approver')`.
+- `templates/payroll/paycheck_detail.html`: its **Void** button was missed by this pass and stayed visible to every role (the route still returned 403). Later gated with `has_role(request, 'approver')`, matching **Save Check #** on the same page; covered by `test_void_button_shown_to_approver_only`.
 
 ### 6. Migration
 
