@@ -7,7 +7,8 @@ from models.employee import Employee
 from models.payroll import PayPeriod, Paycheck, ClientLiability
 
 
-def _run_payroll(client, db, company, employee):
+def _run_payroll(client, db, company, employee, approve=True):
+    """Calculate a May 2026 run. Reports only count approved/paid paychecks, so approve by default."""
     pp = PayPeriod(
         company_id=company.id,
         start_date=date(2026, 5, 1),
@@ -20,6 +21,8 @@ def _run_payroll(client, db, company, employee):
     db.commit()
     db.refresh(pp)
     client.post(f"/payroll/{pp.id}/calculate")
+    if approve:
+        client.post(f"/payroll/{pp.id}/approve")
     db.expire_all()
     db.refresh(pp)
     return pp
@@ -81,6 +84,7 @@ class TestReportRoutes:
             f"/reports/quarterly-941?company_id={company.id}&year=2026&quarter=1"
         )
         assert r.status_code == 200
+        assert "No payroll data" in r.text
 
     def test_workers_comp_no_params(self, client):
         r = client.get("/reports/workers-comp")
@@ -498,7 +502,7 @@ class TestMarkNewHireReportedEdgeCases:
 class TestDeductionsReportWithData:
     def _run(self, db, company, salaried_employee, benefit_plan):
         from models.benefit import EmployeeBenefitEnrollment
-        from services.payroll_service import calculate_payroll_run
+        from services.payroll_service import approve_payroll_run, calculate_payroll_run
         db.add(EmployeeBenefitEnrollment(
             employee_id=salaried_employee.id, benefit_plan_id=benefit_plan.id,
             effective_date=date(2026, 1, 1)))
@@ -507,6 +511,7 @@ class TestDeductionsReportWithData:
         db.add(pp)
         db.commit()
         calculate_payroll_run(pp, db)
+        approve_payroll_run(pp, db)
 
     def test_lists_each_deduction_with_total(self, client, db, company, salaried_employee, benefit_plan):
         self._run(db, company, salaried_employee, benefit_plan)
@@ -528,13 +533,14 @@ class TestDeductionsReportWithData:
         assert "Health Plan" not in r.text
 
     def test_same_deduction_across_paychecks_is_summed(self, client, db, company, salaried_employee, benefit_plan):
-        from services.payroll_service import calculate_payroll_run
+        from services.payroll_service import approve_payroll_run, calculate_payroll_run
         self._run(db, company, salaried_employee, benefit_plan)
         pp2 = PayPeriod(company_id=company.id, start_date=date(2026, 6, 1), end_date=date(2026, 6, 14),
                         pay_date=date(2026, 6, 20), frequency="biweekly", status="open")
         db.add(pp2)
         db.commit()
         calculate_payroll_run(pp2, db)
+        approve_payroll_run(pp2, db)
         r = client.get(f"/reports/deductions?company_id={company.id}&year=2026")
         assert "300.00" in r.text  # two $150 deductions in one row
 
@@ -583,7 +589,6 @@ class TestSutaReport:
 
     def test_wages_and_contributions_from_real_payroll(self, client, db, company, salaried_employee):
         pp = _run_payroll(client, db, company, salaried_employee)
-        client.post(f"/payroll/{pp.id}/approve")
         pc = db.query(Paycheck).filter_by(pay_period_id=pp.id).one()
         suta = next(l.amount for l in pc.lines if l.description == "SUTA")
         page = self._get(client, company).text
@@ -592,7 +597,7 @@ class TestSutaReport:
         assert f"${suta:.2f}" in page        # contribution as calculated
 
     def test_draft_paychecks_excluded(self, client, db, company, salaried_employee):
-        _run_payroll(client, db, company, salaried_employee)  # left in draft
+        _run_payroll(client, db, company, salaried_employee, approve=False)
         assert "No approved or paid payroll" in self._get(client, company).text
 
     def test_voided_paychecks_excluded(self, client, db, company, salaried_employee):
@@ -645,3 +650,60 @@ class TestSutaReport:
         self._check(db, company, salaried_employee, date(2026, 5, 20), 1000)
         self._check(db, company, hourly_employee, date(2026, 5, 20), 500)
         assert "$1500.00" in self._get(client, company).text
+
+
+# ── Reports count approved/paid paychecks only ──────────────────────────────
+
+class TestDraftsExcludedFromReports:
+    """(url, marker present only when the report has data)."""
+    REPORTS = {
+        "tax-liability": ("/reports/tax-liability?company_id={c}&year=2026", "Year Total"),
+        "941": ("/reports/quarterly-941?company_id={c}&year=2026&quarter=2", "Form 941 Summary"),
+        "workers-comp": ("/reports/workers-comp?company_id={c}&year=2026", "Unclassified"),
+        "ok-withholding": ("/reports/ok-withholding?company_id={c}&year=2026", "May"),
+        "deductions": ("/reports/deductions?company_id={c}&year=2026", "Health Plan"),
+        "suta": ("/reports/suta?company_id={c}&year=2026&quarter=2", "Smith, Jane"),
+    }
+
+    @pytest.fixture()
+    def enrolled(self, db, salaried_employee, benefit_plan):
+        from models.benefit import EmployeeBenefitEnrollment
+        db.add(EmployeeBenefitEnrollment(
+            employee_id=salaried_employee.id, benefit_plan_id=benefit_plan.id,
+            effective_date=date(2026, 1, 1)))
+        db.commit()
+
+    @pytest.mark.parametrize("name", REPORTS)
+    def test_draft_run_not_reported(self, client, db, company, salaried_employee, enrolled, name):
+        url, marker = self.REPORTS[name]
+        _run_payroll(client, db, company, salaried_employee, approve=False)
+        assert marker not in client.get(url.format(c=company.id)).text
+
+    @pytest.mark.parametrize("name", REPORTS)
+    def test_approved_run_reported(self, client, db, company, salaried_employee, enrolled, name):
+        url, marker = self.REPORTS[name]
+        _run_payroll(client, db, company, salaried_employee)
+        assert marker in client.get(url.format(c=company.id)).text
+
+    def test_paid_run_reported(self, client, db, company, salaried_employee):
+        pp = _run_payroll(client, db, company, salaried_employee)
+        client.post(f"/payroll/{pp.id}/mark-paid")
+        assert "Form 941 Summary" in client.get(
+            f"/reports/quarterly-941?company_id={company.id}&year=2026&quarter=2").text
+
+    def test_w2_export_skips_drafts(self, client, db, company, salaried_employee):
+        _run_payroll(client, db, company, salaried_employee, approve=False)
+        r = client.get(f"/reports/w2-export?company_id={company.id}&year=2026")
+        assert len(r.text.splitlines()) == 1  # header only
+
+    def test_voiding_after_approval_drops_it_from_reports(self, client, db, company, salaried_employee):
+        from services.payroll_service import void_paycheck
+        _run_payroll(client, db, company, salaried_employee)
+        void_paycheck(db.query(Paycheck).one(), "mistake", db)
+        assert "Form 941 Summary" not in client.get(
+            f"/reports/quarterly-941?company_id={company.id}&year=2026&quarter=2").text
+
+    def test_payroll_register_still_shows_draft_for_review(self, client, db, company, salaried_employee):
+        pp = _run_payroll(client, db, company, salaried_employee, approve=False)
+        r = client.get(f"/reports/payroll-register?company_id={company.id}&pay_period_id={pp.id}")
+        assert "Smith" in r.text

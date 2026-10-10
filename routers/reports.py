@@ -81,7 +81,9 @@ def _load_paychecks(
         )
         .filter(
             PayPeriod.company_id.in_(company_ids),
-            Paycheck.status != "voided",
+            # Drafts are unapproved and voids never happened: neither belongs in a
+            # filing or cost figure.
+            Paycheck.status.in_(["approved", "paid"]),
             PayPeriod.pay_date >= year_start,
             PayPeriod.pay_date < year_end,
         )
@@ -347,36 +349,36 @@ def quarterly_941(
 
     if company_ids and year and quarter:
         paychecks = _load_paychecks(db, company_ids, year, quarter)
+        if paychecks:  # else leave summary empty: template shows "No payroll data"
+            gross = sum(Decimal(str(pc.gross_wages)) for pc in paychecks)
+            s = _sum_lines(paychecks)
+            zero = Decimal("0")
+            fed_tax = s.get("Federal Income Tax", zero)
+            ss_emp = s.get("Social Security (Employee)", zero)
+            ss_er = s.get("Social Security (Employer)", zero)
+            med_emp = s.get("Medicare (Employee)", zero)
+            med_er = s.get("Medicare (Employer)", zero)
 
-        gross = sum(Decimal(str(pc.gross_wages)) for pc in paychecks)
-        s = _sum_lines(paychecks)
-        zero = Decimal("0")
-        fed_tax = s.get("Federal Income Tax", zero)
-        ss_emp = s.get("Social Security (Employee)", zero)
-        ss_er = s.get("Social Security (Employer)", zero)
-        med_emp = s.get("Medicare (Employee)", zero)
-        med_er = s.get("Medicare (Employer)", zero)
+            ss_wages = (ss_emp / Decimal("0.062")).quantize(Decimal("0.01")) if ss_emp else Decimal("0")
+            med_wages = (med_emp / Decimal("0.0145")).quantize(Decimal("0.01")) if med_emp else Decimal("0")
 
-        ss_wages = (ss_emp / Decimal("0.062")).quantize(Decimal("0.01")) if ss_emp else Decimal("0")
-        med_wages = (med_emp / Decimal("0.0145")).quantize(Decimal("0.01")) if med_emp else Decimal("0")
+            total_fica = ss_emp + ss_er + med_emp + med_er
+            total_liability = fed_tax + total_fica
+            employee_count = len(set(pc.employee_id for pc in paychecks))
 
-        total_fica = ss_emp + ss_er + med_emp + med_er
-        total_liability = fed_tax + total_fica
-        employee_count = len(set(pc.employee_id for pc in paychecks))
-
-        summary = {
-            "employee_count": employee_count,
-            "gross": gross,
-            "fed_tax": fed_tax,
-            "ss_wages": ss_wages,
-            "med_wages": med_wages,
-            "ss_emp": ss_emp,
-            "ss_er": ss_er,
-            "med_emp": med_emp,
-            "med_er": med_er,
-            "total_fica": total_fica,
-            "total_liability": total_liability,
-        }
+            summary = {
+                "employee_count": employee_count,
+                "gross": gross,
+                "fed_tax": fed_tax,
+                "ss_wages": ss_wages,
+                "med_wages": med_wages,
+                "ss_emp": ss_emp,
+                "ss_er": ss_er,
+                "med_emp": med_emp,
+                "med_er": med_er,
+                "total_fica": total_fica,
+                "total_liability": total_liability,
+            }
 
     return templates.TemplateResponse(request, "reports/quarterly_941.html", {
         "active_nav": "reports",
@@ -403,7 +405,7 @@ def _masked_ssn(emp: Employee) -> str:
 
 
 def _suta_rows(paychecks: list, year: int, quarter: int) -> list[dict]:
-    """Per-employee SUTA wage detail for one quarter, from approved/paid paychecks.
+    """Per-employee SUTA wage detail for one quarter.
 
     `paychecks` must cover the whole year: the wage base is applied to year-to-date
     subject wages (gross less pre-tax deductions, as the tax engine does), in pay
@@ -411,8 +413,7 @@ def _suta_rows(paychecks: list, year: int, quarter: int) -> list[dict]:
     """
     q_start, q_end = _quarter_bounds(year, quarter)
     by_employee: dict[int, list] = {}
-    live = (pc for pc in paychecks if pc.status in ("approved", "paid"))
-    for pc in sorted(live, key=lambda p: (p.pay_period.pay_date, p.id)):
+    for pc in sorted(paychecks, key=lambda p: (p.pay_period.pay_date, p.id)):
         by_employee.setdefault(pc.employee_id, []).append(pc)
 
     rows = []

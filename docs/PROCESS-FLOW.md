@@ -185,7 +185,7 @@ flowchart TD
 | Oklahoma withholding | No, run per company |
 | W-2 CSV export | No, run per company |
 
-Voided paychecks are always left out of reports.
+Reports count only approved and paid paychecks. Drafts and voided paychecks are left out, so totals do not change while a run is under review. The exception is the payroll register, which lists every paycheck in the chosen period, drafts included, for review before approval.
 
 **Oklahoma SUTA report.** For one company and quarter, lists each employee paid in the quarter with total wages, taxable wages, excess wages and contributions. Only approved and paid paychecks count. Taxable wages apply the Oklahoma wage base ($27,000 per employee per year, the tax engine's constant) to the employee's year-to-date subject wages (gross less pre-tax deductions) in pay date order, so earlier quarters and earlier paychecks use up the base first. Excess wages are total wages minus taxable wages. Contributions are the sum of the SUTA lines already calculated on the paychecks, so a mid-year rate change shows what was actually withheld. SSNs are shown as last four digits only.
 
