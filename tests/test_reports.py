@@ -560,7 +560,7 @@ class TestSutaReport:
         db.flush()
         if pre_tax:
             db.add(PaycheckLine(paycheck_id=pc.id, line_type="deduction", description="401k",
-                                amount=pre_tax, is_pre_tax=True))
+                                amount=pre_tax, is_pre_tax=True, is_taxable=False))
         db.commit()
         return pc
 
@@ -707,3 +707,23 @@ class TestDraftsExcludedFromReports:
         pp = _run_payroll(client, db, company, salaried_employee, approve=False)
         r = client.get(f"/reports/payroll-register?company_id={company.id}&pay_period_id={pp.id}")
         assert "Smith" in r.text
+
+
+class TestSutaReport401k:
+    def test_401k_deferral_is_still_taxable_for_suta(self, client, db, company, salaried_employee):
+        from models.payroll import PaycheckLine
+        pp = PayPeriod(company_id=company.id, start_date=date(2026, 5, 20), end_date=date(2026, 5, 20),
+                       pay_date=date(2026, 5, 20), frequency="biweekly", status="approved")
+        db.add(pp)
+        db.flush()
+        pc = Paycheck(employee_id=salaried_employee.id, pay_period_id=pp.id, status="approved",
+                      gross_wages=1000, net_pay=1000)
+        db.add(pc)
+        db.flush()
+        db.add(PaycheckLine(paycheck_id=pc.id, line_type="deduction", description="401k", amount=100,
+                            is_pre_tax=True, is_taxable=True))
+        db.add(PaycheckLine(paycheck_id=pc.id, line_type="deduction", description="Health", amount=50,
+                            is_pre_tax=True, is_taxable=False))
+        db.commit()
+        page = client.get(f"/reports/suta?company_id={company.id}&year=2026&quarter=2").text
+        assert TestSutaReport._first_row(page) == ["1000.00", "50.00", "950.00", "0.00"]

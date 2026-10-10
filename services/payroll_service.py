@@ -104,6 +104,15 @@ def get_employee_pre_tax_deductions(employee: Employee, gross: Decimal) -> Decim
     return _sum_employee_deductions(employee, True, gross)
 
 
+def get_employee_pre_tax_retirement(employee: Employee, gross: Decimal) -> Decimal:
+    """Part of the pre-tax total that reduces income-tax wages only (traditional 401k)."""
+    return sum(
+        (_employee_contribution(e, gross) for e in _active_enrollments(employee, True)
+         if e.plan.deferral_is_fica_taxable),
+        Decimal("0"),
+    )
+
+
 def get_employee_post_tax_deductions(employee: Employee, gross: Decimal) -> Decimal:
     return _sum_employee_deductions(employee, False, gross)
 
@@ -151,7 +160,12 @@ def get_ytd_prior(employee_id: int, pay_period: PayPeriod, db: Session) -> dict:
         db.query(func.coalesce(func.sum(PaycheckLine.amount), 0))
         .join(Paycheck, PaycheckLine.paycheck_id == Paycheck.id)
         .join(PayPeriod, Paycheck.pay_period_id == PayPeriod.id)
-        .filter(*prior_filter, PaycheckLine.line_type == "deduction", PaycheckLine.is_pre_tax.is_(True))
+        .filter(
+            *prior_filter,
+            PaycheckLine.line_type == "deduction",
+            PaycheckLine.is_pre_tax.is_(True),
+            PaycheckLine.is_taxable.is_(False),  # 401k deferrals stay FICA/FUTA/SUTA wages
+        )
         .scalar()
     ))
 
@@ -171,9 +185,9 @@ def get_ytd_prior(employee_id: int, pay_period: PayPeriod, db: Session) -> dict:
     )
     tax_map = {r.description: Decimal(str(r.total)) for r in tax_sums}
 
-    # Same basis the engine applies to the current paycheck (gross less pre-tax
-    # deductions). Post-tax deductions and garnishments are paid from taxable
-    # wages, so they must not shrink the year-to-date wage-base totals.
+    # Same basis the engine applies to the current paycheck for FICA/FUTA/SUTA
+    # (gross less Section 125 pre-tax deductions). Post-tax deductions,
+    # garnishments and 401k deferrals do not shrink these wage-base totals.
     taxable = gross - pre_tax
     zero = Decimal("0")
     return {
@@ -268,7 +282,7 @@ def _create_paycheck_lines(
                     description=plan.name,
                     amount=amt,
                     is_pre_tax=pre_tax,
-                    is_taxable=False,
+                    is_taxable=plan.deferral_is_fica_taxable,
                 )
             )
             match = _employer_match(enrollment, amt, gross)
@@ -401,6 +415,7 @@ def draft_paycheck(
             gross = _round2(gross * final_pay_fraction(employee, pay_period))
     ytd = get_ytd_prior(employee.id, pay_period, db)
     pre_tax = get_employee_pre_tax_deductions(employee, gross)
+    pre_tax_retirement = get_employee_pre_tax_retirement(employee, gross)
     post_tax = get_employee_post_tax_deductions(employee, gross)
     garnishment_items = get_active_garnishments(employee)
 
@@ -444,6 +459,7 @@ def draft_paycheck(
         ytd_futa_wages_prior=ytd["futa_wages"],
         ytd_suta_wages_prior=ytd["suta_wages"],
         pre_tax_deductions=pre_tax,
+        pre_tax_retirement=pre_tax_retirement,
         post_tax_deductions=post_tax,
         garnishments=garnishment_items,
         w4=w4,

@@ -237,9 +237,9 @@ class TestGetYTDPrior:
         db.add(prior_check)
         db.flush()
         db.add(PaycheckLine(paycheck_id=prior_check.id, line_type="deduction", description="Health",
-                            amount=Decimal("100.00"), is_pre_tax=True))
+                            amount=Decimal("100.00"), is_pre_tax=True, is_taxable=False))
         db.add(PaycheckLine(paycheck_id=prior_check.id, line_type="deduction", description="Garnishment",
-                            amount=Decimal("50.00"), is_pre_tax=False))
+                            amount=Decimal("50.00"), is_pre_tax=False, is_taxable=False))
         current_pp = PayPeriod(
             company_id=company.id,
             start_date=date(2026, 5, 1),
@@ -1336,7 +1336,7 @@ class TestYtdWageBaseBasis:
         for amount, is_pre in ((pre_tax, True), (post_tax, False)):
             if Decimal(amount):
                 db.add(PaycheckLine(paycheck_id=pc.id, line_type="deduction", description="Ded",
-                                    amount=Decimal(amount), is_pre_tax=is_pre))
+                                    amount=Decimal(amount), is_pre_tax=is_pre, is_taxable=False))
         db.commit()
 
     def _draft(self, db, employee, pay_period):
@@ -1384,3 +1384,102 @@ class TestYtdWageBaseBasis:
     def test_stored_ytd_gross_stays_true_gross(self, db, company, salaried_employee, pay_period):
         self._prior(db, company, salaried_employee, "5000.00", pre_tax="400.00")
         assert self._draft(db, salaried_employee, pay_period).ytd_gross == Decimal("7500.00")
+
+
+# ── Traditional 401k deferrals are still FICA/FUTA/SUTA wages ───────────────
+
+class TestRetirementDeferralFica:
+    def _draft(self, db, employee, pay_period):
+        return draft_paycheck(_load_employee(db, employee.id), _load_pay_period(db, pay_period.id), None, db)
+
+    def _line(self, db, paycheck, description):
+        line = db.query(PaycheckLine).filter_by(paycheck_id=paycheck.id, description=description).first()
+        return line.amount if line else Decimal("0")
+
+    def _k401(self, db, employee, amount=100, **kw):
+        return _enroll(db, employee, name="401k", benefit_type="traditional_401k",
+                       employee_contribution_type="fixed", employee_contribution_amount=amount,
+                       pre_tax=True, **kw)
+
+    def test_401k_does_not_reduce_fica_wages(self, db, salaried_employee, pay_period):
+        self._k401(db, salaried_employee)
+        pc = self._draft(db, salaried_employee, pay_period)
+        assert self._line(db, pc, "Social Security (Employee)") == Decimal("155.00")   # 6.2% of 2500
+        assert self._line(db, pc, "Medicare (Employee)") == Decimal("36.25")
+        assert self._line(db, pc, "Social Security (Employer)") == Decimal("155.00")
+
+    def test_401k_still_reduces_income_tax(self, db, salaried_employee, pay_period):
+        baseline = self._draft(db, salaried_employee, pay_period)
+        base_fed = self._line(db, baseline, "Federal Income Tax")
+        self._k401(db, salaried_employee, amount=500)
+        pc = self._draft(db, salaried_employee, pay_period)
+        assert self._line(db, pc, "Federal Income Tax") < base_fed
+
+    def test_401k_still_reduces_net_pay_and_totals(self, db, salaried_employee, pay_period):
+        self._k401(db, salaried_employee)
+        pc = self._draft(db, salaried_employee, pay_period)
+        assert pc.total_deductions == Decimal("100.00")
+        assert pc.net_pay == pc.gross_wages - Decimal("100.00") - pc.total_taxes_withheld
+
+    def test_401k_still_in_futa_and_suta_wages(self, db, salaried_employee, pay_period):
+        self._k401(db, salaried_employee, amount=500)
+        pc = self._draft(db, salaried_employee, pay_period)
+        assert self._line(db, pc, "FUTA") == Decimal("15.00")   # 0.6% of 2500
+        assert self._line(db, pc, "SUTA") == Decimal("67.50")   # 2.7% of 2500
+
+    def test_cafeteria_plan_alongside_401k(self, db, salaried_employee, benefit_plan, pay_period):
+        # benefit_plan is a $150 pre-tax health plan: that part DOES reduce FICA wages.
+        db.add(EmployeeBenefitEnrollment(employee_id=salaried_employee.id,
+                                         benefit_plan_id=benefit_plan.id, effective_date=date(2026, 1, 1)))
+        db.commit()
+        self._k401(db, salaried_employee)
+        pc = self._draft(db, salaried_employee, pay_period)
+        assert self._line(db, pc, "Social Security (Employee)") == Decimal("145.70")   # 6.2% of 2350
+
+    def test_percent_401k(self, db, salaried_employee, pay_period):
+        _enroll(db, salaried_employee, name="401k pct", benefit_type="traditional_401k",
+                employee_contribution_type="percent", employee_contribution_amount=4, pre_tax=True)
+        pc = self._draft(db, salaried_employee, pay_period)
+        assert self._line(db, pc, "Social Security (Employee)") == Decimal("155.00")
+
+    def test_roth_401k_unaffected(self, db, salaried_employee, pay_period):
+        _enroll(db, salaried_employee, name="Roth", benefit_type="roth_401k",
+                employee_contribution_type="fixed", employee_contribution_amount=100, pre_tax=False)
+        pc = self._draft(db, salaried_employee, pay_period)
+        assert self._line(db, pc, "Social Security (Employee)") == Decimal("155.00")
+
+    def test_line_flags(self, db, salaried_employee, benefit_plan, pay_period):
+        db.add(EmployeeBenefitEnrollment(employee_id=salaried_employee.id,
+                                         benefit_plan_id=benefit_plan.id, effective_date=date(2026, 1, 1)))
+        db.commit()
+        self._k401(db, salaried_employee)
+        pc = self._draft(db, salaried_employee, pay_period)
+        flags = {l.description: (l.is_pre_tax, l.is_taxable)
+                 for l in db.query(PaycheckLine).filter_by(paycheck_id=pc.id, line_type="deduction")}
+        assert flags == {"Health Plan": (True, False), "401k": (True, True)}
+
+    def test_ended_401k_enrollment_ignored(self, db, salaried_employee, pay_period):
+        self._k401(db, salaried_employee)
+        db.query(EmployeeBenefitEnrollment).update({"end_date": date(2026, 1, 31)})
+        db.commit()
+        pc = self._draft(db, salaried_employee, pay_period)
+        assert pc.total_deductions == Decimal("0.00")
+
+    def test_ytd_wage_base_counts_401k_deferrals(self, db, company, salaried_employee, pay_period):
+        from tax_engine.fica import SS_WAGE_BASE
+        prior_pp = PayPeriod(company_id=company.id, start_date=date(2026, 4, 1), end_date=date(2026, 4, 14),
+                             pay_date=date(2026, 4, 20), frequency="biweekly", status="paid")
+        db.add(prior_pp)
+        db.flush()
+        pc = Paycheck(employee_id=salaried_employee.id, pay_period_id=prior_pp.id, status="paid",
+                      gross_wages=SS_WAGE_BASE - Decimal("100"), total_deductions=Decimal("5000"),
+                      net_pay=Decimal("0"))
+        db.add(pc)
+        db.flush()
+        db.add(PaycheckLine(paycheck_id=pc.id, line_type="deduction", description="401k",
+                            amount=Decimal("5000"), is_pre_tax=True, is_taxable=True))
+        db.commit()
+        ytd = get_ytd_prior(salaried_employee.id, pay_period, db)
+        assert ytd["ss_wages"] == SS_WAGE_BASE - Decimal("100")  # 401k did not shrink FICA wages
+        draft = self._draft(db, salaried_employee, pay_period)
+        assert self._line(db, draft, "Social Security (Employee)") == Decimal("6.20")

@@ -94,6 +94,7 @@ Workers comp codes belong to one company. Changing a rate in one company never a
 - **Fixed:** the amount is dollars per pay period.
 - **Percent:** the amount is a percent of that paycheck's gross pay. A 5% plan takes $125.00 from a $2,500.00 paycheck.
 - **Employer match:** "match percent" is how much of the employee's contribution the company matches, and "cap percent" is the most of gross pay that counts. A 100% match with a 4% cap on a $2,500.00 paycheck adds at most $100.00. The match appears under employer costs on the paycheck screen and the pay stub, is included in the total employer cost, and is not taken from the employee.
+- **What pre-tax does.** Pre-tax health, dental, vision, FSA, HSA and other cafeteria-style plans lower federal and Oklahoma income tax wages *and* Social Security, Medicare, FUTA and SUTA wages. A **traditional 401(k)** lowers income tax wages only: Social Security, Medicare, FUTA and SUTA are still figured on the full amount. Roth 401(k) is post-tax and lowers nothing.
 - An employee's **override** (set when enrolling them) uses the same unit as the plan: dollars for a fixed plan, a percent (0 to 100) for a percent plan. An override of 0 means no deduction for that employee.
 
 ## 5. Managing users (admins)

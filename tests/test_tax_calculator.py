@@ -197,3 +197,40 @@ class TestTotals:
         expected = (t.ss_employer + t.medicare_employer +
                     t.futa + t.suta + t.workers_comp)
         assert result.total_employer_taxes == expected
+
+
+class TestPreTaxRetirementFica:
+    """Traditional 401k deferrals cut income-tax wages only; FICA/FUTA/SUTA still apply."""
+
+    def _run(self, **kw):
+        return calculate_paycheck(make_input(gross_wages=Decimal("3000"), **kw))
+
+    def test_retirement_stays_in_fica_futa_suta_wages(self):
+        r = self._run(pre_tax_deductions=Decimal("300"), pre_tax_retirement=Decimal("200"))
+        assert r.taxable_wages == Decimal("2700")  # income-tax wages: 3000 - 300
+        assert r.fica_wages == Decimal("2900")     # only the $100 cafeteria part comes off
+        t = r.taxes
+        assert t.ss_employee == Decimal("179.80")  # 6.2% of 2900
+        assert t.ss_employer == Decimal("179.80")
+        assert t.medicare_employee == Decimal("42.05")
+        assert t.medicare_employer == Decimal("42.05")
+        assert t.futa == Decimal("17.40")          # 0.6% of 2900
+        assert t.suta == Decimal("78.30")          # 2.7% of 2900
+
+    def test_income_taxes_unchanged_by_the_split(self):
+        split = self._run(pre_tax_deductions=Decimal("300"), pre_tax_retirement=Decimal("200"))
+        lumped = self._run(pre_tax_deductions=Decimal("300"))
+        assert split.taxes.federal_income_tax == lumped.taxes.federal_income_tax
+        assert split.taxes.ok_income_tax == lumped.taxes.ok_income_tax
+
+    def test_all_retirement_means_fica_on_gross(self):
+        r = self._run(pre_tax_deductions=Decimal("500"), pre_tax_retirement=Decimal("500"))
+        assert r.taxes.ss_employee == Decimal("186.00")  # 6.2% of the full 3000
+
+    def test_default_is_unchanged_behavior(self):
+        r = self._run(pre_tax_deductions=Decimal("300"))
+        assert r.fica_wages == r.taxable_wages == Decimal("2700")
+
+    def test_net_pay_still_subtracts_the_deferral(self):
+        r = self._run(pre_tax_deductions=Decimal("300"), pre_tax_retirement=Decimal("200"))
+        assert r.net_pay == Decimal("3000") - Decimal("300") - r.total_employee_taxes

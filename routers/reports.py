@@ -430,7 +430,7 @@ def _suta_rows(paychecks: list, year: int, quarter: int) -> list[dict]:
             gross = Decimal(str(pc.gross_wages))
             pre_tax = sum(
                 (Decimal(str(l.amount)) for l in pc.lines
-                 if l.line_type == "deduction" and l.is_pre_tax),
+                 if l.line_type == "deduction" and l.is_pre_tax and not l.is_taxable),
                 Decimal("0"),
             )
             subject = max(Decimal("0"), gross - pre_tax)
