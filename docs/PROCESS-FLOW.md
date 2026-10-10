@@ -167,9 +167,9 @@ Employees with status `active` are included in a payroll run, plus `terminated` 
 ```mermaid
 flowchart TD
     R[Reports page] --> SC{Company selected}
-    SC -->|One company| ALL[All nine reports available]
+    SC -->|One company| ALL[All ten reports available]
     SC -->|All my companies| SIX[Six reports show per-company<br/>subtotals plus grand total]
-    SC -->|All my companies| BLOCK[941, W-2 export, Oklahoma withholding<br/>refuse: filed per EIN]
+    SC -->|All my companies| BLOCK[941, SUTA, W-2 export, Oklahoma withholding<br/>refuse: filed per EIN]
 ```
 
 | Report | Consolidated across companies |
@@ -181,10 +181,13 @@ flowchart TD
 | Client liabilities | Yes |
 | New hire reporting | Yes |
 | Quarterly 941 | No, run per company |
+| Oklahoma SUTA | No, run per company |
 | Oklahoma withholding | No, run per company |
 | W-2 CSV export | No, run per company |
 
 Voided paychecks are always left out of reports.
+
+**Oklahoma SUTA report.** For one company and quarter, lists each employee paid in the quarter with total wages, taxable wages, excess wages and contributions. Only approved and paid paychecks count. Taxable wages apply the Oklahoma wage base ($27,000 per employee per year, the tax engine's constant) to the employee's year-to-date subject wages (gross less pre-tax deductions) in pay date order, so earlier quarters and earlier paychecks use up the base first. Excess wages are total wages minus taxable wages. Contributions are the sum of the SUTA lines already calculated on the paychecks, so a mid-year rate change shows what was actually withheld. SSNs are shown as last four digits only.
 
 ## 10. Access and session flow
 

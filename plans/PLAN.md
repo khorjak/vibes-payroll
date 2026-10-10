@@ -299,6 +299,7 @@ payroll/
 - Deduction / benefit report
 - Client liability remittance list (approver **Mark Remitted** per payee, with optional reference)
 - 941 quarterly summary data
+- Oklahoma SUTA quarterly wage detail (per employee)
 - W-2 data export (year-end)
 - Oklahoma OTC withholding summary
 
@@ -324,7 +325,7 @@ open → draft → approved → paid → closed
 ## Oklahoma Compliance Checklist
 
 - [x] State income tax withholding using current OTC tables
-- [ ] SUTA reporting (Oklahoma Employment Security Commission) — SUTA is calculated per paycheck and totalled in the tax liability report; there is no OESC-formatted filing report
+- [x] SUTA reporting (Oklahoma Employment Security Commission) — quarterly per-employee wage report (total, taxable, excess wages, contributions); it is a data summary, not the OESC upload format, and shows only the last four SSN digits
 - [ ] Workers comp coverage verification per employee — the workers comp report groups wages by code and shows employees with no code as "Unclassified"; nothing flags or blocks an employee missing a code
 - [x] New hire reporting within 20 days of hire to Oklahoma DHS — new hire report plus a Mark as reported action
 - [x] Pay stub provided each pay period (Oklahoma requirement) — PDF pay stub per paycheck

@@ -15,6 +15,8 @@ from models.employee import Employee
 from models.payroll import PayPeriod, Paycheck, PaycheckLine, ClientLiability
 from models.user import User
 from models.workers_comp import WorkersCompCode
+from tax_engine.unemployment import OK_SUTA_WAGE_BASE
+from utils.crypto import decrypt
 from routers.auth import ActiveCompany, ApproverUser, CurrentUser, get_current_user
 from utils.company_scope import (
     accessible_companies,
@@ -386,6 +388,117 @@ def quarterly_941(
         "year": year,
         "quarter": quarter,
         "summary": summary,
+    })
+
+
+def _quarter_bounds(year: int, quarter: int) -> tuple[date, date]:
+    """First day of the quarter and first day after it."""
+    m_start, m_end = _QUARTER_MONTHS[quarter]
+    return date(year, m_start, 1), date(year + (m_end == 12), m_end % 12 + 1, 1)
+
+
+def _masked_ssn(emp: Employee) -> str:
+    raw = decrypt(emp.ssn_encrypted) if emp.ssn_encrypted else None
+    return f"***-**-{raw[-4:]}" if raw and len(raw) >= 4 else ""
+
+
+def _suta_rows(paychecks: list, year: int, quarter: int) -> list[dict]:
+    """Per-employee SUTA wage detail for one quarter, from approved/paid paychecks.
+
+    `paychecks` must cover the whole year: the wage base is applied to year-to-date
+    subject wages (gross less pre-tax deductions, as the tax engine does), in pay
+    date order, so an employee's quarter figures depend on earlier quarters.
+    """
+    q_start, q_end = _quarter_bounds(year, quarter)
+    by_employee: dict[int, list] = {}
+    live = (pc for pc in paychecks if pc.status in ("approved", "paid"))
+    for pc in sorted(live, key=lambda p: (p.pay_period.pay_date, p.id)):
+        by_employee.setdefault(pc.employee_id, []).append(pc)
+
+    rows = []
+    for pcs in by_employee.values():
+        row = {
+            "employee": pcs[0].employee, "ssn": _masked_ssn(pcs[0].employee),
+            "total_wages": Decimal("0"), "prior_ytd": Decimal("0"),
+            "excess_wages": Decimal("0"), "taxable_wages": Decimal("0"),
+            "contributions": Decimal("0"),
+        }
+        ytd = Decimal("0")
+        in_quarter = False
+        for pc in pcs:
+            gross = Decimal(str(pc.gross_wages))
+            pre_tax = sum(
+                (Decimal(str(l.amount)) for l in pc.lines
+                 if l.line_type == "deduction" and l.is_pre_tax),
+                Decimal("0"),
+            )
+            subject = max(Decimal("0"), gross - pre_tax)
+            taxable = min(subject, max(Decimal("0"), OK_SUTA_WAGE_BASE - ytd))
+            ytd += subject
+            pay_date = pc.pay_period.pay_date
+            if pay_date < q_start:
+                row["prior_ytd"] += subject
+            elif pay_date < q_end:
+                in_quarter = True
+                row["total_wages"] += gross
+                row["taxable_wages"] += taxable
+                row["excess_wages"] += gross - taxable
+                row["contributions"] += sum(
+                    (Decimal(str(l.amount)) for l in pc.lines
+                     if l.line_type == "employer_tax" and l.description == "SUTA"),
+                    Decimal("0"),
+                )
+        if in_quarter:
+            rows.append(row)
+    rows.sort(key=lambda r: (r["employee"].last_name, r["employee"].first_name))
+    return rows
+
+
+@router.get("/suta", response_class=HTMLResponse)
+def suta_report(
+    request: Request,
+    current_user: CurrentUser,
+    active_company: ActiveCompany,
+    db: Session = Depends(get_db),
+    company_id: int = 0,
+    year: int = 0,
+    quarter: int = 0,
+):
+    if not company_id and active_company:
+        company_id = active_company.id
+    # SUTA is reported per employer account (EIN) -- never consolidated.
+    company_ids, error = _report_scope(
+        current_user, db, company_id, allow_consolidated=False,
+    )
+    if not year:
+        year = date.today().year
+
+    company = None
+    rows = []
+    totals = {}
+    if company_ids and quarter in _QUARTER_MONTHS:
+        company = db.query(Company).filter(Company.id == company_ids[0]).first()
+        rows = _suta_rows(_load_paychecks(db, company_ids, year), year, quarter)
+        totals = {
+            key: sum((r[key] for r in rows), Decimal("0"))
+            for key in ("total_wages", "excess_wages", "taxable_wages", "contributions")
+        }
+        totals["employee_count"] = len(rows)
+
+    return templates.TemplateResponse(request, "reports/suta.html", {
+        "active_nav": "reports",
+        "companies": accessible_companies(current_user, db),
+        "company": company,
+        "company_id": company_id,
+        "consolidated": False,
+        "allow_consolidated": False,
+        "error": error,
+        "year": year,
+        "quarter": quarter,
+        "rows": rows,
+        "totals": totals,
+        "wage_base": OK_SUTA_WAGE_BASE,
+        "suta_rate": (company.suta_rate or Decimal("0.027")) if company else None,
     })
 
 

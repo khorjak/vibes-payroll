@@ -537,3 +537,111 @@ class TestDeductionsReportWithData:
         calculate_payroll_run(pp2, db)
         r = client.get(f"/reports/deductions?company_id={company.id}&year=2026")
         assert "300.00" in r.text  # two $150 deductions in one row
+
+
+# ── Oklahoma SUTA (OESC) report ─────────────────────────────────────────────
+
+class TestSutaReport:
+    def _check(self, db, company, employee, pay_date, gross, status="approved", pre_tax=0):
+        from models.payroll import PaycheckLine
+        pp = PayPeriod(company_id=company.id, start_date=pay_date, end_date=pay_date,
+                       pay_date=pay_date, frequency="biweekly", status="approved")
+        db.add(pp)
+        db.flush()
+        pc = Paycheck(employee_id=employee.id, pay_period_id=pp.id, status=status,
+                      gross_wages=gross, net_pay=gross)
+        db.add(pc)
+        db.flush()
+        if pre_tax:
+            db.add(PaycheckLine(paycheck_id=pc.id, line_type="deduction", description="401k",
+                                amount=pre_tax, is_pre_tax=True))
+        db.commit()
+        return pc
+
+    @staticmethod
+    def _first_row(page):
+        """[total, excess, taxable, contributions] of the first employee row."""
+        import re
+        body = page.split("<tbody", 1)[1].split("</tbody>", 1)[0]
+        return re.findall(r"tabular-nums[^>]*>\$([\d.]+)</td>", body)[:4]
+
+    def _get(self, client, company, quarter=2, year=2026):
+        return client.get(f"/reports/suta?company_id={company.id}&year={year}&quarter={quarter}")
+
+    def test_no_params(self, client):
+        r = client.get("/reports/suta")
+        assert r.status_code == 200
+        assert "Select a company" in r.text
+
+    def test_listed_on_index(self, client):
+        assert "/reports/suta" in client.get("/reports/").text
+
+    def test_refuses_consolidation(self, client, company):
+        r = client.get("/reports/suta?company_id=-1&year=2026&quarter=2")
+        assert r.status_code == 200
+        assert "filed per EIN" in r.text
+
+    def test_wages_and_contributions_from_real_payroll(self, client, db, company, salaried_employee):
+        pp = _run_payroll(client, db, company, salaried_employee)
+        client.post(f"/payroll/{pp.id}/approve")
+        pc = db.query(Paycheck).filter_by(pay_period_id=pp.id).one()
+        suta = next(l.amount for l in pc.lines if l.description == "SUTA")
+        page = self._get(client, company).text
+        assert "Smith, Jane" in page
+        assert "$2500.00" in page            # total and taxable wages, under the base
+        assert f"${suta:.2f}" in page        # contribution as calculated
+
+    def test_draft_paychecks_excluded(self, client, db, company, salaried_employee):
+        _run_payroll(client, db, company, salaried_employee)  # left in draft
+        assert "No approved or paid payroll" in self._get(client, company).text
+
+    def test_voided_paychecks_excluded(self, client, db, company, salaried_employee):
+        self._check(db, company, salaried_employee, date(2026, 5, 20), 1000, status="voided")
+        assert "No approved or paid payroll" in self._get(client, company).text
+
+    def test_wage_base_spans_quarters(self, client, db, company, salaried_employee):
+        # 26,000 earned in Q1 leaves 1,000 of the 27,000 base for Q2.
+        self._check(db, company, salaried_employee, date(2026, 3, 20), 26000)
+        self._check(db, company, salaried_employee, date(2026, 5, 20), 5000)
+        assert self._first_row(self._get(client, company).text) == [
+            "5000.00", "4000.00", "1000.00", "0.00"]
+
+    def test_wage_base_exhausted_means_no_taxable_wages(self, client, db, company, salaried_employee):
+        self._check(db, company, salaried_employee, date(2026, 3, 20), 30000)
+        self._check(db, company, salaried_employee, date(2026, 5, 20), 2000)
+        assert self._first_row(self._get(client, company).text) == [
+            "2000.00", "2000.00", "0.00", "0.00"]
+
+    def test_pre_tax_deductions_are_not_taxable_wages(self, client, db, company, salaried_employee):
+        self._check(db, company, salaried_employee, date(2026, 5, 20), 1000, pre_tax=100)
+        assert self._first_row(self._get(client, company).text) == [
+            "1000.00", "100.00", "900.00", "0.00"]
+
+    def test_only_selected_quarter_listed(self, client, db, company, salaried_employee, hourly_employee):
+        self._check(db, company, salaried_employee, date(2026, 5, 20), 1000)
+        self._check(db, company, hourly_employee, date(2026, 8, 20), 1000)
+        page = self._get(client, company, quarter=2).text
+        assert "Smith" in page and "Jones" not in page
+
+    def test_other_company_excluded(self, client, db, company, second_company, other_employee):
+        self._check(db, second_company, other_employee, date(2026, 5, 20), 1000)
+        assert "Person" not in self._get(client, company).text
+
+    def test_ssn_masked(self, client, db, company, salaried_employee):
+        from utils.crypto import encrypt
+        salaried_employee.ssn_encrypted = encrypt("123456789")
+        db.commit()
+        self._check(db, company, salaried_employee, date(2026, 5, 20), 1000)
+        page = self._get(client, company).text
+        assert "***-**-6789" in page
+        assert "123456789" not in page
+
+    def test_q4_boundary(self, client, db, company, salaried_employee):
+        self._check(db, company, salaried_employee, date(2026, 12, 31), 1000)
+        assert "Smith" in self._get(client, company, quarter=4).text
+        assert "No approved or paid payroll" in self._get(client, company, quarter=3).text
+
+    def test_totals_row(self, client, db, company, salaried_employee, hourly_employee):
+        self._check(db, company, salaried_employee, date(2026, 5, 20), 1000)
+        self._check(db, company, hourly_employee, date(2026, 5, 20), 500)
+        assert "$1500.00" in self._get(client, company).text
