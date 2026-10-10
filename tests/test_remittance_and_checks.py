@@ -349,6 +349,22 @@ class TestRolesAndScope:
             "check_number": "1", "csrf_token": _token(auth_client, "/reports/")})
         assert r.status_code == 403
 
+    @pytest.mark.parametrize("status", ["draft", "approved"])
+    def test_void_button_shown_to_approver_only(self, auth_client, auth_db, tenant, status):
+        # The void route is approver-only; the paycheck page offered the button to everyone.
+        alpha, _ = tenant
+        emp = Employee(company_id=alpha.id, first_name="A", last_name="B", employment_type="salaried",
+                       pay_rate=50000, status="active", state="OK")
+        auth_db.add(emp)
+        auth_db.commit()
+        pc = _paycheck(auth_db, _period(auth_db, alpha, status=status), emp, status=status)
+        _login(auth_client, "preparer_x", "passw0rd-123")
+        page = auth_client.get(f"/payroll/paychecks/{pc.id}").text
+        assert "Pay Stub PDF" in page and 'id="void-panel"' not in page
+        auth_client.post("/auth/logout", data={"csrf_token": _token(auth_client, "/reports/")})
+        _login(auth_client, "approver_x", "passw0rd-123")
+        assert 'id="void-panel"' in auth_client.get(f"/payroll/paychecks/{pc.id}").text
+
     def test_approver_cannot_number_other_companys_paycheck(self, auth_client, auth_db, tenant):
         _, beta = tenant
         emp = Employee(company_id=beta.id, first_name="B", last_name="B", employment_type="salaried",
