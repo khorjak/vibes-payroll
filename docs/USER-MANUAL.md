@@ -266,7 +266,7 @@ If the site reports the PDF service is unavailable (HTTP 503), a system library 
 
 ## 11. Reports
 
-Open **Reports** and pick a report. Every report lets you choose the company; most also take a pay period or date range. Voided paychecks are always left out.
+Open **Reports** and pick a report. Every report lets you choose the company; most also take a pay period or date range. Reports count only **approved** and **paid** paychecks: drafts (not yet approved) and voided paychecks are left out, so figures do not move while a run is still being reviewed. The one exception is the **Payroll register**, which lists every paycheck in the period you pick so you can review a draft before approving it.
 
 | Report | What it shows | Use it for |
 |---|---|---|
