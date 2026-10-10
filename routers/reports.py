@@ -732,6 +732,7 @@ def w2_export(
         "Box1_FedWages", "Box2_FedTax",
         "Box3_SSWages", "Box4_SSTax",
         "Box5_MedWages", "Box6_MedTax",
+        "Box12_D", "Box13_RetirementPlan",
         "Box16_StateWages", "Box17_StateTax",
     ])
 
@@ -764,6 +765,11 @@ def w2_export(
         box1 = (gross - pre_tax).quantize(Decimal("0.01"))
         box3 = min(fica_wages, ss_base).quantize(Decimal("0.01"))
         box5 = fica_wages.quantize(Decimal("0.01"))
+        # Box 12 code D: traditional 401k elective deferrals, the only pre-tax lines that
+        # stay FICA-taxable (is_taxable). Box 13 "Retirement plan" is checked with it.
+        box12_d = sum(
+            (Decimal(str(l.amount)) for l in pre_tax_lines if l.is_taxable), Decimal("0"),
+        ).quantize(Decimal("0.01"))
 
         ssn_display = "ENCRYPTED" if emp.ssn_encrypted else ""
 
@@ -778,6 +784,8 @@ def w2_export(
             ss_emp.quantize(Decimal("0.01")),
             box5,
             med_emp.quantize(Decimal("0.01")),
+            box12_d,
+            "X" if box12_d else "",
             box1,
             ok_tax.quantize(Decimal("0.01")),
         ])
