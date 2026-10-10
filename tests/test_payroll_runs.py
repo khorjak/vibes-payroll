@@ -1054,3 +1054,136 @@ class TestPdfFallback:
         r = client.get(f"/payroll/paychecks/{paycheck.id}/pdf")
         assert r.status_code == 503
         assert "GTK" in r.text
+
+
+# ── Gap coverage: skipped orders, WC cost, state guards, hours parsing ──────
+
+class TestDraftPaycheckGaps:
+    def _order(self, db, employee, **kw):
+        order = GarnishmentOrder(
+            employee_id=employee.id, garnishment_type="creditor", payee_name="Collections",
+            amount=Decimal("200.00"), amount_type="fixed", effective_date=date(2026, 1, 1),
+            active=True, **kw,
+        )
+        db.add(order)
+        db.commit()
+
+    def _garn_lines(self, db, paycheck):
+        return db.query(PaycheckLine).filter(
+            PaycheckLine.paycheck_id == paycheck.id,
+            PaycheckLine.description.like("Garnishment%"),
+        ).all()
+
+    def test_inactive_order_not_withheld(self, db, salaried_employee, pay_period):
+        self._order(db, salaried_employee)
+        order = db.query(GarnishmentOrder).first()
+        order.active = False
+        db.commit()
+        pc = draft_paycheck(_load_employee(db, salaried_employee.id),
+                            _load_pay_period(db, pay_period.id), None, db)
+        assert self._garn_lines(db, pc) == []
+
+    def test_ended_order_not_withheld(self, db, salaried_employee, pay_period):
+        self._order(db, salaried_employee, end_date=date(2026, 4, 1))
+        pc = draft_paycheck(_load_employee(db, salaried_employee.id),
+                            _load_pay_period(db, pay_period.id), None, db)
+        assert self._garn_lines(db, pc) == []
+
+    def test_workers_comp_rate_creates_employer_line(self, db, salaried_employee, pay_period, wc_code):
+        salaried_employee.workers_comp_code_id = wc_code.id
+        db.commit()
+        pc = draft_paycheck(_load_employee(db, salaried_employee.id),
+                            _load_pay_period(db, pay_period.id), None, db)
+        line = db.query(PaycheckLine).filter(
+            PaycheckLine.paycheck_id == pc.id, PaycheckLine.description == "Workers Comp",
+        ).one()
+        assert line.line_type == "employer_tax"
+        # $0.25 per $100 of gross wages
+        assert line.amount == (pc.gross_wages * Decimal("0.25") / 100).quantize(Decimal("0.01"))
+
+    def test_no_workers_comp_code_no_line(self, db, salaried_employee, pay_period):
+        pc = draft_paycheck(_load_employee(db, salaried_employee.id),
+                            _load_pay_period(db, pay_period.id), None, db)
+        assert db.query(PaycheckLine).filter(
+            PaycheckLine.paycheck_id == pc.id, PaycheckLine.description == "Workers Comp",
+        ).count() == 0
+
+
+class TestPeriodStateGuards:
+    def _pp(self, db, company, status):
+        pp = PayPeriod(company_id=company.id, start_date=date(2026, 5, 1),
+                       end_date=date(2026, 5, 14), pay_date=date(2026, 5, 20),
+                       frequency="biweekly", status=status)
+        db.add(pp)
+        db.commit()
+        db.refresh(pp)
+        return pp
+
+    @pytest.mark.parametrize("status", ["approved", "paid"])
+    def test_timesheet_save_blocked_on_closed_period(self, client, db, company, hourly_employee, status):
+        pp = self._pp(db, company, status)
+        r = client.post(f"/payroll/{pp.id}/timesheets/{hourly_employee.id}",
+                        data={"regular_hours": "40"})
+        assert r.status_code == 400
+        assert db.query(Timesheet).count() == 0
+
+    @pytest.mark.parametrize("status", ["approved", "paid"])
+    def test_calculate_blocked_on_closed_period(self, client, db, company, salaried_employee, status):
+        pp = self._pp(db, company, status)
+        r = client.post(f"/payroll/{pp.id}/calculate")
+        assert r.status_code == 400
+        assert "Cannot calculate" in r.text
+        assert db.query(Paycheck).count() == 0
+
+    def test_approve_open_period_returns_400(self, client, db, company):
+        pp = self._pp(db, company, "open")
+        r = client.post(f"/payroll/{pp.id}/approve")
+        assert r.status_code == 400
+        db.refresh(pp)
+        assert pp.status == "open"
+
+    def test_mark_paid_draft_period_returns_400(self, client, db, company):
+        pp = self._pp(db, company, "draft")
+        r = client.post(f"/payroll/{pp.id}/mark-paid")
+        assert r.status_code == 400
+        db.refresh(pp)
+        assert pp.status == "draft"
+
+
+class TestHoursParsing:
+    def _pp(self, db, company):
+        pp = PayPeriod(company_id=company.id, start_date=date(2026, 5, 1),
+                       end_date=date(2026, 5, 14), pay_date=date(2026, 5, 20),
+                       frequency="biweekly", status="open")
+        db.add(pp)
+        db.commit()
+        return pp
+
+    def test_non_numeric_and_negative_hours_become_zero(self, client, db, company, hourly_employee):
+        pp = self._pp(db, company)
+        r = client.post(f"/payroll/{pp.id}/timesheets/{hourly_employee.id}", data={
+            "regular_hours": "forty", "overtime_hours": "-5", "pto_hours": "8",
+        })
+        assert r.status_code == 303
+        ts = db.query(Timesheet).one()
+        assert float(ts.regular_hours) == 0.0
+        assert float(ts.overtime_hours) == 0.0
+        assert float(ts.pto_hours) == 8.0
+
+    def test_timesheet_employee_from_other_company_rejected(
+        self, client, db, company, other_employee,
+    ):
+        pp = self._pp(db, company)
+        r = client.post(f"/payroll/{pp.id}/timesheets/{other_employee.id}",
+                        data={"regular_hours": "40"})
+        assert r.status_code == 422
+        assert db.query(Timesheet).count() == 0
+
+    def test_off_cycle_hourly_gross_converted_to_hours(self, client, db, company, hourly_employee):
+        r = client.post("/payroll/off-cycle/new", data={
+            "company_id": company.id, "employee_id": hourly_employee.id,
+            "pay_date": "2026-06-01", "gross_amount": "370.00",
+        })
+        assert r.status_code == 303
+        ts = db.query(Timesheet).filter(Timesheet.employee_id == hourly_employee.id).one()
+        assert float(ts.regular_hours) == pytest.approx(20.0)  # $370 / $18.50

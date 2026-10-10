@@ -218,7 +218,9 @@ A terminated employee is not drafted automatically. If someone is owed a final p
 1. Review the draft. Confirm totals and investigate any flags.
 2. **Approve**. All draft paychecks become *approved* and the period becomes *approved*. The approval is recorded in the audit log with your name.
 3. Issue payments outside the system (checks or bank transfers).
-4. **Mark Paid**. Approved paychecks become *paid*, and the period becomes *paid*.
+4. **Mark Paid**. Approved paychecks become *paid*, and the period becomes *paid*. If you issued printed checks, type the first check number in **First check # (optional)** beside the button. Approved paychecks are numbered consecutively from it, in the order they appear on the period. Leave it blank to skip numbering. A number already used by another non-voided paycheck in the same company stops the whole run with an error and changes nothing.
+
+**Check numbers.** The period page has a **Check #** column. To set, change or clear one paycheck's number (for example a reprinted check), open the paycheck and use **Save Check #**. Only approved or paid paychecks can be numbered, and a number must be unique within the company. The number prints on the pay stub.
 
 The system records payroll. It does not send money or file returns for you.
 
@@ -269,7 +271,7 @@ Open **Reports** and pick a report. Every report lets you choose the company; mo
 | **Oklahoma withholding** | Oklahoma tax withheld. | State withholding filings. |
 | **W-2 export** | Downloads a CSV of per-employee W-2 box amounts. | Year-end W-2 preparation. |
 | **Deductions and benefits** | Benefit and deduction totals. | Reconciling with carriers. |
-| **Client liabilities** | Amounts to send to garnishment payees, benefit carriers and retirement plans, once a payroll is approved. Voided paychecks drop out. | Knowing what to remit. |
+| **Client liabilities** | Amounts to send to garnishment payees, benefit carriers and retirement plans, once a payroll is approved. Voided paychecks drop out. Approvers get a **Mark Remitted** button on every payee row that still has an outstanding amount, with an optional check or ACH reference. | Knowing what to remit, and recording that you did. |
 | **New hire reporting** | Hires from the last 20 days not yet marked as reported, with a **Mark as reported** button on each row. | Meeting new hire reporting deadlines. |
 
 **Running across companies.** If you can access more than one company, six reports (register, tax liability, workers comp, deductions, client liabilities, new hires) can be run for *all* your companies at once. They show a subtotal per company and a grand total. The **941**, **Oklahoma withholding**, and **W-2 export** must be run one company at a time, because each is filed under that company's own EIN.
@@ -310,7 +312,7 @@ Confirm figures against the official IRS and Oklahoma Tax Commission instruction
 
 ## 14. Things to know
 
-- **Remittances are not tracked yet.** The Client liabilities report shows what is owed, but there is no screen to record that a payment was sent, so its remitted column stays at $0.00.
+- **Remittances are marked per payee, not per payment.** **Mark Remitted** marks everything outstanding for that payee, company and year in one go. There is no undo and no partial amount; ask an administrator if one was marked by mistake.
 - **Employer insurance premiums** are not modeled. Client liabilities include the employee's deduction and any employer match, not a company-paid premium share.
 - **Test data only** on the Docker test deployment: it runs over plain HTTP, so anything typed (including your password) can be read on the network. Use fake SSNs and bank numbers there.
 - **Backups.** The database and the encryption key must both be backed up. Without the key, stored Social Security and bank numbers cannot be read.

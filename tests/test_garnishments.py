@@ -180,3 +180,11 @@ class TestCalculatorGarnishmentIntegration:
         assert len(result.garnishment_results) == 2
         assert result.garnishment_results[0].garnishment_type == "child_support"
         assert result.garnishment_results[1].garnishment_type == "creditor"
+
+
+class TestZeroAmountOrder:
+    def test_zero_fixed_amount_is_skipped(self):
+        zero = GarnishmentInput(garnishment_type="creditor", amount=Decimal("0"), order_id=1)
+        real = GarnishmentInput(garnishment_type="creditor", amount=Decimal("100"), order_id=2)
+        results = calc_garnishments(Decimal("2000"), [zero, real])
+        assert [r.order_id for r in results] == [2]

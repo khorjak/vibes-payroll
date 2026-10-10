@@ -284,7 +284,7 @@ payroll/
 3. **Calculate (draft)** — preview all paychecks; see gross, deductions, taxes, net
 4. **Review** — flag anomalies (e.g., large variance from prior period)
 5. **Approve** — lock the run; paychecks become immutable
-6. **Mark paid** — record payment date and check numbers
+6. **Mark paid** — record payment date and check numbers (optional first check number, numbered consecutively; per-paycheck edit on the paycheck page)
 7. **Off-cycle** — manual check entry outside a regular pay period
 
 ### Paycheck Detail
@@ -297,7 +297,7 @@ payroll/
 - Tax liability summary (federal + OK + FICA + FUTA + SUTA)
 - Workers comp audit report (wages by NCCI code)
 - Deduction / benefit report
-- Client liability remittance list
+- Client liability remittance list (approver **Mark Remitted** per payee, with optional reference)
 - 941 quarterly summary data
 - W-2 data export (year-end)
 - Oklahoma OTC withholding summary

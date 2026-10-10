@@ -1,12 +1,12 @@
 import io
 import csv
 import re
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi import APIRouter, Depends, Form, HTTPException, Request
+from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from sqlalchemy.orm import Session, joinedload
 
 from database import get_db
@@ -15,13 +15,15 @@ from models.employee import Employee
 from models.payroll import PayPeriod, Paycheck, PaycheckLine, ClientLiability
 from models.user import User
 from models.workers_comp import WorkersCompCode
-from routers.auth import ActiveCompany, CurrentUser, get_current_user
+from routers.auth import ActiveCompany, ApproverUser, CurrentUser, get_current_user
 from utils.company_scope import (
     accessible_companies,
     assert_company_access,
     get_scoped_pay_period,
     resolve_company_ids,
 )
+from services.audit import log_change
+from utils.csrf import CsrfProtect
 from app_templates import templates
 
 router = APIRouter(prefix="/reports", tags=["reports"],
@@ -738,6 +740,22 @@ def deductions_report(
     })
 
 
+def _owed_liabilities(db: Session, company_ids: list[int], year: int):
+    """Liabilities that are actually owed: paycheck approved/paid (or none), pay date in `year`."""
+    return (
+        db.query(ClientLiability)
+        .join(PayPeriod, ClientLiability.pay_period_id == PayPeriod.id)
+        .outerjoin(Paycheck, ClientLiability.paycheck_id == Paycheck.id)
+        .filter(
+            # Owed once a paycheck is approved; drafts and voids owe nothing.
+            (Paycheck.id.is_(None)) | Paycheck.status.in_(["approved", "paid"]),
+            PayPeriod.company_id.in_(company_ids),
+            PayPeriod.pay_date >= date(year, 1, 1),
+            PayPeriod.pay_date < date(year + 1, 1, 1),
+        )
+    )
+
+
 def _liability_rows(liabilities: list) -> list[dict]:
     by_payee: dict[str, dict] = {}
     for li in liabilities:
@@ -779,19 +797,7 @@ def client_liabilities_report(
     totals = {}
 
     if company_ids and year:
-        liabilities = (
-            db.query(ClientLiability)
-            .join(PayPeriod, ClientLiability.pay_period_id == PayPeriod.id)
-            .outerjoin(Paycheck, ClientLiability.paycheck_id == Paycheck.id)
-            .filter(
-                # Owed once a paycheck is approved; drafts and voids owe nothing.
-                (Paycheck.id.is_(None)) | Paycheck.status.in_(["approved", "paid"]),
-                PayPeriod.company_id.in_(company_ids),
-                PayPeriod.pay_date >= date(year, 1, 1),
-                PayPeriod.pay_date < date(year + 1, 1, 1),
-            )
-            .all()
-        )
+        liabilities = _owed_liabilities(db, company_ids, year).all()
 
         if company_id == CONSOLIDATED:
             company_map = _company_map(db, company_ids)
@@ -833,6 +839,44 @@ def client_liabilities_report(
         "rows": rows,
         "totals": totals,
     })
+
+
+@router.post("/client-liabilities/remit")
+def remit_client_liabilities(
+    current_user: ApproverUser,
+    _csrf: CsrfProtect,
+    db: Session = Depends(get_db),
+    company_id: int = Form(...),
+    year: int = Form(...),
+    payee_name: str = Form(...),
+    reference: str = Form(""),
+    view: int = Form(0),
+):
+    """Mark every outstanding liability for one payee/company/year as remitted."""
+    assert_company_access(current_user, company_id, db)
+    reference = reference.strip()
+    if len(reference) > 100:
+        raise HTTPException(status_code=422, detail="Reference is at most 100 characters")
+    outstanding = [
+        li for li in _owed_liabilities(db, [company_id], year).all()
+        if li.payee_name == payee_name and li.remitted_at is None
+    ]
+    if not outstanding:
+        raise HTTPException(status_code=400, detail="Nothing outstanding for that payee")
+    now = datetime.now(timezone.utc)
+    for li in outstanding:
+        li.remitted_at = now
+        li.remittance_reference = reference or None
+        log_change(db, "client_liabilities", li.id, "update",
+                   changed_by=current_user.username,
+                   old_values={"remitted_at": None},
+                   new_values={"remitted_at": now.isoformat(), "reference": reference or None})
+    db.commit()
+    # Return to the view the user was on (view=-1 keeps the consolidated list).
+    return RedirectResponse(
+        f"/reports/client-liabilities?company_id={view or company_id}&year={year}&flash=remitted",
+        status_code=303,
+    )
 
 
 @router.get("/new-hires", response_class=HTMLResponse)

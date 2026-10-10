@@ -512,16 +512,59 @@ def approve_payroll_run(pay_period: PayPeriod, db: Session) -> None:
     db.commit()
 
 
-def mark_period_paid(pay_period: PayPeriod, db: Session) -> None:
-    """Mark all approved paychecks as paid and transition the pay period to 'paid'."""
+def _assert_check_number_free(paycheck: Paycheck, number: str, db: Session) -> None:
+    """Raise if another live paycheck in the same company already uses `number`."""
+    clash = (
+        db.query(Paycheck.id)
+        .join(PayPeriod, Paycheck.pay_period_id == PayPeriod.id)
+        .filter(
+            PayPeriod.company_id == paycheck.pay_period.company_id,
+            Paycheck.check_number == number,
+            Paycheck.status != "voided",
+            Paycheck.id != paycheck.id,
+        )
+        .first()
+    )
+    if clash:
+        raise ValueError(f"Check number {number} is already used by another paycheck")
+
+
+def set_check_number(paycheck: Paycheck, number: str, db: Session) -> None:
+    """Set (or clear, if blank) a paycheck's check number. Unique per company among live checks."""
+    number = number.strip()
+    if number:
+        _assert_check_number_free(paycheck, number, db)
+    paycheck.check_number = number or None
+
+
+def mark_period_paid(
+    pay_period: PayPeriod, db: Session, first_check_number: int | None = None,
+) -> None:
+    """Mark all approved paychecks as paid and transition the pay period to 'paid'.
+
+    With first_check_number, approved paychecks are numbered consecutively in
+    paycheck order. A clash with an existing number raises before anything is
+    changed.
+    """
     if pay_period.status != "approved":
         raise ValueError(f"Cannot mark paid: pay period is '{pay_period.status}'")
 
+    approved = sorted(
+        (pc for pc in pay_period.paychecks if pc.status == "approved"), key=lambda pc: pc.id,
+    )
+    if first_check_number is not None:
+        if first_check_number < 1:
+            raise ValueError("First check number must be positive")
+        numbers = [str(first_check_number + i) for i in range(len(approved))]
+        for paycheck, number in zip(approved, numbers):  # validate all before changing any
+            _assert_check_number_free(paycheck, number, db)
+        for paycheck, number in zip(approved, numbers):
+            paycheck.check_number = number
+
     now = datetime.now(timezone.utc)
-    for paycheck in pay_period.paychecks:
-        if paycheck.status == "approved":
-            paycheck.status = "paid"
-            paycheck.paid_at = now
+    for paycheck in approved:
+        paycheck.status = "paid"
+        paycheck.paid_at = now
 
     pay_period.status = "paid"
     db.commit()
