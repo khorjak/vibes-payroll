@@ -679,3 +679,87 @@ class TestEnrollmentOverrideValidation:
         page = client.get(f"/employees/{salaried_employee.id}").text
         assert "0.0000%" in page  # the override, not the plan's 5%
         assert "5.0000%" not in page
+
+
+# ── Validation, SSN masking, cross-company references ───────────────────────
+
+def _emp_form(company, **over):
+    data = {
+        "company_id": company.id, "first_name": "Alice", "last_name": "Walker",
+        "employment_type": "hourly", "pay_rate": "20.00", "status": "active", "state": "OK",
+    }
+    data.update(over)
+    return data
+
+
+class TestEmployeeFormValidation:
+    def test_whitespace_only_names_rejected(self, client, db, company):
+        # Empty strings never reach the handler (FastAPI treats them as missing),
+        # so whitespace is the case the .strip() check actually guards.
+        r = client.post("/employees/new", data=_emp_form(
+            company, first_name="  ", last_name="   "))
+        assert r.status_code == 422
+        assert "First name is required." in r.text
+        assert "Last name is required." in r.text
+        assert db.query(Employee).count() == 0
+
+    def test_create_rejects_other_companys_wc_code(self, client, db, company, second_company):
+        from models.workers_comp import WorkersCompCode
+        foreign = WorkersCompCode(company_id=second_company.id, ncci_code="8810",
+                                  description="Clerical", rate_per_100_wages=0.25)
+        db.add(foreign)
+        db.commit()
+        r = client.post("/employees/new", data=_emp_form(
+            company, workers_comp_code_id=str(foreign.id)))
+        assert r.status_code == 422
+        assert "belonging to this company" in r.text
+        assert db.query(Employee).count() == 0
+
+    def test_update_rejects_other_companys_wc_code(
+        self, client, db, company, second_company, salaried_employee,
+    ):
+        from models.workers_comp import WorkersCompCode
+        foreign = WorkersCompCode(company_id=second_company.id, ncci_code="8810",
+                                  description="Clerical", rate_per_100_wages=0.25)
+        db.add(foreign)
+        db.commit()
+        r = client.post(f"/employees/{salaried_employee.id}/edit", data=_emp_form(
+            company, employment_type="salaried", pay_rate="65000",
+            workers_comp_code_id=str(foreign.id)))
+        assert r.status_code == 422
+        assert "belonging to this company" in r.text
+        db.refresh(salaried_employee)
+        assert salaried_employee.workers_comp_code_id is None
+
+    def test_non_numeric_wc_code_rejected(self, client, company):
+        r = client.post("/employees/new", data=_emp_form(company, workers_comp_code_id="abc"))
+        assert r.status_code == 422
+
+
+class TestEmployeeDetailAndEnrollment:
+    def test_ssn_masked_to_last_four(self, client, db, salaried_employee):
+        from utils.crypto import encrypt
+        salaried_employee.ssn_encrypted = encrypt("123456789")
+        db.commit()
+        r = client.get(f"/employees/{salaried_employee.id}")
+        assert r.status_code == 200
+        assert "***-**-6789" in r.text
+        assert "123456789" not in r.text
+
+    def test_enroll_in_other_companys_plan_404s(self, client, db, salaried_employee, second_company):
+        from models.benefit import BenefitPlan
+        foreign = BenefitPlan(company_id=second_company.id, name="Foreign", benefit_type="health",
+                              employee_contribution_type="fixed",
+                              employee_contribution_amount=10, pre_tax=True, active=True)
+        db.add(foreign)
+        db.commit()
+        r = client.post(f"/employees/{salaried_employee.id}/benefits/enroll", data={
+            "benefit_plan_id": foreign.id, "effective_date": "2026-01-01",
+        })
+        assert r.status_code == 404
+        assert db.query(EmployeeBenefitEnrollment).count() == 0
+
+    def test_deactivate_missing_garnishment_404s(self, client, salaried_employee):
+        r = client.post(f"/employees/{salaried_employee.id}/garnishments/9999/deactivate",
+                        data={"end_date": "2026-06-01"})
+        assert r.status_code == 404
