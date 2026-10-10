@@ -18,7 +18,7 @@ Self-hosted payroll application for small businesses operating in Oklahoma. Hand
 - Timesheet entry for hourly and part-time employees
 - Tax engine: federal (IRS Pub 15), Oklahoma (OTC tables), FICA, FUTA, SUTA, workers comp
 - Pay stub PDF generation
-- Reports: payroll register, tax liability, quarterly 941, workers comp audit, Oklahoma withholding, deduction/benefit summary, client liability remittance, new hire reporting, W-2 CSV export
+- Reports: payroll register, tax liability, quarterly 941, Oklahoma SUTA (OESC) wage detail, workers comp audit, Oklahoma withholding, deduction/benefit summary, client liability remittance, new hire reporting, W-2 CSV export
 - Final paychecks: terminated employees are drafted automatically (salary prorated) in the run covering their last day
 - Session authentication with role-based access (admin / read-only)
 - Login rate limiting and security headers (CSP, HSTS, X-Frame-Options)
