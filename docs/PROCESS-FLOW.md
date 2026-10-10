@@ -113,7 +113,7 @@ Inputs the calculation reads:
 | Garnishments | Active garnishment orders |
 | SUTA rate | Company setting; 2.7% if blank |
 | Workers comp rate | Employee's workers comp code (rate per $100 of wages) |
-| Year-to-date wages | Sum of earlier non-voided paychecks in the same calendar year |
+| Year-to-date wages | Earlier non-voided paychecks in the same calendar year: gross less pre-tax deductions. Post-tax deductions and garnishments are not subtracted, because the Social Security, FUTA and SUTA wage bases count wages paid, not take-home pay |
 
 **Employer match.** A plan with a match percentage adds an employer contribution line: the match percent of the employee's contribution, counting at most the cap percent of gross pay. For example, "100% up to 4%" on a $2,500 check matches at most $100. The match is employer money, so it never reduces the employee's net pay or appears in their deductions.
 

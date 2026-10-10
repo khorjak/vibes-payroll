@@ -82,6 +82,8 @@ Both elections have an `exempt` flag (`W4Input.exempt` / `OKWithholdingInput.exe
 
 Final paycheck: `calculate_payroll_run` drafts `active` employees plus `terminated` ones with `start_date <= termination_date <= pay_date`; `draft_paycheck` prorates a salaried employee's gross by `final_pay_fraction()` (calendar days, capped at the period) unless `gross_override` is given. The period page's terminated-employee list (`auto_final_ids`) marks which will be drafted automatically.
 
+`get_ytd_prior` returns wage-base totals (`ss_wages`/`futa_wages`/`suta_wages`/`taxable`, and the Medicare YTD passed as `ytd_gross_prior`) on the same basis the engine applies to the current paycheck: gross less pre-tax deduction lines. Post-tax deductions and garnishments must not reduce them. `gross` stays true gross and feeds the stored `ytd_gross`.
+
 `services/payroll_service.py` orchestrates: `calculate_payroll_run` → `approve_payroll_run` → `mark_period_paid` → `void_paycheck`. These call the tax engine and write `Paycheck` + `PaycheckLine` rows.
 
 ### Encryption
