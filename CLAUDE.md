@@ -80,6 +80,8 @@ An employee with no W-4 / OK-W-4 is withheld as single with no adjustments / 0 a
 
 Both elections have an `exempt` flag (`W4Input.exempt` / `OKWithholdingInput.exempt` in the engine → $0 income tax, FICA unaffected; federal exempt also zeroes supplemental). Saving an exempt election zeroes its other amounts. A federal exempt W-4 expires Feb 15 of the year after its `effective_date` (`W4Election.is_exempt_on(pay_date)`, IRS Pub. 15); `draft_paycheck` then falls back to the single default. OK exempt has no expiry.
 
+Final paycheck: `calculate_payroll_run` drafts `active` employees plus `terminated` ones with `start_date <= termination_date <= pay_date`; `draft_paycheck` prorates a salaried employee's gross by `final_pay_fraction()` (calendar days, capped at the period) unless `gross_override` is given. The period page's terminated-employee list (`auto_final_ids`) marks which will be drafted automatically.
+
 `services/payroll_service.py` orchestrates: `calculate_payroll_run` → `approve_payroll_run` → `mark_period_paid` → `void_paycheck`. These call the tax engine and write `Paycheck` + `PaycheckLine` rows.
 
 ### Encryption

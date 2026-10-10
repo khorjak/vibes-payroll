@@ -1187,3 +1187,125 @@ class TestHoursParsing:
         assert r.status_code == 303
         ts = db.query(Timesheet).filter(Timesheet.employee_id == hourly_employee.id).one()
         assert float(ts.regular_hours) == pytest.approx(20.0)  # $370 / $18.50
+
+
+# ── Final paycheck on termination ───────────────────────────────────────────
+# pay_period fixture: May 1-14 2026 (14 days), pay date May 20, biweekly.
+
+def _terminate(db, employee, on):
+    employee.status = "terminated"
+    employee.termination_date = on
+    db.commit()
+
+
+def _calc(db, pay_period):
+    pp = _load_pay_period(db, pay_period.id)
+    return {pc.employee_id: pc for pc in calculate_payroll_run(pp, db)}
+
+
+class TestFinalPaycheck:
+    def test_salaried_terminated_mid_period_is_prorated(self, db, salaried_employee, pay_period):
+        _terminate(db, salaried_employee, date(2026, 5, 7))  # 7 of 14 days worked
+        pc = _calc(db, pay_period)[salaried_employee.id]
+        assert pc.gross_wages == Decimal("1250.00")  # half of 65000/26 = 2500
+
+    def test_terminated_on_period_end_gets_full_salary(self, db, salaried_employee, pay_period):
+        _terminate(db, salaried_employee, date(2026, 5, 14))
+        assert _calc(db, pay_period)[salaried_employee.id].gross_wages == Decimal("2500.00")
+
+    def test_terminated_between_period_end_and_pay_date_gets_full_salary(
+        self, db, salaried_employee, pay_period,
+    ):
+        _terminate(db, salaried_employee, date(2026, 5, 18))
+        assert _calc(db, pay_period)[salaried_employee.id].gross_wages == Decimal("2500.00")
+
+    def test_terminated_on_first_day_gets_one_day(self, db, salaried_employee, pay_period):
+        _terminate(db, salaried_employee, date(2026, 5, 1))
+        assert _calc(db, pay_period)[salaried_employee.id].gross_wages == Decimal("178.57")  # 1/14
+
+    def test_hourly_final_paid_from_timesheet(self, db, hourly_employee, pay_period):
+        db.add(Timesheet(employee_id=hourly_employee.id, pay_period_id=pay_period.id,
+                         regular_hours=20))
+        _terminate(db, hourly_employee, date(2026, 5, 8))
+        assert _calc(db, pay_period)[hourly_employee.id].gross_wages == Decimal("370.00")
+
+    def test_terminated_before_period_not_drafted(self, db, salaried_employee, pay_period):
+        _terminate(db, salaried_employee, date(2026, 4, 30))
+        assert salaried_employee.id not in _calc(db, pay_period)
+
+    def test_terminated_after_pay_date_not_drafted(self, db, salaried_employee, pay_period):
+        _terminate(db, salaried_employee, date(2026, 5, 21))
+        assert salaried_employee.id not in _calc(db, pay_period)
+
+    def test_terminated_without_date_not_drafted(self, db, salaried_employee, pay_period):
+        salaried_employee.status = "terminated"
+        db.commit()
+        assert salaried_employee.id not in _calc(db, pay_period)
+
+    def test_active_employee_unaffected(self, db, salaried_employee, pay_period):
+        salaried_employee.termination_date = date(2026, 5, 3)  # stale date, still active
+        db.commit()
+        assert _calc(db, pay_period)[salaried_employee.id].gross_wages == Decimal("2500.00")
+
+    def test_recalculate_does_not_duplicate_final(self, db, salaried_employee, pay_period):
+        _terminate(db, salaried_employee, date(2026, 5, 7))
+        _calc(db, pay_period)
+        _calc(db, pay_period)
+        assert db.query(Paycheck).filter_by(employee_id=salaried_employee.id).count() == 1
+
+    def test_final_is_taxed_and_deducts_like_a_normal_paycheck(self, db, salaried_employee, pay_period):
+        _terminate(db, salaried_employee, date(2026, 5, 7))
+        pc = _calc(db, pay_period)[salaried_employee.id]
+        assert pc.total_taxes_withheld > 0
+        assert pc.net_pay < pc.gross_wages
+
+    def test_final_alongside_active_employee(self, db, salaried_employee, hourly_employee, pay_period):
+        _terminate(db, salaried_employee, date(2026, 5, 7))
+        assert set(_calc(db, pay_period)) == {salaried_employee.id, hourly_employee.id}
+
+    def test_other_company_terminated_employee_not_drafted(self, db, other_employee, pay_period):
+        _terminate(db, other_employee, date(2026, 5, 7))
+        assert other_employee.id not in _calc(db, pay_period)
+
+    def test_off_cycle_amount_not_prorated(self, db, salaried_employee, pay_period):
+        _terminate(db, salaried_employee, date(2026, 5, 7))
+        pc = draft_paycheck(_load_employee(db, salaried_employee.id),
+                            _load_pay_period(db, pay_period.id), None, db,
+                            gross_override=Decimal("900.00"))
+        assert pc.gross_wages == Decimal("900.00")
+
+    def test_consecutive_periods_each_prorated(self, db, company, salaried_employee, pay_period):
+        # Terminated May 16 -> May 1-14 period is full (paid after term), May 15-28 gets 2/14.
+        _terminate(db, salaried_employee, date(2026, 5, 16))
+        second = PayPeriod(company_id=company.id, start_date=date(2026, 5, 15),
+                           end_date=date(2026, 5, 28), pay_date=date(2026, 6, 3),
+                           frequency="biweekly", status="open")
+        db.add(second)
+        db.commit()
+        assert _calc(db, pay_period)[salaried_employee.id].gross_wages == Decimal("2500.00")
+        approve_payroll_run(_load_pay_period(db, pay_period.id), db)
+        assert _calc(db, second)[salaried_employee.id].gross_wages == Decimal("357.14")  # 2/14
+
+
+class TestFinalPaycheckPages:
+    def test_calculate_route_includes_terminated(self, client, db, company, salaried_employee, pay_period):
+        _terminate(db, salaried_employee, date(2026, 5, 7))
+        assert client.post(f"/payroll/{pay_period.id}/calculate").status_code == 303
+        page = client.get(f"/payroll/{pay_period.id}").text
+        assert "Final" in page
+        assert "$1250.00" in page
+
+    def test_open_period_lists_auto_included(self, client, db, salaried_employee, pay_period):
+        _terminate(db, salaried_employee, date(2026, 5, 7))
+        page = client.get(f"/payroll/{pay_period.id}").text
+        assert "included when you calculate" in page
+
+    def test_pre_period_termination_listed_as_manual(self, client, db, salaried_employee, pay_period):
+        _terminate(db, salaried_employee, date(2026, 4, 1))
+        page = client.get(f"/payroll/{pay_period.id}").text
+        assert "not included automatically" in page
+
+    def test_no_warning_once_drafted(self, client, db, salaried_employee, pay_period):
+        _terminate(db, salaried_employee, date(2026, 5, 7))
+        client.post(f"/payroll/{pay_period.id}/calculate")
+        assert "needing final paycheck" not in client.get(f"/payroll/{pay_period.id}").text

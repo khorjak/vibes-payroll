@@ -75,7 +75,8 @@
   <p class="text-sm font-medium text-amber-800">Terminated employees needing final paycheck:</p>
   <ul class="mt-1 text-sm text-amber-700 list-disc list-inside">
     {% for emp in terminated_needing_final %}
-    <li><a href="/employees/{{ emp.id }}" class="underline">{{ emp.full_name }}</a> — terminated {{ emp.termination_date }}</li>
+    <li><a href="/employees/{{ emp.id }}" class="underline">{{ emp.full_name }}</a> — terminated {{ emp.termination_date }}
+      {% if emp.id in auto_final_ids %}(included when you calculate){% else %}(terminated before this period, not included automatically){% endif %}</li>
     {% endfor %}
   </ul>
 </div>
@@ -106,6 +107,9 @@
             <span title="Gross wages differ >20% from prior paycheck" class="text-amber-500 text-base">⚠</span>
             {% endif %}
             <span class="font-medium text-slate-800">{{ pc.employee.full_name }}</span>
+            {% if pc.employee.status == 'terminated' %}
+            <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600">Final</span>
+            {% endif %}
           </div>
         </td>
         <td class="px-4 py-3 text-right font-mono">${{ "%.2f"|format(pc.gross_wages) }}</td>

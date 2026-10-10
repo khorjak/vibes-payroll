@@ -437,6 +437,7 @@ def pay_period_detail(
                     variance_flags[paycheck.id] = pct > Decimal("0.20")
 
     terminated_needing_final = []
+    auto_final_ids: set[int] = set()
     terminated_employees = (
         db.query(Employee)
         .filter(
@@ -463,13 +464,23 @@ def pay_period_detail(
             .distinct()
             .all()
         )
-        terminated_needing_final = [emp for emp in candidates if emp.id not in has_final_ids]
+        # Terminated within [start, pay date]: drafted automatically on Calculate, even
+        # if an earlier regular paycheck was paid after the termination date.
+        auto_final_ids = {
+            emp.id for emp in candidates
+            if pp.status in ("open", "draft")
+            and pp.start_date <= emp.termination_date <= pp.pay_date
+        }
+        terminated_needing_final = [
+            emp for emp in candidates if emp.id in auto_final_ids or emp.id not in has_final_ids
+        ]
 
     return templates.TemplateResponse(request, "payroll/detail.html", {
         "pp": pp,
         "flash": flash,
         "variance_flags": variance_flags,
         "terminated_needing_final": terminated_needing_final,
+        "auto_final_ids": auto_final_ids,
         "active_nav": "payroll",
     })
 

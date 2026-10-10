@@ -328,7 +328,7 @@ open → draft → approved → paid → closed
 - [ ] Workers comp coverage verification per employee — the workers comp report groups wages by code and shows employees with no code as "Unclassified"; nothing flags or blocks an employee missing a code
 - [x] New hire reporting within 20 days of hire to Oklahoma DHS — new hire report plus a Mark as reported action
 - [x] Pay stub provided each pay period (Oklahoma requirement) — PDF pay stub per paycheck
-- [ ] Final paycheck on next scheduled payday upon termination — the period page lists terminated employees still owed one, but it is not drafted automatically
+- [x] Final paycheck on next scheduled payday upon termination — drafted automatically in the run covering the termination date (salary prorated by calendar days); accrued time-off payout is not modeled
 - [x] Minimum wage compliance ($7.25/hr, mirrors federal) — enforced for hourly and part-time pay rates on employee create and edit
 - [x] Overtime: 1.5× for non-exempt employees >40 hrs/week (FLSA) — overtime hours are paid at 1.5× and double time at 2×; hours are entered on the timesheet, not auto-split at 40/week
 
