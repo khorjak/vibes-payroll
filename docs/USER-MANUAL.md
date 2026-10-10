@@ -170,7 +170,7 @@ Payroll applies active orders in legal priority order (child support first, then
 
 - **Edit** changes any field. Pay rate changes apply to paychecks calculated afterwards.
 - **On leave:** set the status to *On leave*. The employee is skipped in payroll runs until set back to *Active*.
-- **Terminating:** set the status to *Terminated* and enter the termination date. Terminated employees are **not** included in payroll runs. If a final paycheck is owed, see [Final paychecks](#final-paychecks).
+- **Terminating:** set the status to *Terminated* and enter the termination date. A terminated employee gets a final paycheck automatically in the pay run that covers their last day, then drops out of later runs. See [Final paychecks](#final-paychecks).
 
 ## 7. Running payroll
 
@@ -211,7 +211,13 @@ Found a mistake? Fix the source (timesheet hours, employee rate, tax election, b
 
 #### Final paychecks
 
-A terminated employee is not drafted automatically. If someone is owed a final paycheck, the period page lists them as needing one. Set their status back to *Active* for the calculation, calculate, then set them to *Terminated* again afterwards. Check with your accountant or payroll policy on final pay timing requirements.
+When you **Calculate**, a terminated employee is included if their termination date falls between the period's start date and its pay date. The paycheck shows a **Final** badge on the period page.
+
+- **Salaried:** the period salary is prorated by calendar days from the period start through the termination date. Ending on or after the period end pays the full period. Example: a $2,500.00 biweekly salary with a termination date on day 7 of 14 pays $1,250.00.
+- **Hourly and part-time:** paid from the timesheet, as usual. Enter their hours before you calculate.
+- Benefit deductions and garnishments still apply while their enrollments and orders are open. End any that should stop with the termination.
+
+Before you calculate, the period page lists terminated employees as *included when you calculate*. Anyone terminated **before** the period start who never received a final paycheck is listed as *not included automatically*. To pay them, set their status back to *Active*, calculate, then set them to *Terminated* again (this pays a full period salary). Final pay only covers wages for the period. It does not include accrued time-off payouts or other extras; for those, void and use an off-cycle payment. Check with your accountant or payroll policy on final pay timing requirements.
 
 ### Stage 4: Approve and mark paid (approver)
 

@@ -66,7 +66,7 @@ flowchart TD
     S2 -->|Yes| S3[Enter hours per employee<br/>each row saves on its own]
     S2 -->|No| S4
     S3 --> S4[Calculate draft]
-    S4 --> S5[System drafts a paycheck for<br/>every ACTIVE employee<br/>of the company]
+    S4 --> S5[System drafts a paycheck for<br/>every ACTIVE employee<br/>plus anyone terminated in the period]
     S5 --> S6[Review drafts:<br/>variance flags, terminated-employee warnings]
     S6 -->|Fix hours or employee data| S3
     S6 -->|OK| S7[Approve run]
@@ -82,7 +82,7 @@ Notes on each step:
 - **Hourly and part-time** employees are paid from their timesheet. With no timesheet, gross pay is $0.00.
 - **Review flags** on the period page:
   - *Variance:* a draft whose gross differs from the employee's most recent approved or paid paycheck by more than 20%.
-  - *Terminated employees needing a final paycheck:* terminated employees whose termination date is on or before the pay date and who have no approved or paid paycheck on or after that date.
+  - *Terminated employees needing a final paycheck:* terminated employees whose termination date is on or before the pay date and who have no paycheck in this period. Those terminated within the period (start date through pay date) are labelled *included when you calculate*; earlier terminations that never got a final paycheck are labelled *not included automatically*.
 - **Approve** and **mark paid** only work from the expected prior status. Doing them out of order returns an error.
 - **Check numbers.** Mark paid can take a first check number and numbers the approved paychecks consecutively, in paycheck order. All numbers are checked for clashes first, so a clash fails the whole run with nothing changed. A number must be unique among non-voided paychecks of the same company (a voided check's number can be reused). Approvers can also set, change or clear a number on an approved or paid paycheck; each change is audit-logged.
 
@@ -157,10 +157,10 @@ flowchart LR
     E4 --> E5{Leaves?}
     E5 -->|On leave| E6[Set status on_leave<br/>skipped by Calculate]
     E5 -->|Terminated| E7[Set status terminated<br/>and termination date]
-    E7 --> E8[Warning shown until a final<br/>paycheck is approved or paid]
+    E7 --> E8[Next Calculate that covers the<br/>termination date drafts a final paycheck]
 ```
 
-Only employees with status `active` are included in a payroll run. W-4 and Oklahoma elections are kept as history; the newest one by effective date is used. An employee with no election is withheld as single with no adjustments / 0 allowances, never $0. Benefit enrollments and garnishment orders are ended by giving an end date (they are not deleted).
+Employees with status `active` are included in a payroll run, plus `terminated` employees whose termination date is between the period start date and its pay date (their final paycheck). A final paycheck for a salaried employee is the period salary prorated by calendar days, start through termination date, capped at the period end (`final_pay_fraction`); hourly pay follows the timesheet. Off-cycle amounts are never prorated. Accrued time-off payouts are not modeled. W-4 and Oklahoma elections are kept as history; the newest one by effective date is used. An employee with no election is withheld as single with no adjustments / 0 allowances, never $0. Benefit enrollments and garnishment orders are ended by giving an end date (they are not deleted).
 
 ## 9. Reports and filing scope
 

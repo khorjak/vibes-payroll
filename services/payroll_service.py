@@ -5,7 +5,7 @@ from datetime import date, datetime, timezone
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Optional
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import func
+from sqlalchemy import and_, func, or_
 
 from models.employee import Employee
 from models.payroll import PayPeriod, Timesheet, Paycheck, PaycheckLine, ClientLiability
@@ -47,6 +47,18 @@ def calc_employee_gross(
     sick = Decimal(str(timesheet.sick_hours or 0)) * rate
     holiday = Decimal(str(timesheet.holiday_hours or 0)) * rate
     return _round2(regular + overtime + double_time + pto + sick + holiday)
+
+
+def final_pay_fraction(employee: Employee, pay_period: PayPeriod) -> Decimal:
+    """Share of the period a terminated employee worked, by calendar days.
+
+    Termination on or after the period end (or no termination date) is a full period.
+    """
+    if employee.status != "terminated" or not employee.termination_date:
+        return Decimal("1")
+    total = (pay_period.end_date - pay_period.start_date).days + 1
+    worked = (min(employee.termination_date, pay_period.end_date) - pay_period.start_date).days + 1
+    return Decimal(max(0, min(worked, total))) / Decimal(total)
 
 
 def _active_enrollments(employee: Employee, pre_tax: bool):
@@ -374,10 +386,14 @@ def draft_paycheck(
 
     company = pay_period.company
     frequency = get_pay_frequency(employee, company)
-    gross = (
-        _round2(gross_override) if gross_override is not None
-        else calc_employee_gross(employee, timesheet, frequency)
-    )
+    if gross_override is not None:
+        gross = _round2(gross_override)
+    else:
+        gross = calc_employee_gross(employee, timesheet, frequency)
+        # Final paycheck: salary is prorated to the termination date. Hourly pay
+        # already follows the timesheet.
+        if employee.employment_type == "salaried":
+            gross = _round2(gross * final_pay_fraction(employee, pay_period))
     ytd = get_ytd_prior(employee.id, pay_period, db)
     pre_tax = get_employee_pre_tax_deductions(employee, gross)
     post_tax = get_employee_post_tax_deductions(employee, gross)
@@ -462,7 +478,12 @@ def draft_paycheck(
 
 
 def calculate_payroll_run(pay_period: PayPeriod, db: Session) -> list:
-    """Draft all active employees for the pay period. Sets status to 'draft'."""
+    """Draft all active employees, plus those terminated during the period, for the pay period.
+
+    A terminated employee is owed a final paycheck on the first payday on or after
+    termination: included when termination_date falls between the period start and
+    the pay date. Sets status to 'draft'.
+    """
     employees = (
         db.query(Employee)
         .options(
@@ -474,7 +495,14 @@ def calculate_payroll_run(pay_period: PayPeriod, db: Session) -> list:
         )
         .filter(
             Employee.company_id == pay_period.company_id,
-            Employee.status == "active",
+            or_(
+                Employee.status == "active",
+                and_(
+                    Employee.status == "terminated",
+                    Employee.termination_date >= pay_period.start_date,
+                    Employee.termination_date <= pay_period.pay_date,
+                ),
+            ),
         )
         .all()
     )
