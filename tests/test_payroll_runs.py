@@ -235,6 +235,11 @@ class TestGetYTDPrior:
             net_pay=Decimal("1950.00"),
         )
         db.add(prior_check)
+        db.flush()
+        db.add(PaycheckLine(paycheck_id=prior_check.id, line_type="deduction", description="Health",
+                            amount=Decimal("100.00"), is_pre_tax=True))
+        db.add(PaycheckLine(paycheck_id=prior_check.id, line_type="deduction", description="Garnishment",
+                            amount=Decimal("50.00"), is_pre_tax=False))
         current_pp = PayPeriod(
             company_id=company.id,
             start_date=date(2026, 5, 1),
@@ -247,7 +252,7 @@ class TestGetYTDPrior:
         db.commit()
         ytd = get_ytd_prior(salaried_employee.id, current_pp, db)
         assert ytd["gross"] == Decimal("2500.00")
-        assert ytd["ss_wages"] == Decimal("2350.00")  # 2500 - 150
+        assert ytd["ss_wages"] == Decimal("2400.00")  # 2500 gross - 100 pre-tax; post-tax 50 ignored
 
     def test_voided_paycheck_excluded(self, db, salaried_employee, company):
         prior_pp = PayPeriod(
@@ -1309,3 +1314,73 @@ class TestFinalPaycheckPages:
         _terminate(db, salaried_employee, date(2026, 5, 7))
         client.post(f"/payroll/{pay_period.id}/calculate")
         assert "needing final paycheck" not in client.get(f"/payroll/{pay_period.id}").text
+
+
+# ── Year-to-date wage bases use gross less PRE-tax deductions only ──────────
+
+class TestYtdWageBaseBasis:
+    """The engine taxes gross - pre_tax on the current paycheck, so prior wages
+    must use the same basis. Post-tax deductions and garnishments are paid out
+    of taxable wages and must not make the SS/FUTA/SUTA bases look unused."""
+
+    def _prior(self, db, company, employee, gross, pre_tax=0, post_tax=0):
+        pp = PayPeriod(company_id=company.id, start_date=date(2026, 4, 1), end_date=date(2026, 4, 14),
+                       pay_date=date(2026, 4, 20), frequency="biweekly", status="paid")
+        db.add(pp)
+        db.flush()
+        pc = Paycheck(employee_id=employee.id, pay_period_id=pp.id, status="paid",
+                      gross_wages=Decimal(gross), total_deductions=Decimal(pre_tax) + Decimal(post_tax),
+                      net_pay=Decimal(gross))
+        db.add(pc)
+        db.flush()
+        for amount, is_pre in ((pre_tax, True), (post_tax, False)):
+            if Decimal(amount):
+                db.add(PaycheckLine(paycheck_id=pc.id, line_type="deduction", description="Ded",
+                                    amount=Decimal(amount), is_pre_tax=is_pre))
+        db.commit()
+
+    def _draft(self, db, employee, pay_period):
+        return draft_paycheck(_load_employee(db, employee.id), _load_pay_period(db, pay_period.id), None, db)
+
+    def _line(self, db, paycheck, description):
+        line = db.query(PaycheckLine).filter_by(paycheck_id=paycheck.id, description=description).first()
+        return line.amount if line else Decimal("0")
+
+    def test_post_tax_deductions_do_not_reduce_ytd_wages(self, db, company, salaried_employee, pay_period):
+        self._prior(db, company, salaried_employee, "5000.00", post_tax="3000.00")
+        ytd = get_ytd_prior(salaried_employee.id, pay_period, db)
+        assert ytd["taxable"] == ytd["ss_wages"] == ytd["futa_wages"] == ytd["suta_wages"] == Decimal("5000.00")
+        assert ytd["gross"] == Decimal("5000.00")
+
+    def test_pre_tax_deductions_do_reduce_ytd_wages(self, db, company, salaried_employee, pay_period):
+        self._prior(db, company, salaried_employee, "5000.00", pre_tax="400.00", post_tax="3000.00")
+        assert get_ytd_prior(salaried_employee.id, pay_period, db)["taxable"] == Decimal("4600.00")
+
+    def test_futa_base_not_understated_by_garnishments(self, db, company, salaried_employee, pay_period):
+        # $6,900 already earned, $2,000 of it taken post-tax: only $100 of the $7,000 FUTA base is left.
+        self._prior(db, company, salaried_employee, "6900.00", post_tax="2000.00")
+        assert self._line(db, self._draft(db, salaried_employee, pay_period), "FUTA") == Decimal("0.60")
+
+    def test_suta_base_not_understated_by_garnishments(self, db, company, salaried_employee, pay_period):
+        self._prior(db, company, salaried_employee, "26900.00", post_tax="5000.00")
+        assert self._line(db, self._draft(db, salaried_employee, pay_period), "SUTA") == Decimal("2.70")
+
+    def test_social_security_base_not_understated_by_garnishments(
+        self, db, company, salaried_employee, pay_period,
+    ):
+        from tax_engine.fica import SS_WAGE_BASE
+        self._prior(db, company, salaried_employee, str(SS_WAGE_BASE - 100), post_tax="5000.00")
+        pc = self._draft(db, salaried_employee, pay_period)
+        assert self._line(db, pc, "Social Security (Employee)") == Decimal("6.20")  # 6.2% of $100
+
+    def test_additional_medicare_uses_same_basis_as_current_wages(
+        self, db, company, salaried_employee, pay_period,
+    ):
+        # $202,000 gross less $5,000 pre-tax = $197,000 taxable; +$2,500 stays under the $200k threshold.
+        self._prior(db, company, salaried_employee, "202000.00", pre_tax="5000.00")
+        pc = self._draft(db, salaried_employee, pay_period)
+        assert self._line(db, pc, "Medicare (Employee)") == Decimal("36.25")  # 1.45% of 2,500 only
+
+    def test_stored_ytd_gross_stays_true_gross(self, db, company, salaried_employee, pay_period):
+        self._prior(db, company, salaried_employee, "5000.00", pre_tax="400.00")
+        assert self._draft(db, salaried_employee, pay_period).ytd_gross == Decimal("7500.00")

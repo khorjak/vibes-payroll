@@ -141,17 +141,19 @@ def get_ytd_prior(employee_id: int, pay_period: PayPeriod, db: Session) -> dict:
         PayPeriod.pay_date >= year_start,
     ]
 
-    row = (
-        db.query(
-            func.coalesce(func.sum(Paycheck.gross_wages), 0).label("gross"),
-            func.coalesce(
-                func.sum(Paycheck.gross_wages - Paycheck.total_deductions), 0
-            ).label("taxable"),
-        )
+    gross = Decimal(str(
+        db.query(func.coalesce(func.sum(Paycheck.gross_wages), 0))
         .join(PayPeriod, Paycheck.pay_period_id == PayPeriod.id)
         .filter(*prior_filter)
-        .one()
-    )
+        .scalar()
+    ))
+    pre_tax = Decimal(str(
+        db.query(func.coalesce(func.sum(PaycheckLine.amount), 0))
+        .join(Paycheck, PaycheckLine.paycheck_id == Paycheck.id)
+        .join(PayPeriod, Paycheck.pay_period_id == PayPeriod.id)
+        .filter(*prior_filter, PaycheckLine.line_type == "deduction", PaycheckLine.is_pre_tax.is_(True))
+        .scalar()
+    ))
 
     tax_sums = (
         db.query(
@@ -169,11 +171,14 @@ def get_ytd_prior(employee_id: int, pay_period: PayPeriod, db: Session) -> dict:
     )
     tax_map = {r.description: Decimal(str(r.total)) for r in tax_sums}
 
-    gross = Decimal(str(row.gross))
-    taxable = Decimal(str(row.taxable))
+    # Same basis the engine applies to the current paycheck (gross less pre-tax
+    # deductions). Post-tax deductions and garnishments are paid from taxable
+    # wages, so they must not shrink the year-to-date wage-base totals.
+    taxable = gross - pre_tax
     zero = Decimal("0")
     return {
         "gross": gross,
+        "taxable": taxable,
         "ss_wages": taxable,
         "futa_wages": taxable,
         "suta_wages": taxable,
@@ -434,7 +439,7 @@ def draft_paycheck(
     inp = PaycheckInput(
         gross_wages=gross,
         pay_frequency=frequency,
-        ytd_gross_prior=ytd["gross"],
+        ytd_gross_prior=ytd["taxable"],
         ytd_ss_wages_prior=ytd["ss_wages"],
         ytd_futa_wages_prior=ytd["futa_wages"],
         ytd_suta_wages_prior=ytd["suta_wages"],
