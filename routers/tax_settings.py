@@ -8,10 +8,14 @@ from sqlalchemy.orm import Session
 from app_templates import templates
 from database import get_db
 from models.federal_withholding import SCHEDULES, STATUSES, FederalWithholdingTable
+from models.oklahoma_withholding import OK_STATUSES, OklahomaWithholdingTable
 from models.tax_year import TaxYear
 from routers.auth import AdminUser, get_current_user
 from services.audit import log_change
-from services.tax_years import ROWS_PER_TABLE, federal_table_for, form_values, parse_federal_form
+from services.tax_years import (
+    OK_MAX_ROWS, ROWS_PER_TABLE, federal_table_for, form_values, ok_form_values, ok_table_for,
+    parse_federal_form, parse_ok_form,
+)
 from utils.csrf import CsrfProtect
 
 router = APIRouter(prefix="/tax-settings", tags=["tax-settings"],
@@ -31,12 +35,15 @@ def _missing(have: set[int]) -> list[int]:
 def _page(request: Request, db: Session, form: dict, errors: dict, flash: str = "", status_code: int = 200):
     wage_bases = {y.year: y for y in db.query(TaxYear)}
     federal_years = {y for (y,) in db.query(FederalWithholdingTable.year)}
+    ok_years = {y for (y,) in db.query(OklahomaWithholdingTable.year)}
     return templates.TemplateResponse(request, "tax_settings/index.html", {
-        "years": sorted(wage_bases.keys() | federal_years, reverse=True),
+        "years": sorted(wage_bases.keys() | federal_years | ok_years, reverse=True),
         "wage_bases": wage_bases,
         "federal_years": federal_years,
+        "ok_years": ok_years,
         "missing_wage_bases": _missing(set(wage_bases)),
         "missing_federal": _missing(federal_years),
+        "missing_oklahoma": _missing(ok_years),
         "form": form,
         "errors": errors,
         "flash": flash,
@@ -148,6 +155,49 @@ async def save_federal_tables(
         flash = "created"
     else:
         log_change(db, "federal_withholding_tables", year, "update",
+                   changed_by=current_user.username, old_values=row.data, new_values=data)
+        row.data = data
+        flash = "updated"
+    db.commit()
+    return RedirectResponse(f"/tax-settings/?flash={flash}", status_code=303)
+
+
+# ── Oklahoma withholding tables ─────────────────────────────────────────────
+
+def _ok_page(request, year, values, errors, prefilled_from=None, status_code=200):
+    return templates.TemplateResponse(request, "tax_settings/oklahoma.html", {
+        "year": year, "values": values, "errors": errors, "prefilled_from": prefilled_from,
+        "statuses": OK_STATUSES, "rows": range(OK_MAX_ROWS), "active_nav": "tax_settings",
+    }, status_code=status_code)
+
+
+@router.get("/{year}/oklahoma", response_class=HTMLResponse)
+def oklahoma_tables(request: Request, year: int, _: AdminUser, db: Session = Depends(get_db)):
+    _valid_year(year)
+    row = db.get(OklahomaWithholdingTable, year)
+    prefilled_from = None
+    if row is None:
+        row = ok_table_for(db, year)
+        prefilled_from = row.year
+    return _ok_page(request, year, ok_form_values(row.data), {}, prefilled_from)
+
+
+@router.post("/{year}/oklahoma")
+async def save_oklahoma_tables(
+    request: Request, year: int, current_user: AdminUser, _csrf: CsrfProtect, db: Session = Depends(get_db),
+):
+    _valid_year(year)
+    data, values, errors = parse_ok_form(await request.form())
+    if errors:
+        return _ok_page(request, year, values, errors, status_code=422)
+    row = db.get(OklahomaWithholdingTable, year)
+    if row is None:
+        db.add(OklahomaWithholdingTable(year=year, data=data))
+        log_change(db, "oklahoma_withholding_tables", year, "insert",
+                   changed_by=current_user.username, new_values=data)
+        flash = "created"
+    else:
+        log_change(db, "oklahoma_withholding_tables", year, "update",
                    changed_by=current_user.username, old_values=row.data, new_values=data)
         row.data = data
         flash = "updated"

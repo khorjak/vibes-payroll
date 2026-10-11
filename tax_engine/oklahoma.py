@@ -1,40 +1,19 @@
 """
-Oklahoma state income tax withholding.
+Oklahoma state income tax withholding: OTC Packet OW-2, percentage formula method.
 
-Uses the OTC formula method (OW-9 allowances):
-  1. Annualize gross wages for the pay period.
-  2. Subtract $1,000 per allowance claimed.
-  3. Apply the Oklahoma rate schedule.
-  4. Divide annual tax by pay periods; add any extra per-period withholding.
+  1. Annualize the period's taxable wages.
+  2. Subtract the withholding allowance amount for each OK-W-4 allowance.
+  3. Look up the result in the year's annual table (Table 7) for the filing status:
+     single, or married. "Married, but withhold at higher Single rate" uses single.
+  4. Divide the annual amount by pay periods and round to the nearest whole dollar,
+     as OW-2 requires; add any extra per-period withholding.
 
-Oklahoma rate schedule (2024 onward after HB 2962 rate reductions):
-  0.25% on first $1,000 of taxable income
-  0.75% on $1,001–$2,500
-  1.75% on $2,501–$3,750
-  2.75% on $3,751–$4,900
-  3.75% on $4,901–$7,200
-  4.75% on income over $7,200
-
-Source: Oklahoma Tax Commission Employer's Withholding Tax Guide.
+The caller passes the pay year's tables (OKTable): admins enter them under Tax
+Settings from that year's OW-2. Their first band is $0 tax: it covers the Oklahoma
+standard deduction (and, from 2026, the 0% bracket).
 """
 from decimal import Decimal, ROUND_HALF_UP
-from .models import OKWithholdingInput, PAY_PERIOD_FACTORS
-
-ALLOWANCE_VALUE = Decimal("1000")  # annual exemption per allowance
-
-# (floor, base_tax, rate) — floor is annual taxable income lower bound
-_OK_BRACKETS: list[tuple[Decimal, Decimal, Decimal]] = [
-    (Decimal("0"),    Decimal("0"),      Decimal("0.0025")),
-    (Decimal("1000"), Decimal("2.50"),   Decimal("0.0075")),
-    (Decimal("2500"), Decimal("13.75"),  Decimal("0.0175")),
-    (Decimal("3750"), Decimal("35.625"), Decimal("0.0275")),
-    (Decimal("4900"), Decimal("67.25"),  Decimal("0.0375")),
-    (Decimal("7200"), Decimal("153.50"), Decimal("0.0475")),
-]
-
-
-def _round(d: Decimal) -> Decimal:
-    return d.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+from .models import OKTable, OKWithholdingInput, PAY_PERIOD_FACTORS
 
 
 def _apply_brackets(amount: Decimal, brackets: list[tuple]) -> Decimal:
@@ -50,15 +29,17 @@ def calc_ok_withholding(
     taxable_wages_per_period: Decimal,
     pay_frequency: str,
     ok: OKWithholdingInput,
+    *,
+    table: OKTable,
 ) -> Decimal:
     """Returns the Oklahoma income tax to withhold for this pay period."""
     if ok.exempt:
         return Decimal("0")
     periods = PAY_PERIOD_FACTORS[pay_frequency]
     annualized = taxable_wages_per_period * periods
-    exemption = ALLOWANCE_VALUE * ok.allowances
-    ok_taxable = max(Decimal("0"), annualized - exemption)
+    ok_taxable = max(Decimal("0"), annualized - table.allowance * ok.allowances)
 
-    annual_tax = _apply_brackets(ok_taxable, _OK_BRACKETS)
-    per_period = _round(annual_tax / periods)
-    return max(Decimal("0"), per_period + ok.extra_withholding)
+    status = "married" if ok.filing_status == "married" else "single"
+    annual_tax = _apply_brackets(ok_taxable, table.schedules[status])
+    per_period = (annual_tax / periods).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+    return max(Decimal("0"), per_period + ok.extra_withholding).quantize(Decimal("0.01"))

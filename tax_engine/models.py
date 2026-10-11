@@ -47,6 +47,24 @@ class FederalTable:
 
 
 @dataclass
+class OKTable:
+    """One year's OTC OW-2 annual percentage method tables (Table 7).
+
+    schedules["single" | "married"] is a list of (over, tentative_amount, rate) rows.
+    """
+    allowance: Decimal  # annual amount per OK-W-4 allowance
+    schedules: dict
+
+    @classmethod
+    def from_data(cls, data: dict) -> "OKTable":
+        return cls(
+            allowance=Decimal(data["allowance"]),
+            schedules={status: [tuple(Decimal(v) for v in row) for row in data[status]]
+                       for status in ("single", "married")},
+        )
+
+
+@dataclass
 class OKWithholdingInput:
     filing_status: str  # single | married
     allowances: int = 0
@@ -77,6 +95,7 @@ class PaycheckInput:
     gross_wages: Decimal
     pay_frequency: str  # weekly | biweekly | semi_monthly | monthly
     federal_table: FederalTable  # the pay year's Pub. 15-T tables (Tax Settings)
+    ok_table: OKTable  # the pay year's OTC OW-2 tables (Tax Settings)
     # The pay year's wage bases (tax_years table): Social Security and Oklahoma SUTA.
     ss_wage_base: Decimal
     suta_wage_base: Decimal
