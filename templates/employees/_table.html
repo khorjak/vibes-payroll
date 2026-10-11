@@ -32,9 +32,9 @@
       <td class="hidden sm:table-cell py-3 pr-4 text-slate-500">{{ emp.department or '—' }}</td>
       <td class="py-3 pr-4 text-right text-slate-900 tabular-nums">
         {% if emp.employment_type == 'salaried' %}
-          ${{ "{:,.2f}".format(emp.pay_rate) }}/yr
+          ${{ emp.pay_rate | money }}/yr
         {% else %}
-          ${{ "{:.2f}".format(emp.pay_rate) }}/hr
+          ${{ emp.pay_rate | money }}/hr
         {% endif %}
       </td>
       <td class="hidden sm:table-cell py-3 pr-4 text-slate-500">

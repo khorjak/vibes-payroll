@@ -30,7 +30,7 @@
           <td class="px-4 py-3 text-sm font-mono font-semibold text-slate-900">{{ code.ncci_code }}</td>
           <td class="px-4 py-3 text-sm text-slate-700">{{ code.description }}</td>
           <td class="px-4 py-3 text-sm text-slate-900 text-right tabular-nums">
-            {% if code.rate_per_100_wages %}${{ "%.4f"|format(code.rate_per_100_wages) }}{% else %}—{% endif %}
+            {% if code.rate_per_100_wages %}${{ code.rate_per_100_wages | money(4) }}{% else %}—{% endif %}
           </td>
           <td class="px-4 py-3 text-right">
             <a href="/companies/{{ company.id }}/wc-codes/{{ code.id }}/edit"

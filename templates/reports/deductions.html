@@ -73,7 +73,7 @@
           {% if row.pre_tax %}<span class="text-green-600 text-xs font-medium">Yes</span>{% else %}<span class="text-slate-400 text-xs">No</span>{% endif %}
         </td>
         <td class="px-4 py-2 text-right text-slate-600 tabular-nums">{{ row.count }}</td>
-        <td class="px-4 py-2 text-right text-slate-900 tabular-nums">${{ "%.2f"|format(row.total) }}</td>
+        <td class="px-4 py-2 text-right text-slate-900 tabular-nums">${{ row.total | money }}</td>
       </tr>
       {% endfor %}
     </tbody>
@@ -82,7 +82,7 @@
         <td class="px-4 py-2 text-slate-900">Total</td>
         <td></td>
         <td class="px-4 py-2 text-right tabular-nums">{{ section.totals.count }}</td>
-        <td class="px-4 py-2 text-right tabular-nums">${{ "%.2f"|format(section.totals.total) }}</td>
+        <td class="px-4 py-2 text-right tabular-nums">${{ section.totals.total | money }}</td>
       </tr>
     </tfoot>
   </table>
@@ -91,7 +91,7 @@
 {% if consolidated and groups %}
 <div class="bg-slate-50 rounded-lg border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-900 flex justify-between">
   <span>All companies — grand total</span>
-  <span class="tabular-nums">${{ "%.2f"|format(totals.total) }} across {{ totals.count }} instances</span>
+  <span class="tabular-nums">${{ totals.total | money }} across {{ totals.count }} instances</span>
 </div>
 {% endif %}
 {% elif company_id %}

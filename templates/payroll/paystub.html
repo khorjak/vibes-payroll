@@ -218,17 +218,17 @@
             <td>
               {{ line.description }}
               {% if line.hours %}
-              <br><span class="hours-note">{{ line.hours }} hrs @ ${{ "%.4f"|format(line.rate) }}/hr</span>
+              <br><span class="hours-note">{{ line.hours }} hrs @ ${{ line.rate | money(4) }}/hr</span>
               {% endif %}
             </td>
-            <td class="amt">${{ "{:,.2f}".format(line.amount) }}</td>
+            <td class="amt">${{ line.amount | money }}</td>
           </tr>
           {% endfor %}
         </tbody>
         <tbody>
           <tr class="subtotal">
             <td>Total Earnings</td>
-            <td class="amt">${{ "{:,.2f}".format(paycheck.gross_wages) }}</td>
+            <td class="amt">${{ paycheck.gross_wages | money }}</td>
           </tr>
         </tbody>
       </table>
@@ -241,14 +241,14 @@
           {% for line in deductions %}
           <tr>
             <td>{{ line.description }}</td>
-            <td class="amt neg">-${{ "{:,.2f}".format(line.amount) }}</td>
+            <td class="amt neg">-${{ line.amount | money }}</td>
           </tr>
           {% endfor %}
         </tbody>
         <tbody>
           <tr class="subtotal">
             <td>Total Deductions</td>
-            <td class="amt neg">-${{ "{:,.2f}".format(paycheck.total_deductions) }}</td>
+            <td class="amt neg">-${{ paycheck.total_deductions | money }}</td>
           </tr>
         </tbody>
       </table>
@@ -261,7 +261,7 @@
           {% for line in employee_taxes %}
           <tr>
             <td>{{ line.description }}</td>
-            <td class="amt neg">-${{ "{:,.2f}".format(line.amount) }}</td>
+            <td class="amt neg">-${{ line.amount | money }}</td>
           </tr>
           {% else %}
           <tr><td colspan="2" style="color:#94a3b8; padding: 5pt 10pt;">No withholding</td></tr>
@@ -270,7 +270,7 @@
         <tbody>
           <tr class="subtotal">
             <td>Total Withheld</td>
-            <td class="amt neg">-${{ "{:,.2f}".format(paycheck.total_taxes_withheld) }}</td>
+            <td class="amt neg">-${{ paycheck.total_taxes_withheld | money }}</td>
           </tr>
         </tbody>
       </table>
@@ -286,7 +286,7 @@
         <table>
           <tr>
             <td style="color:#475569;">Gross Wages</td>
-            <td class="amt">${{ "{:,.2f}".format(paycheck.ytd_gross) }}</td>
+            <td class="amt">${{ paycheck.ytd_gross | money }}</td>
           </tr>
         </table>
       </div>
@@ -299,7 +299,7 @@
             {% for line in employer_taxes %}
             <tr>
               <td style="color:#475569;">{{ line.description }}</td>
-              <td class="amt">${{ "{:,.2f}".format(line.amount) }}</td>
+              <td class="amt">${{ line.amount | money }}</td>
             </tr>
             {% else %}
             <tr><td colspan="2" style="color:#94a3b8; padding:5pt 10pt;">None</td></tr>
@@ -307,7 +307,7 @@
             {% for line in employer_contributions %}
             <tr>
               <td style="color:#475569;">{{ line.description }}</td>
-              <td class="amt">${{ "{:,.2f}".format(line.amount) }}</td>
+              <td class="amt">${{ line.amount | money }}</td>
             </tr>
             {% endfor %}
           </tbody>
@@ -315,7 +315,7 @@
             {% set employer_total = paycheck.employer_fica + paycheck.employer_futa + paycheck.employer_suta + paycheck.employer_workers_comp + (employer_contributions | sum(attribute='amount')) %}
             <tr class="subtotal">
               <td>Total Cost</td>
-              <td class="amt">${{ "{:,.2f}".format(employer_total) }}</td>
+              <td class="amt">${{ employer_total | money }}</td>
             </tr>
           </tbody>
         </table>
@@ -327,7 +327,7 @@
   <!-- Net pay -->
   <div class="net-pay-row">
     <div class="net-pay-label">Net Pay</div>
-    <div class="net-pay-amount">${{ "{:,.2f}".format(paycheck.net_pay) }}</div>
+    <div class="net-pay-amount">${{ paycheck.net_pay | money }}</div>
   </div>
 
   <!-- Footer -->

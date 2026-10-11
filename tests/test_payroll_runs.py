@@ -1298,7 +1298,7 @@ class TestFinalPaycheckPages:
         assert client.post(f"/payroll/{pay_period.id}/calculate").status_code == 303
         page = client.get(f"/payroll/{pay_period.id}").text
         assert "Final" in page
-        assert "$1250.00" in page
+        assert "$1,250.00" in page
 
     def test_open_period_lists_auto_included(self, client, db, salaried_employee, pay_period):
         _terminate(db, salaried_employee, date(2026, 5, 7))

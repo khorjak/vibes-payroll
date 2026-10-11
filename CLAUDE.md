@@ -41,6 +41,8 @@ Self-hosted Oklahoma payroll application. FastAPI backend, Jinja2 + HTMX + Tailw
 
 All routers import `templates` from **`app_templates.py`** — a single `Jinja2Templates` instance. This matters because `main.py` registers the `csrf_token` Jinja2 global on this instance. Creating a new `Jinja2Templates` per-router breaks that global.
 
+`app_templates.py` also registers the `money` filter: display every dollar amount as `${{ value | money }}` (`1,234.50`; `money(4)` for hourly and workers comp rates), never `"%.2f"|format`. `tests/test_layout.py::TestMoneyFormat` fails on any `${{ ... }}` without it. Form `value=` attributes and the W-2 CSV export stay unformatted.
+
 ### Auth & CSRF
 
 - `routers/auth.py` — `get_current_user` dependency; `require_role(*roles)` factory (admin always passes, otherwise role must be in the given list) backs `require_admin` / `require_preparer` / `require_approver`, exposed as the `AdminUser` / `PreparerUser` / `ApproverUser` typed dependencies; login/logout routes

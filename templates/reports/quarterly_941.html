@@ -64,7 +64,7 @@
     <div class="flex items-center justify-between px-5 py-3 border-b border-slate-100 last:border-0">
       <span class="text-sm text-slate-600">{{ label }}</span>
       <span class="text-sm font-medium tabular-nums text-slate-800">
-        {% if money %}${{ "%.2f"|format(value) }}{% else %}{{ value }}{% endif %}
+        {% if money %}${{ value | money }}{% else %}{{ value }}{% endif %}
       </span>
     </div>
     {% endmacro %}
@@ -82,7 +82,7 @@
 
     <div class="flex items-center justify-between px-5 py-3 bg-slate-50 border-t border-slate-200">
       <span class="text-sm font-semibold text-slate-700">Total Tax Liability (Line 12)</span>
-      <span class="text-sm font-bold tabular-nums text-slate-900">${{ "%.2f"|format(summary.total_liability) }}</span>
+      <span class="text-sm font-bold tabular-nums text-slate-900">${{ summary.total_liability | money }}</span>
     </div>
   </div>
 

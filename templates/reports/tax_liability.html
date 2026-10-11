@@ -67,15 +67,15 @@
       <tr class="hover:bg-slate-50">
         <td class="px-4 py-3 text-slate-700">{{ row.pay_date }}</td>
         <td class="px-4 py-3 text-right tabular-nums text-slate-500">{{ row.employee_count }}</td>
-        <td class="px-4 py-3 text-right tabular-nums">${{ "%.2f"|format(row.gross) }}</td>
-        <td class="px-4 py-3 text-right tabular-nums">${{ "%.2f"|format(row.fed) }}</td>
-        <td class="px-4 py-3 text-right tabular-nums">${{ "%.2f"|format(row.ok) }}</td>
-        <td class="px-4 py-3 text-right tabular-nums">${{ "%.2f"|format(row.fica_emp) }}</td>
-        <td class="px-4 py-3 text-right tabular-nums">${{ "%.2f"|format(row.fica_er) }}</td>
-        <td class="px-4 py-3 text-right tabular-nums">${{ "%.2f"|format(row.futa) }}</td>
-        <td class="px-4 py-3 text-right tabular-nums">${{ "%.2f"|format(row.suta) }}</td>
-        <td class="px-4 py-3 text-right tabular-nums">${{ "%.2f"|format(row.wc) }}</td>
-        <td class="px-4 py-3 text-right tabular-nums font-medium">${{ "%.2f"|format(row.total_cost) }}</td>
+        <td class="px-4 py-3 text-right tabular-nums">${{ row.gross | money }}</td>
+        <td class="px-4 py-3 text-right tabular-nums">${{ row.fed | money }}</td>
+        <td class="px-4 py-3 text-right tabular-nums">${{ row.ok | money }}</td>
+        <td class="px-4 py-3 text-right tabular-nums">${{ row.fica_emp | money }}</td>
+        <td class="px-4 py-3 text-right tabular-nums">${{ row.fica_er | money }}</td>
+        <td class="px-4 py-3 text-right tabular-nums">${{ row.futa | money }}</td>
+        <td class="px-4 py-3 text-right tabular-nums">${{ row.suta | money }}</td>
+        <td class="px-4 py-3 text-right tabular-nums">${{ row.wc | money }}</td>
+        <td class="px-4 py-3 text-right tabular-nums font-medium">${{ row.total_cost | money }}</td>
       </tr>
       {% endfor %}
     </tbody>
@@ -83,15 +83,15 @@
       <tr class="bg-slate-50 border-t border-slate-200 font-semibold">
         <td class="px-4 py-3 text-slate-700">Year Total</td>
         <td class="px-4 py-3 text-right tabular-nums">{{ section.totals.employee_count }}</td>
-        <td class="px-4 py-3 text-right tabular-nums">${{ "%.2f"|format(section.totals.gross) }}</td>
-        <td class="px-4 py-3 text-right tabular-nums">${{ "%.2f"|format(section.totals.fed) }}</td>
-        <td class="px-4 py-3 text-right tabular-nums">${{ "%.2f"|format(section.totals.ok) }}</td>
-        <td class="px-4 py-3 text-right tabular-nums">${{ "%.2f"|format(section.totals.fica_emp) }}</td>
-        <td class="px-4 py-3 text-right tabular-nums">${{ "%.2f"|format(section.totals.fica_er) }}</td>
-        <td class="px-4 py-3 text-right tabular-nums">${{ "%.2f"|format(section.totals.futa) }}</td>
-        <td class="px-4 py-3 text-right tabular-nums">${{ "%.2f"|format(section.totals.suta) }}</td>
-        <td class="px-4 py-3 text-right tabular-nums">${{ "%.2f"|format(section.totals.wc) }}</td>
-        <td class="px-4 py-3 text-right tabular-nums">${{ "%.2f"|format(section.totals.total_cost) }}</td>
+        <td class="px-4 py-3 text-right tabular-nums">${{ section.totals.gross | money }}</td>
+        <td class="px-4 py-3 text-right tabular-nums">${{ section.totals.fed | money }}</td>
+        <td class="px-4 py-3 text-right tabular-nums">${{ section.totals.ok | money }}</td>
+        <td class="px-4 py-3 text-right tabular-nums">${{ section.totals.fica_emp | money }}</td>
+        <td class="px-4 py-3 text-right tabular-nums">${{ section.totals.fica_er | money }}</td>
+        <td class="px-4 py-3 text-right tabular-nums">${{ section.totals.futa | money }}</td>
+        <td class="px-4 py-3 text-right tabular-nums">${{ section.totals.suta | money }}</td>
+        <td class="px-4 py-3 text-right tabular-nums">${{ section.totals.wc | money }}</td>
+        <td class="px-4 py-3 text-right tabular-nums">${{ section.totals.total_cost | money }}</td>
       </tr>
     </tfoot>
   </table>
@@ -101,7 +101,7 @@
 {% if consolidated and groups %}
 <div class="bg-slate-50 rounded-lg border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-900 flex justify-between">
   <span>All companies — grand total employer cost</span>
-  <span class="tabular-nums">${{ "%.2f"|format(yearly.total_cost) }}</span>
+  <span class="tabular-nums">${{ yearly.total_cost | money }}</span>
 </div>
 <p class="mt-2 text-xs text-slate-500">
   Federal deposit schedules are determined per EIN — use the per-company subtotals above for deposit planning.

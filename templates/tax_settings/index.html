@@ -44,8 +44,8 @@
         {% set wb = wage_bases.get(year) %}
         <tr>
           <td class="px-4 py-3 font-medium text-slate-800">{{ year }}</td>
-          <td class="px-4 py-3 text-right tabular-nums">{% if wb %}${{ "{:,.2f}".format(wb.ss_wage_base) }}{% else %}<span class="text-amber-700">Missing</span>{% endif %}</td>
-          <td class="px-4 py-3 text-right tabular-nums">{% if wb %}${{ "{:,.2f}".format(wb.ok_suta_wage_base) }}{% else %}<span class="text-amber-700">Missing</span>{% endif %}</td>
+          <td class="px-4 py-3 text-right tabular-nums">{% if wb %}${{ wb.ss_wage_base | money }}{% else %}<span class="text-amber-700">Missing</span>{% endif %}</td>
+          <td class="px-4 py-3 text-right tabular-nums">{% if wb %}${{ wb.ok_suta_wage_base | money }}{% else %}<span class="text-amber-700">Missing</span>{% endif %}</td>
           <td class="px-4 py-3">
             <a href="/tax-settings/{{ year }}/federal" class="text-indigo-600 hover:underline">{% if year in federal_years %}Edit tables{% else %}<span class="text-amber-700">Missing:</span> enter tables{% endif %}</a>
           </td>
