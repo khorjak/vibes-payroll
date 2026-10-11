@@ -41,7 +41,7 @@ def calculate_paycheck(inp: PaycheckInput) -> PaycheckResult:
 
     # Oklahoma state income tax
     if inp.ok_withholding is not None:
-        taxes.ok_income_tax = calc_ok_withholding(taxable, inp.pay_frequency, inp.ok_withholding)
+        taxes.ok_income_tax = calc_ok_withholding(taxable, inp.pay_frequency, inp.ok_withholding, table=inp.ok_table)
 
     # Employee FICA
     taxes.ss_employee = calc_ss_employee(fica_wages, inp.ytd_ss_wages_prior, wage_base=inp.ss_wage_base)

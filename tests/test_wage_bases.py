@@ -12,7 +12,8 @@ from models.tax_year import TaxYear
 from services.tax_years import seed_tax_years, tax_year_for
 from tax_engine.calculator import calculate_paycheck
 from models.federal_withholding import DEFAULT_FEDERAL_TABLES
-from tax_engine.models import FederalTable, PaycheckInput
+from models.oklahoma_withholding import DEFAULT_OKLAHOMA_TABLES
+from tax_engine.models import FederalTable, OKTable, PaycheckInput
 
 
 # ── Lookup and seed ─────────────────────────────────────────────────────────
@@ -52,7 +53,8 @@ def test_engine_uses_the_bases_it_is_given():
         return calculate_paycheck(PaycheckInput(
             gross_wages=Decimal("2000"), pay_frequency="biweekly", suta_rate=Decimal("0.027"),
             ss_wage_base=Decimal(ss), suta_wage_base=Decimal(suta),
-            federal_table=FederalTable.from_data(DEFAULT_FEDERAL_TABLES[2026]), **ytd)).taxes
+            federal_table=FederalTable.from_data(DEFAULT_FEDERAL_TABLES[2026]),
+            ok_table=OKTable.from_data(DEFAULT_OKLAHOMA_TABLES[2026]), **ytd)).taxes
     # 26,000 prior: room under 28,200 (2025), none under 25,000 (2026).
     assert taxes("176100", "28200", ytd_suta_wages_prior=Decimal("26000")).suta == Decimal("54.00")
     assert taxes("184500", "25000", ytd_suta_wages_prior=Decimal("26000")).suta == Decimal("0.00")
@@ -202,7 +204,7 @@ def test_pay_period_warns_when_no_federal_table_for_its_year(client, db, company
     db.add(pp)
     db.commit()
     page = client.get(f"/payroll/{pp.id}").text
-    assert "No 2030 federal withholding tables on file" in page and "uses the 2026 tables" in page
+    assert "No 2030 federal withholding tables on file" in page and "uses the 2026 federal withholding tables" in page
     assert 'href="/tax-settings/2030/federal"' in page
 
 
@@ -316,3 +318,126 @@ def test_preparer_cannot_view_or_save_federal_tables(auth_client, auth_db, prepa
     form = _form(DEFAULT_FEDERAL_TABLES[2026]) | {"line_1g.other": "1", "csrf_token": _token(auth_client)}
     assert auth_client.post("/tax-settings/2026/federal", data=form).status_code == 403
     assert auth_db.get(FederalWithholdingTable, 2026).data["line_1g"]["other"] == "8600"
+
+
+# ── Oklahoma tables: lookup, seed, payroll and Tax Settings entry ───────────
+
+from models.oklahoma_withholding import OklahomaWithholdingTable
+from services.tax_years import ok_form_values, ok_table_for
+
+
+def test_ok_lookup_falls_back_and_errors_when_empty(db):
+    assert ok_table_for(db, 2026).year == 2026
+    assert ok_table_for(db, 2027).year == 2026
+    assert ok_table_for(db, 2020).year == 2025
+    db.query(OklahomaWithholdingTable).delete()
+    db.commit()
+    with pytest.raises(ValueError, match="Tax Settings"):
+        ok_table_for(db, 2026)
+
+
+def test_existing_install_gets_ok_tables_seeded(db):
+    db.query(OklahomaWithholdingTable).delete()
+    db.commit()
+    seed_tax_years(db)
+    assert sorted(y for (y,) in db.query(OklahomaWithholdingTable.year)) == [2025, 2026]
+
+
+def test_payroll_uses_the_pay_years_ok_table(client, db, company, salaried_employee, pay_period):
+    from tax_engine.models import OKWithholdingInput
+    from tax_engine.oklahoma import calc_ok_withholding
+    client.post(f"/payroll/{pay_period.id}/calculate")
+    pc = db.query(Paycheck).first()
+    ok_tax = next(l.amount for l in db.query(PaycheckLine).filter_by(paycheck_id=pc.id)
+                  if l.description == "Oklahoma Income Tax")
+    taxable = Decimal(str(pc.gross_wages)) - Decimal(str(pc.total_deductions))
+    election = OKWithholdingInput(filing_status="single", allowances=0)  # none on file
+    t = {y: OKTable.from_data(DEFAULT_OKLAHOMA_TABLES[y]) for y in (2025, 2026)}
+    assert Decimal(str(ok_tax)) == calc_ok_withholding(taxable, "biweekly", election, table=t[2026])
+    assert Decimal(str(ok_tax)) != calc_ok_withholding(taxable, "biweekly", election, table=t[2025])
+
+
+def test_pay_period_warns_when_no_ok_table_for_its_year(client, db, company):
+    from models.payroll import PayPeriod
+    pp = PayPeriod(company_id=company.id, start_date=date(2030, 1, 1), end_date=date(2030, 1, 14),
+                   pay_date=date(2030, 1, 20), frequency="biweekly", status="open")
+    db.add(pp)
+    db.commit()
+    page = client.get(f"/payroll/{pp.id}").text
+    assert "No 2030 Oklahoma withholding tables on file" in page
+    assert "uses the 2026 Oklahoma withholding tables" in page
+    assert 'href="/tax-settings/2030/oklahoma"' in page
+
+
+def test_ok_page_shows_a_years_rows_and_blank_spares(client):
+    page = client.get("/tax-settings/2026/oklahoma").text
+    assert 'name="single.3.at_least" value="13550"' in page
+    assert 'name="married.2.tentative" value="57.50"' in page
+    assert 'name="single.1.rate" value="2.5"' in page
+    assert 'name="single.4.at_least" value=""' in page
+    assert "starting point" not in page
+
+
+def test_ok_missing_year_starts_from_the_latest_tables(client):
+    page = client.get("/tax-settings/2027/oklahoma").text
+    assert "No 2027 tables on file yet" in page and 'value="13550"' in page
+
+
+def test_ok_save_accepts_a_different_number_of_rows(client, db, company):
+    # 2027 entered with the 2025 layout (7 rows) after 2026's 4: row count is per year.
+    from models.payroll import PayPeriod
+    r = client.post("/tax-settings/2027/oklahoma", data=ok_form_values(DEFAULT_OKLAHOMA_TABLES[2025]))
+    assert r.status_code == 303 and r.headers["location"].endswith("flash=created")
+    saved = db.get(OklahomaWithholdingTable, 2027).data
+    assert len(saved["single"]) == 7 and saved["married"][6] == ["27100", "307.00", "0.0475"]
+    log = db.query(AuditLog).filter_by(table_name="oklahoma_withholding_tables", record_id=2027).one()
+    assert log.action == "insert"
+    pp = PayPeriod(company_id=company.id, start_date=date(2027, 1, 1), end_date=date(2027, 1, 14),
+                   pay_date=date(2027, 1, 20), frequency="biweekly", status="open")
+    db.add(pp)
+    db.commit()
+    assert "Oklahoma withholding tables on file" not in client.get(f"/payroll/{pp.id}").text
+
+
+def test_ok_typo_is_caught_and_nothing_saved(client, db):
+    form = ok_form_values(DEFAULT_OKLAHOMA_TABLES[2026])
+    form["married.3.tentative"] = "281.50"  # published: 218.50
+    r = client.post("/tax-settings/2026/oklahoma", data=form)
+    assert r.status_code == 422 and "Expected about $218.50 from the row above" in r.text
+    assert db.get(OklahomaWithholdingTable, 2026).data["married"][3][1] == "218.50"
+
+
+@pytest.mark.parametrize("change, message", [
+    ({"single.2.at_least": "", "single.2.tentative": "", "single.2.rate": ""}, "Fill rows from the top with no gaps."),
+    ({f"single.{i}.{c}": "" for i in (1, 2, 3) for c in ("at_least", "tentative", "rate")}, "at least two"),
+    ({"married.1.rate": "250"}, "Must be between 0 and 100."),
+    ({"allowance": "a thousand"}, "Enter a number."),
+])
+def test_ok_rejects_malformed_tables(client, db, change, message):
+    form = ok_form_values(DEFAULT_OKLAHOMA_TABLES[2026]) | change
+    r = client.post("/tax-settings/2026/oklahoma", data=form)
+    assert r.status_code == 422 and message in r.text
+
+
+def test_ok_update_logs_old_and_new(client, db):
+    form = ok_form_values(DEFAULT_OKLAHOMA_TABLES[2026]) | {"allowance": "1100"}
+    assert client.post("/tax-settings/2026/oklahoma", data=form).status_code == 303
+    log = db.query(AuditLog).filter_by(table_name="oklahoma_withholding_tables", record_id=2026).one()
+    assert log.action == "update"
+    assert json.loads(log.old_values)["allowance"] == "1000"
+    assert json.loads(log.new_values)["allowance"] == "1100"
+
+
+def test_index_links_each_years_ok_tables(client, db):
+    client.post("/tax-settings/", data={"year": "2027", "ss_wage_base": "190200", "ok_suta_wage_base": "26000"})
+    page = client.get("/tax-settings/").text
+    assert 'href="/tax-settings/2026/oklahoma"' in page and 'href="/tax-settings/2027/oklahoma"' in page
+    assert "No Oklahoma withholding tables on file for 2026" not in page
+
+
+def test_preparer_cannot_view_or_save_ok_tables(auth_client, auth_db, preparer_user):
+    _login(auth_client, "preparer", "preppass")
+    assert auth_client.get("/tax-settings/2026/oklahoma").status_code == 403
+    form = ok_form_values(DEFAULT_OKLAHOMA_TABLES[2026]) | {"allowance": "1", "csrf_token": _token(auth_client)}
+    assert auth_client.post("/tax-settings/2026/oklahoma", data=form).status_code == 403
+    assert auth_db.get(OklahomaWithholdingTable, 2026).data["allowance"] == "1000"

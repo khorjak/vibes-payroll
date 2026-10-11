@@ -1,0 +1,78 @@
+{% extends "layout.html" %}
+{% block title %}{{ year }} Oklahoma Withholding Tables — Payroll{% endblock %}
+{% block breadcrumb %}<a href="/tax-settings/" class="hover:underline">Tax Settings</a> / {{ year }} Oklahoma tables{% endblock %}
+
+{% set status_labels = {"single": "A. Single person", "married": "B. Married person"} %}
+{% set col_labels = {"at_least": "Wages over", "tentative": "Tax to withhold", "rate": "Plus this %"} %}
+{% set field_cls = "w-full rounded border px-2 py-1.5 text-sm text-right tabular-nums focus:outline-none focus:ring-2 focus:ring-indigo-500" %}
+
+{% block content %}
+<div class="mb-6">
+  <h1 class="text-2xl font-bold text-slate-900">{{ year }} Oklahoma withholding tables</h1>
+  <p class="text-sm text-slate-500 mt-1">
+    Copy "Table 7: ANNUAL Payroll Period" from the {{ year }} OTC Packet OW-2 (Tables for Percentage Method of Withholding).
+    Enter one row per line of the table, from the top, and leave the remaining rows blank. Enter rates as percentages (2.5 for 2.50%).
+  </p>
+</div>
+
+{% if prefilled_from %}
+<div class="mb-4 px-4 py-3 rounded-md bg-amber-50 ring-1 ring-amber-200 text-sm text-amber-800">
+  No {{ year }} tables on file yet. The form shows the {{ prefilled_from }} tables as a starting point: replace every amount with the {{ year }} figures before saving, and clear any rows the {{ year }} table doesn't have.
+</div>
+{% endif %}
+{% if errors %}
+<div class="mb-4 px-4 py-3 rounded-md bg-red-50 ring-1 ring-red-200 text-sm text-red-800">
+  {{ errors | length }} field{{ "s" if errors | length != 1 }} need{{ "" if errors | length != 1 else "s" }} attention. Nothing was saved.
+</div>
+{% endif %}
+
+<form method="post" action="/tax-settings/{{ year }}/oklahoma" class="space-y-6">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+
+  <section class="bg-white rounded-lg border border-slate-200 p-5">
+    <label for="allowance" class="block text-sm font-semibold text-slate-700">Withholding allowance (annual)</label>
+    <p class="text-xs text-slate-500 mt-1 mb-3">From OW-2's "Table of Withholding Allowance Amounts", Annual row: subtracted for each allowance on the employee's OK-W-4.</p>
+    <input id="allowance" name="allowance" value="{{ values['allowance'] }}" inputmode="decimal" required
+           class="{{ field_cls }} max-w-xs {{ 'border-red-400' if errors['allowance'] else 'border-slate-300' }}">
+    {% if errors['allowance'] %}<p class="text-xs text-red-600 mt-1">{{ errors['allowance'] }}</p>{% endif %}
+  </section>
+
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+    {% for status in statuses %}
+    <div class="bg-white rounded-lg border border-slate-200 overflow-x-auto self-start">
+      <h2 class="px-4 py-2.5 bg-slate-50 border-b border-slate-200 text-sm font-medium text-slate-700">{{ status_labels[status] }}</h2>
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="text-xs text-slate-500">
+            {% for col in ["at_least", "tentative", "rate"] %}
+            <th class="px-2 pt-2 font-medium text-right align-bottom">{{ col_labels[col] }}</th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for i in rows %}
+          <tr>
+            {% for col in ["at_least", "tentative", "rate"] %}
+            {% set name = status ~ "." ~ i ~ "." ~ col %}
+            <td class="px-2 py-1 align-top {{ 'w-20' if col == 'rate' }}">
+              <input name="{{ name }}" value="{{ values[name] }}" inputmode="decimal"
+                     aria-label="{{ status_labels[status] }}, row {{ i + 1 }}: {{ col_labels[col] }}"
+                     class="{{ field_cls }} {{ 'border-red-400 bg-red-50' if errors[name] else 'border-slate-300' }}">
+              {% if errors[name] %}<p class="text-xs text-red-600 mt-1 text-left">{{ errors[name] }}</p>{% endif %}
+            </td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="flex flex-wrap items-center gap-3">
+    <button type="submit" class="px-4 py-2 text-sm font-medium bg-indigo-600 text-white rounded-md hover:bg-indigo-700">Save {{ year }} tables</button>
+    <a href="/tax-settings/" class="text-sm text-slate-600 hover:underline">Cancel</a>
+    <p class="text-xs text-slate-500">Each row is checked against the one above, so a mistyped amount is caught before it is saved. Draft paychecks pick up a change when recalculated; approved and paid paychecks keep what they were calculated with.</p>
+  </div>
+</form>
+{% endblock %}

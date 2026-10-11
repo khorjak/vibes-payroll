@@ -67,7 +67,7 @@ A self-hosted payroll application for small businesses operating in Oklahoma. Ha
 
 ### Taxes Withheld (Employee)
 - Federal income tax (IRS Publication 15, W-4 elections)
-- Oklahoma state income tax (OTC withholding tables, 0.25%–4.75%)
+- Oklahoma state income tax (OTC OW-2 tables per pay year, entered under Tax Settings)
 - Social Security (6.2%, wage base per pay year from the `tax_years` table, edited under Tax Settings)
 - Medicare (1.45%; additional 0.9% on wages over $200,000)
 
@@ -198,7 +198,7 @@ The tax engine is a pure Python module with no database or HTTP side effects. Ev
 1. **Gross earnings** — sum all earnings lines (regular + OT + bonuses + etc.)
 2. **Pre-tax deductions** — subtract to get federal/state taxable wages (traditional 401(k) deferrals reduce income-tax wages only; FICA, FUTA and SUTA wages exclude only cafeteria-plan items)
 3. **Federal income tax** — IRS Publication 15-T percentage method tables for the pay date's year (`federal_withholding_tables`, entered under Tax Settings), using W-4 elections (Single, no adjustments, when none is on file) and pay frequency
-4. **Oklahoma state income tax** — OTC withholding tables by filing status and pay period (single, 0 allowances, when no OK-W-4 is on file)
+4. **Oklahoma state income tax** — OTC OW-2 annual percentage method tables for the pay date's year (`oklahoma_withholding_tables`), single or married table by filing status, rounded to the whole dollar (single, 0 allowances, when no OK-W-4 is on file)
 5. **Social Security** — 6.2% up to annual wage base (check YTD accumulator)
 6. **Medicare** — 1.45% flat; +0.9% additional once YTD wages exceed $200,000
 7. **Post-tax deductions** — garnishments, Roth contributions, etc.

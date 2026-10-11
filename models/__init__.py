@@ -10,6 +10,7 @@ from .user import User
 from .user_company import UserCompany
 from .tax_year import TaxYear
 from .federal_withholding import FederalWithholdingTable
+from .oklahoma_withholding import OklahomaWithholdingTable
 
 __all__ = [
     "Base",
@@ -31,4 +32,5 @@ __all__ = [
     "UserCompany",
     "TaxYear",
     "FederalWithholdingTable",
+    "OklahomaWithholdingTable",
 ]

@@ -6,7 +6,8 @@ from decimal import Decimal
 import pytest
 from tax_engine.calculator import calculate_paycheck
 from models.federal_withholding import DEFAULT_FEDERAL_TABLES
-from tax_engine.models import FederalTable, PaycheckInput, W4Input, OKWithholdingInput
+from models.oklahoma_withholding import DEFAULT_OKLAHOMA_TABLES
+from tax_engine.models import FederalTable, OKTable, PaycheckInput, W4Input, OKWithholdingInput
 
 SS_WAGE_BASE = Decimal("176100")       # 2025
 OK_SUTA_WAGE_BASE = Decimal("28200")   # 2025
@@ -17,6 +18,7 @@ def make_input(**kwargs):
         gross_wages=Decimal("2000"),
         pay_frequency="biweekly",
         federal_table=FederalTable.from_data(DEFAULT_FEDERAL_TABLES[2025]),
+        ok_table=OKTable.from_data(DEFAULT_OKLAHOMA_TABLES[2025]),
         ss_wage_base=SS_WAGE_BASE,
         suta_wage_base=OK_SUTA_WAGE_BASE,
         w4=W4Input(filing_status="single"),
