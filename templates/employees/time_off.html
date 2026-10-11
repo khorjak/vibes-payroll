@@ -1,0 +1,172 @@
+{% extends "layout.html" %}
+{% block title %}Time Off — {{ employee.full_name }}{% endblock %}
+{% block breadcrumb %}
+  <a href="/employees" class="hover:text-slate-700">Employees</a>
+  <span class="mx-1">/</span>
+  <a href="/employees/{{ employee.id }}" class="hover:text-slate-700">{{ employee.full_name }}</a>
+  <span class="mx-1">/</span>Time Off
+{% endblock %}
+
+{% set field_cls = "mt-1 w-full rounded border px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" %}
+{% macro val(name, default) %}{{ values[name] if name in values else (default if default is not none else '') }}{% endmacro %}
+{% macro err(name) %}{% if errors[name] %}<p class="text-xs text-red-600 mt-1">{{ errors[name] }}</p>{% endif %}{% endmacro %}
+{% macro border(name) %}{{ 'border-red-400' if errors[name] else 'border-slate-300' }}{% endmacro %}
+
+{% block content %}
+<div class="max-w-4xl">
+  <div class="mb-6">
+    <h1 class="text-2xl font-bold text-slate-900">Time Off</h1>
+    <p class="text-sm text-slate-500">{{ employee.full_name }} · {{ employee.employment_type | replace("_", " ") | title }}</p>
+  </div>
+
+  {% if flash == 'policy_saved' %}
+  <div class="mb-4 px-4 py-3 rounded-md bg-green-50 ring-1 ring-green-200 text-sm text-green-800">Policy saved. Accruals use it from the next calculated pay run.</div>
+  {% elif flash == 'adjusted' %}
+  <div class="mb-4 px-4 py-3 rounded-md bg-green-50 ring-1 ring-green-200 text-sm text-green-800">Balance adjusted.</div>
+  {% endif %}
+  {% if errors %}
+  <div class="mb-4 px-4 py-3 rounded-md bg-red-50 ring-1 ring-red-200 text-sm text-red-800">Nothing was saved. Check the highlighted fields.</div>
+  {% endif %}
+
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+    {% for lt, label in leave_types.items() %}
+    {% set p = policies.get(lt) %}
+    {% set policy_err = errors | select("in", [lt ~ ".method", lt ~ ".rate", lt ~ ".max_balance", lt ~ ".carryover_limit"]) | list %}
+    {% set adjust_err = errors | select("in", [lt ~ ".hours", lt ~ ".entry_date", lt ~ ".note"]) | list %}
+    <section class="bg-white rounded-lg ring-1 ring-slate-200 p-5">
+      <div class="flex items-start justify-between gap-3">
+        <h2 class="text-sm font-semibold text-slate-700">{{ label }}</h2>
+        {% if p %}
+        <p class="text-2xl font-semibold tabular-nums {{ 'text-red-600' if balances[lt] < 0 else 'text-slate-900' }}">{{ "%.2f"|format(balances[lt]) }} <span class="text-sm font-normal text-slate-500">hrs</span></p>
+        {% endif %}
+      </div>
+
+      {% if p %}
+      <dl class="mt-3 space-y-1 text-sm">
+        <div class="flex justify-between gap-3"><dt class="text-slate-500">Accrues</dt>
+          <dd class="text-slate-900 text-right">{{ p.rate | float }} hrs {{ "per hour worked" if p.method == "per_hour" else "per pay period" }}</dd></div>
+        <div class="flex justify-between gap-3"><dt class="text-slate-500">Maximum balance</dt>
+          <dd class="text-slate-900">{{ "%.2f"|format(p.max_balance) ~ " hrs" if p.max_balance is not none else "None" }}</dd></div>
+        <div class="flex justify-between gap-3"><dt class="text-slate-500">Year-end carryover limit</dt>
+          <dd class="text-slate-900">{{ "%.2f"|format(p.carryover_limit) ~ " hrs" if p.carryover_limit is not none else "None" }}</dd></div>
+      </dl>
+      {% else %}
+      <p class="mt-3 text-sm text-slate-400">Not tracked. Set up a policy to start accruing {{ label }} hours.</p>
+      {% endif %}
+
+      {% if has_role(request, 'preparer') %}
+      <div class="mt-4 flex flex-wrap gap-4">
+        <button type="button" data-toggle="#{{ lt }}-policy" aria-controls="{{ lt }}-policy" aria-expanded="{{ 'true' if policy_err else 'false' }}"
+                class="text-xs font-medium text-indigo-600 hover:text-indigo-800">{{ "Edit policy" if p else "Set up policy" }}</button>
+        {% if p %}
+        <button type="button" data-toggle="#{{ lt }}-adjust" aria-controls="{{ lt }}-adjust" aria-expanded="{{ 'true' if adjust_err else 'false' }}"
+                class="text-xs font-medium text-indigo-600 hover:text-indigo-800">Adjust balance</button>
+        {% endif %}
+      </div>
+
+      <form id="{{ lt }}-policy" {{ '' if policy_err else 'hidden' }} method="POST" action="/employees/{{ employee.id }}/time-off/{{ lt }}/policy"
+            class="mt-4 p-4 bg-slate-50 rounded-md ring-1 ring-slate-200 space-y-3">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+        {% set n = lt ~ ".method" %}
+        <div>
+          <label for="{{ n }}" class="text-xs font-medium text-slate-700">Accrual</label>
+          {% set chosen = val(n, p.method if p else "per_period") | trim %}
+          <select id="{{ n }}" name="method" class="{{ field_cls }} bg-white {{ border(n) }}">
+            {% for m, m_label in accrual_methods.items() %}
+            <option value="{{ m }}" {{ 'selected' if chosen == m }}>{{ m_label }}</option>
+            {% endfor %}
+            {% if p %}<option value="">Stop tracking</option>{% endif %}
+          </select>
+          {{ err(n) }}
+        </div>
+        {% set n = lt ~ ".rate" %}
+        <div>
+          <label for="{{ n }}" class="text-xs font-medium text-slate-700">Hours accrued</label>
+          <input id="{{ n }}" name="rate" inputmode="decimal" value="{{ val(n, p.rate | float if p else none) | trim }}" class="{{ field_cls }} {{ border(n) }}">
+          <p class="text-xs text-slate-500 mt-1">Per pay period: hours each regular paycheck (e.g. 3.08 biweekly = 80 a year). Per hour worked: hours per hour (e.g. 0.0385 = 80 a year at 2,080 hours; salaried employees count 2,080 a year).</p>
+          {{ err(n) }}
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {% set n = lt ~ ".max_balance" %}
+          <div>
+            <label for="{{ n }}" class="text-xs font-medium text-slate-700">Maximum balance (hours)</label>
+            <input id="{{ n }}" name="max_balance" inputmode="decimal" placeholder="No maximum" value="{{ val(n, p.max_balance | float if p and p.max_balance is not none else none) | trim }}" class="{{ field_cls }} {{ border(n) }}">
+            {{ err(n) }}
+          </div>
+          {% set n = lt ~ ".carryover_limit" %}
+          <div>
+            <label for="{{ n }}" class="text-xs font-medium text-slate-700">Year-end carryover limit (hours)</label>
+            <input id="{{ n }}" name="carryover_limit" inputmode="decimal" placeholder="No limit" value="{{ val(n, p.carryover_limit | float if p and p.carryover_limit is not none else none) | trim }}" class="{{ field_cls }} {{ border(n) }}">
+            {{ err(n) }}
+          </div>
+        </div>
+        <p class="text-xs text-slate-500">Accrual pauses while the balance is at the maximum. Hours over the carryover limit on December 31 are forfeited with the first pay run of the new year; a new or changed limit applies from the next year-end.</p>
+        <button type="submit" class="px-3 py-1.5 text-xs font-medium bg-indigo-600 text-white rounded hover:bg-indigo-700">Save policy</button>
+      </form>
+
+      {% if p %}
+      <form id="{{ lt }}-adjust" {{ '' if adjust_err else 'hidden' }} method="POST" action="/employees/{{ employee.id }}/time-off/{{ lt }}/adjust"
+            class="mt-4 p-4 bg-slate-50 rounded-md ring-1 ring-slate-200 space-y-3">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {% set n = lt ~ ".hours" %}
+          <div>
+            <label for="{{ n }}" class="text-xs font-medium text-slate-700">Hours (negative to take away)</label>
+            <input id="{{ n }}" name="hours" inputmode="decimal" value="{{ val(n, none) | trim }}" class="{{ field_cls }} {{ border(n) }}">
+            {{ err(n) }}
+          </div>
+          {% set n = lt ~ ".entry_date" %}
+          <div>
+            <label for="{{ n }}" class="text-xs font-medium text-slate-700">Date</label>
+            <input id="{{ n }}" type="date" name="entry_date" value="{{ val(n, today) | trim }}" class="{{ field_cls }} {{ border(n) }}">
+            {{ err(n) }}
+          </div>
+        </div>
+        {% set n = lt ~ ".note" %}
+        <div>
+          <label for="{{ n }}" class="text-xs font-medium text-slate-700">Reason</label>
+          <input id="{{ n }}" name="note" maxlength="200" placeholder="e.g. Opening balance" value="{{ val(n, none) | trim }}" class="{{ field_cls }} {{ border(n) }}">
+          {{ err(n) }}
+        </div>
+        <button type="submit" class="px-3 py-1.5 text-xs font-medium bg-indigo-600 text-white rounded hover:bg-indigo-700">Save adjustment</button>
+      </form>
+      {% endif %}
+      {% endif %}
+    </section>
+    {% endfor %}
+  </div>
+
+  <h2 class="text-lg font-semibold text-slate-900 mb-4">History</h2>
+  {% if history %}
+  <div class="bg-white rounded-lg ring-1 ring-slate-200 overflow-x-auto">
+    <table class="min-w-full text-sm">
+      <thead class="bg-slate-50">
+        <tr class="text-xs text-slate-500 uppercase">
+          <th class="px-4 py-3 text-left font-medium">Date</th>
+          <th class="px-4 py-3 text-left font-medium">Type</th>
+          <th class="px-4 py-3 text-left font-medium">Change</th>
+          <th class="px-4 py-3 text-right font-medium">Hours</th>
+          <th class="px-4 py-3 text-left font-medium">Details</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-100">
+        {% for e in history %}
+        <tr>
+          <td class="px-4 py-2 text-slate-600 whitespace-nowrap">{{ e.entry_date.strftime('%m/%d/%Y') }}</td>
+          <td class="px-4 py-2 text-slate-900">{{ leave_types[e.leave_type] }}</td>
+          <td class="px-4 py-2 text-slate-600">{{ leave_kinds[e.kind] }}</td>
+          <td class="px-4 py-2 text-right tabular-nums {{ 'text-red-600' if e.hours < 0 else 'text-slate-900' }}">{{ "%+.2f"|format(e.hours) }}</td>
+          <td class="px-4 py-2 text-slate-500">
+            {% if e.paycheck_id %}<a href="/payroll/paychecks/{{ e.paycheck_id }}" class="text-indigo-600 hover:underline">Paycheck</a>{% endif %}
+            {{ e.note or '' }}{% if e.created_by %} <span class="text-slate-400">({{ e.created_by }})</span>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="text-sm text-slate-500">No time off recorded yet. Approved pay runs and adjustments appear here.</p>
+  {% endif %}
+</div>
+{% endblock %}

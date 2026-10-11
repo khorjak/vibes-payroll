@@ -1,7 +1,8 @@
 from datetime import date
+from decimal import Decimal, InvalidOperation
 from fastapi import APIRouter, Depends, Form, Request, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
-from sqlalchemy import false
+from sqlalchemy import false, or_
 from sqlalchemy.orm import Session, joinedload
 from database import get_db
 from models.company import Company
@@ -12,6 +13,8 @@ from models.employee import (
 from models.workers_comp import WorkersCompCode
 from models.benefit import BenefitPlan, EmployeeBenefitEnrollment
 from models.garnishment import GarnishmentOrder, GARNISHMENT_TYPES
+from models.leave import ACCRUAL_METHODS, LEAVE_KINDS, LEAVE_TYPES, LeaveEntry, LeavePolicy
+from models.payroll import Paycheck
 from utils.crypto import encrypt, decrypt
 from utils.forms import percent_value, safe_float
 from routers.auth import ActiveCompany, CurrentUser, PreparerUser, get_current_user
@@ -23,6 +26,7 @@ from utils.company_scope import (
 )
 from utils.csrf import CsrfProtect
 from services.audit import log_change
+from services.leave import balances as leave_balances
 
 from app_templates import templates
 
@@ -275,6 +279,8 @@ def get_employee(
         "flash": flash,
         "active_enrollments": active_enrollments,
         "active_garnishments": active_garnishments,
+        "time_off_balances": leave_balances(db, [employee.id])[employee.id],
+        "leave_types": LEAVE_TYPES,
         "today": date.today(),
         "active_nav": "employees",
     })
@@ -654,3 +660,166 @@ def deactivate_garnishment(
     order.end_date = date.fromisoformat(end_date)
     db.commit()
     return RedirectResponse(f"/employees/{employee_id}/garnishments?flash=deactivated", status_code=303)
+
+
+# ── Time off (PTO / sick) ────────────────────────────────────────────────────
+
+def _time_off_page(request, db, employee, errors=None, values=None, status_code=200, flash=""):
+    policies = {p.leave_type: p for p in db.query(LeavePolicy).filter(LeavePolicy.employee_id == employee.id)}
+    history = (
+        db.query(LeaveEntry)
+        .outerjoin(Paycheck, LeaveEntry.paycheck_id == Paycheck.id)
+        .filter(LeaveEntry.employee_id == employee.id,
+                or_(LeaveEntry.paycheck_id.is_(None), Paycheck.status.in_(("approved", "paid"))),
+                LeaveEntry.hours != 0)
+        .order_by(LeaveEntry.entry_date.desc(), LeaveEntry.id.desc())
+        .all()
+    )
+    return templates.TemplateResponse(request, "employees/time_off.html", {
+        "employee": employee,
+        "policies": policies,
+        "balances": leave_balances(db, [employee.id])[employee.id],
+        "history": history,
+        "leave_types": LEAVE_TYPES,
+        "accrual_methods": ACCRUAL_METHODS,
+        "leave_kinds": LEAVE_KINDS,
+        "errors": errors or {},
+        "values": values or {},
+        "flash": flash,
+        "today": date.today().isoformat(),
+        "active_nav": "employees",
+    }, status_code=status_code)
+
+
+def _hours_field(raw: str, errors: dict, name: str, *, signed=False, required=True) -> Decimal | None:
+    raw = (raw or "").strip()
+    if not raw:
+        if required:
+            errors[name] = "Required."
+        return None
+    try:
+        value = Decimal(raw)
+    except InvalidOperation:
+        errors[name] = "Enter a number."
+        return None
+    if not value.is_finite() or abs(value) > 10000 or (value < 0 and not signed):
+        errors[name] = "Enter a number from 0 to 10,000." if not signed else "Enter a number from -10,000 to 10,000."
+        return None
+    return value
+
+
+def _policy_values(p: LeavePolicy | None) -> dict | None:
+    if p is None:
+        return None
+    return {"method": p.method, "rate": str(p.rate),
+            "max_balance": None if p.max_balance is None else str(p.max_balance),
+            "carryover_limit": None if p.carryover_limit is None else str(p.carryover_limit)}
+
+
+@router.get("/{employee_id}/time-off", response_class=HTMLResponse)
+def time_off(
+    request: Request, current_user: CurrentUser, employee_id: int,
+    db: Session = Depends(get_db), flash: str = "",
+):
+    employee = get_scoped_employee(db, current_user, employee_id)
+    return _time_off_page(request, db, employee, flash=flash)
+
+
+@router.post("/{employee_id}/time-off/{leave_type}/policy")
+def save_leave_policy(
+    request: Request,
+    current_user: PreparerUser,
+    _csrf: CsrfProtect,
+    employee_id: int,
+    leave_type: str,
+    db: Session = Depends(get_db),
+    method: str = Form(""),
+    rate: str = Form(""),
+    max_balance: str = Form(""),
+    carryover_limit: str = Form(""),
+):
+    employee = get_scoped_employee(db, current_user, employee_id)
+    if leave_type not in LEAVE_TYPES:
+        raise HTTPException(status_code=404, detail="Unknown leave type")
+    policy = db.query(LeavePolicy).filter(
+        LeavePolicy.employee_id == employee_id, LeavePolicy.leave_type == leave_type).first()
+    old = _policy_values(policy)
+
+    if method == "":  # stop tracking; the history stays
+        if policy:
+            db.delete(policy)
+            log_change(db, "leave_policies", policy.id, "delete",
+                       changed_by=current_user.username, old_values={"leave_type": leave_type, **old})
+            db.commit()
+        return RedirectResponse(f"/employees/{employee_id}/time-off?flash=policy_saved", status_code=303)
+
+    errors = {}
+    if method not in ACCRUAL_METHODS:
+        errors[f"{leave_type}.method"] = "Choose how hours accrue."
+    rate_v = _hours_field(rate, errors, f"{leave_type}.rate")
+    cap_v = _hours_field(max_balance, errors, f"{leave_type}.max_balance", required=False)
+    carry_v = _hours_field(carryover_limit, errors, f"{leave_type}.carryover_limit", required=False)
+    if rate_v is not None and method == "per_hour" and rate_v > 1:
+        errors[f"{leave_type}.rate"] = "Per hour worked, this is a fraction of an hour (e.g. 0.0385)."
+    if errors:
+        values = {f"{leave_type}.{k}": v for k, v in (
+            ("method", method), ("rate", rate), ("max_balance", max_balance), ("carryover_limit", carryover_limit))}
+        return _time_off_page(request, db, employee, errors=errors, values=values, status_code=422)
+
+    if policy is None:
+        policy = LeavePolicy(employee_id=employee_id, leave_type=leave_type)
+        db.add(policy)
+    if carry_v is not None and (policy.carryover_limit is None or Decimal(str(policy.carryover_limit)) != carry_v):
+        policy.carryover_since = date.today()  # a new limit never forfeits past year-ends
+    policy.method, policy.rate, policy.max_balance, policy.carryover_limit = method, rate_v, cap_v, carry_v
+    db.flush()
+    log_change(db, "leave_policies", policy.id, "update" if old else "insert",
+               changed_by=current_user.username, old_values=old,
+               new_values={"leave_type": leave_type, **_policy_values(policy)})
+    db.commit()
+    return RedirectResponse(f"/employees/{employee_id}/time-off?flash=policy_saved", status_code=303)
+
+
+@router.post("/{employee_id}/time-off/{leave_type}/adjust")
+def adjust_leave(
+    request: Request,
+    current_user: PreparerUser,
+    _csrf: CsrfProtect,
+    employee_id: int,
+    leave_type: str,
+    db: Session = Depends(get_db),
+    entry_date: str = Form(""),
+    hours: str = Form(""),
+    note: str = Form(""),
+):
+    employee = get_scoped_employee(db, current_user, employee_id)
+    if leave_type not in LEAVE_TYPES:
+        raise HTTPException(status_code=404, detail="Unknown leave type")
+    if not db.query(LeavePolicy.id).filter(
+            LeavePolicy.employee_id == employee_id, LeavePolicy.leave_type == leave_type).first():
+        raise HTTPException(status_code=400, detail="Set up a policy before adjusting this balance")
+
+    errors = {}
+    hours_v = _hours_field(hours, errors, f"{leave_type}.hours", signed=True)
+    if hours_v == 0:
+        errors[f"{leave_type}.hours"] = "Enter hours to add, or negative hours to take away."
+    try:
+        when = date.fromisoformat(entry_date)
+    except ValueError:
+        errors[f"{leave_type}.entry_date"] = "Enter a date."
+    if not note.strip():
+        errors[f"{leave_type}.note"] = "Say why (e.g. opening balance)."
+    if errors:
+        values = {f"{leave_type}.{k}": v for k, v in (("entry_date", entry_date), ("hours", hours), ("note", note))}
+        return _time_off_page(request, db, employee, errors=errors, values=values, status_code=422)
+
+    entry = LeaveEntry(employee_id=employee_id, leave_type=leave_type, entry_date=when,
+                       kind="adjustment", hours=hours_v, note=note.strip()[:200],
+                       created_by=current_user.username)
+    db.add(entry)
+    db.flush()
+    log_change(db, "leave_entries", entry.id, "insert", changed_by=current_user.username,
+               new_values={"employee_id": employee_id, "leave_type": leave_type,
+                           "entry_date": entry_date, "hours": str(hours_v), "note": entry.note})
+    db.commit()
+    return RedirectResponse(f"/employees/{employee_id}/time-off?flash=adjusted", status_code=303)

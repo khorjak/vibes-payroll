@@ -245,6 +245,37 @@
         </tbody>
       </table>
     </div>
+
+    {% if time_off %}
+    <div class="mt-4 bg-white rounded-lg border border-slate-200 overflow-x-auto">
+      <div class="px-4 py-2.5 bg-slate-50 border-b border-slate-200">
+        <h2 class="text-sm font-semibold text-slate-700">Time Off (hours)</h2>
+      </div>
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="text-xs text-slate-500">
+            <th class="px-4 pt-2 text-left font-medium"></th>
+            <th class="px-2 pt-2 text-right font-medium">Accrued</th>
+            <th class="px-2 pt-2 text-right font-medium">Used</th>
+            <th class="px-4 pt-2 text-right font-medium">Balance</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100">
+          {% for t in time_off %}
+          <tr>
+            <td class="px-4 py-2 text-slate-600">{{ t.label }}</td>
+            <td class="px-2 py-2 text-right font-mono">{{ "%.2f"|format(t.accrued) }}</td>
+            <td class="px-2 py-2 text-right font-mono">{{ "%.2f"|format(t.used) }}</td>
+            <td class="px-4 py-2 text-right font-mono {{ 'text-red-600' if t.balance < 0 }}">{{ "%.2f"|format(t.balance) }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% if paycheck.status == 'draft' %}
+      <p class="px-4 py-2 text-xs text-slate-500 border-t border-slate-100">Counts toward the balance once the pay run is approved.</p>
+      {% endif %}
+    </div>
+    {% endif %}
   </div>
 
 </div>
