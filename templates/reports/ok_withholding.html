@@ -74,8 +74,8 @@
           <tr class="bg-amber-50 border-t border-amber-200 font-medium text-amber-900">
             <td class="px-4 py-2 text-sm">Q{{ current_q.val }} Subtotal</td>
             <td class="px-4 py-2 text-right tabular-nums text-sm">{{ q_employees.val }}</td>
-            <td class="px-4 py-2 text-right tabular-nums text-sm">${{ "%.2f"|format(q_wages.val) }}</td>
-            <td class="px-4 py-2 text-right tabular-nums text-sm">${{ "%.2f"|format(q_tax.val) }}</td>
+            <td class="px-4 py-2 text-right tabular-nums text-sm">${{ q_wages.val | money }}</td>
+            <td class="px-4 py-2 text-right tabular-nums text-sm">${{ q_tax.val | money }}</td>
           </tr>
           {% endif %}
           {% set current_q.val = row.quarter %}
@@ -91,8 +91,8 @@
         <tr class="hover:bg-slate-50">
           <td class="px-4 py-3 text-slate-700">{{ row.month_name }} {{ year }}</td>
           <td class="px-4 py-3 text-right tabular-nums text-slate-500">{{ row.employee_count }}</td>
-          <td class="px-4 py-3 text-right tabular-nums">${{ "%.2f"|format(row.ok_wages) }}</td>
-          <td class="px-4 py-3 text-right tabular-nums">${{ "%.2f"|format(row.ok_tax) }}</td>
+          <td class="px-4 py-3 text-right tabular-nums">${{ row.ok_wages | money }}</td>
+          <td class="px-4 py-3 text-right tabular-nums">${{ row.ok_tax | money }}</td>
         </tr>
       {% endfor %}
 
@@ -100,8 +100,8 @@
       <tr class="bg-amber-50 border-t border-amber-200 font-medium text-amber-900">
         <td class="px-4 py-2 text-sm">Q{{ current_q.val }} Subtotal</td>
         <td class="px-4 py-2 text-right tabular-nums text-sm">{{ q_employees.val }}</td>
-        <td class="px-4 py-2 text-right tabular-nums text-sm">${{ "%.2f"|format(q_wages.val) }}</td>
-        <td class="px-4 py-2 text-right tabular-nums text-sm">${{ "%.2f"|format(q_tax.val) }}</td>
+        <td class="px-4 py-2 text-right tabular-nums text-sm">${{ q_wages.val | money }}</td>
+        <td class="px-4 py-2 text-right tabular-nums text-sm">${{ q_tax.val | money }}</td>
       </tr>
       {% endif %}
     </tbody>
@@ -109,8 +109,8 @@
       <tr class="bg-slate-50 border-t border-slate-200 font-semibold">
         <td class="px-4 py-3 text-slate-700">Grand Total</td>
         <td class="px-4 py-3 text-right tabular-nums">{{ grand.employee_count }}</td>
-        <td class="px-4 py-3 text-right tabular-nums">${{ "%.2f"|format(grand.ok_wages) }}</td>
-        <td class="px-4 py-3 text-right tabular-nums">${{ "%.2f"|format(grand.ok_tax) }}</td>
+        <td class="px-4 py-3 text-right tabular-nums">${{ grand.ok_wages | money }}</td>
+        <td class="px-4 py-3 text-right tabular-nums">${{ grand.ok_tax | money }}</td>
       </tr>
     </tfoot>
   </table>

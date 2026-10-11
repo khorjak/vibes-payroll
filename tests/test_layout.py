@@ -185,3 +185,21 @@ class TestPhoneInputs:
     def test_timesheet_inputs_bring_up_decimal_keypad(self, client, hourly_employee, pay_period):
         html = client.get(f"/payroll/{pay_period.id}/timesheets").text
         assert html.count('inputmode="decimal"') == 6
+
+
+class TestMoneyFormat:
+    def test_money_filter_adds_thousand_separators(self):
+        from decimal import Decimal
+        from app_templates import money
+        assert money(Decimal("1234567.5")) == "1,234,567.50"
+        assert money(0) == "0.00"
+        assert money(Decimal("-1500")) == "-1,500.00"
+        assert money(Decimal("1234.56789"), 4) == "1,234.5679"
+
+    def test_every_dollar_amount_uses_the_money_filter(self):
+        # A "$" right before "{{" is a displayed dollar amount; it must go through
+        # | money so amounts of $1,000 and up get separators.
+        import pathlib, re
+        bad = [f"{p}: {m}" for p in pathlib.Path("templates").rglob("*.html")
+               for m in re.findall(r"\$\{\{(.*?)\}\}", p.read_text()) if "| money" not in m]
+        assert not bad, bad

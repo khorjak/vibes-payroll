@@ -33,7 +33,7 @@
           <td class="px-4 py-3 text-sm text-slate-900 font-medium">{{ plan.name }}</td>
           <td class="px-4 py-3 text-sm text-slate-600">{{ plan.benefit_type | replace("_", " ") | title }}</td>
           <td class="px-4 py-3 text-sm text-slate-900 text-right tabular-nums">
-            {% if plan.employee_contribution_type == 'percent' %}{{ plan.employee_contribution_amount }}%{% else %}${{ "%.2f"|format(plan.employee_contribution_amount) }}{% endif %}
+            {% if plan.employee_contribution_type == 'percent' %}{{ plan.employee_contribution_amount }}%{% else %}${{ plan.employee_contribution_amount | money }}{% endif %}
           </td>
           <td class="px-4 py-3 text-sm text-slate-600 text-right">
             {% if plan.employer_match_percent %}{{ plan.employer_match_percent }}% up to {{ plan.employer_match_cap_percent or '—' }}%{% else %}—{% endif %}

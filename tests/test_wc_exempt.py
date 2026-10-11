@@ -141,7 +141,7 @@ class TestReport:
         _run_payroll(client, db, company, salaried_employee)
         page = self._get(client, company)
         assert "EXEMPT" in page and "Exempt from workers comp" in page
-        assert "$2500.00" in page
+        assert "$2,500.00" in page
         assert "Unclassified" not in page
         assert "No workers comp code on file for" not in page
 

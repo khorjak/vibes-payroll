@@ -84,17 +84,17 @@
 <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
   <div class="bg-white rounded-lg border border-slate-200 p-4">
     <p class="text-xs text-slate-500 uppercase tracking-wide mb-1">Gross Wages</p>
-    <p class="text-2xl font-semibold font-mono">${{ "%.2f"|format(paycheck.gross_wages) }}</p>
+    <p class="text-2xl font-semibold font-mono">${{ paycheck.gross_wages | money }}</p>
   </div>
   <div class="bg-white rounded-lg border border-slate-200 p-4">
     <p class="text-xs text-slate-500 uppercase tracking-wide mb-1">Employee Taxes + Ded.</p>
     <p class="text-2xl font-semibold font-mono text-red-600">
-      -${{ "%.2f"|format(paycheck.total_taxes_withheld + paycheck.total_deductions) }}
+      -${{ (paycheck.total_taxes_withheld + paycheck.total_deductions) | money }}
     </p>
   </div>
   <div class="bg-indigo-50 rounded-lg border border-indigo-200 p-4">
     <p class="text-xs text-indigo-500 uppercase tracking-wide mb-1">Net Pay</p>
-    <p class="text-2xl font-semibold font-mono text-indigo-700">${{ "%.2f"|format(paycheck.net_pay) }}</p>
+    <p class="text-2xl font-semibold font-mono text-indigo-700">${{ paycheck.net_pay | money }}</p>
   </div>
 </div>
 
@@ -115,17 +115,17 @@
             <td class="px-4 py-2 text-slate-700">
               {{ line.description }}
               {% if line.hours %}
-              <span class="text-xs text-slate-400 ml-1">{{ line.hours }} hrs @ ${{ "%.4f"|format(line.rate) }}</span>
+              <span class="text-xs text-slate-400 ml-1">{{ line.hours }} hrs @ ${{ line.rate | money(4) }}</span>
               {% endif %}
             </td>
-            <td class="px-4 py-2 text-right font-mono">${{ "%.2f"|format(line.amount) }}</td>
+            <td class="px-4 py-2 text-right font-mono">${{ line.amount | money }}</td>
           </tr>
           {% endfor %}
         </tbody>
         <tfoot class="border-t border-slate-200 bg-slate-50">
           <tr>
             <td class="px-4 py-2 font-medium text-slate-700">Total Earnings</td>
-            <td class="px-4 py-2 text-right font-mono font-medium">${{ "%.2f"|format(paycheck.gross_wages) }}</td>
+            <td class="px-4 py-2 text-right font-mono font-medium">${{ paycheck.gross_wages | money }}</td>
           </tr>
         </tfoot>
       </table>
@@ -142,7 +142,7 @@
           {% for line in deductions %}
           <tr>
             <td class="px-4 py-2 text-slate-700">{{ line.description }}</td>
-            <td class="px-4 py-2 text-right font-mono text-red-600">-${{ "%.2f"|format(line.amount) }}</td>
+            <td class="px-4 py-2 text-right font-mono text-red-600">-${{ line.amount | money }}</td>
           </tr>
           {% endfor %}
         </tbody>
@@ -150,7 +150,7 @@
           <tr>
             <td class="px-4 py-2 font-medium text-slate-700">Total Deductions</td>
             <td class="px-4 py-2 text-right font-mono font-medium text-red-600">
-              -${{ "%.2f"|format(paycheck.total_deductions) }}
+              -${{ paycheck.total_deductions | money }}
             </td>
           </tr>
         </tfoot>
@@ -168,7 +168,7 @@
           {% for line in employee_taxes %}
           <tr>
             <td class="px-4 py-2 text-slate-700">{{ line.description }}</td>
-            <td class="px-4 py-2 text-right font-mono text-red-600">-${{ "%.2f"|format(line.amount) }}</td>
+            <td class="px-4 py-2 text-right font-mono text-red-600">-${{ line.amount | money }}</td>
           </tr>
           {% else %}
           <tr>
@@ -180,7 +180,7 @@
           <tr>
             <td class="px-4 py-2 font-medium text-slate-700">Total Withheld</td>
             <td class="px-4 py-2 text-right font-mono font-medium text-red-600">
-              -${{ "%.2f"|format(paycheck.total_taxes_withheld) }}
+              -${{ paycheck.total_taxes_withheld | money }}
             </td>
           </tr>
         </tfoot>
@@ -190,7 +190,7 @@
     {# Net Pay #}
     <div class="bg-indigo-50 rounded-lg border border-indigo-200 p-4 flex justify-between items-center">
       <span class="font-semibold text-slate-800">Net Pay</span>
-      <span class="text-xl font-bold font-mono text-indigo-700">${{ "%.2f"|format(paycheck.net_pay) }}</span>
+      <span class="text-xl font-bold font-mono text-indigo-700">${{ paycheck.net_pay | money }}</span>
     </div>
 
   </div>
@@ -206,7 +206,7 @@
           {% for line in employer_taxes %}
           <tr>
             <td class="px-4 py-2 text-slate-700">{{ line.description }}</td>
-            <td class="px-4 py-2 text-right font-mono">${{ "%.2f"|format(line.amount) }}</td>
+            <td class="px-4 py-2 text-right font-mono">${{ line.amount | money }}</td>
           </tr>
           {% else %}
           <tr>
@@ -216,7 +216,7 @@
           {% for line in employer_contributions %}
           <tr>
             <td class="px-4 py-2 text-slate-700">{{ line.description }}</td>
-            <td class="px-4 py-2 text-right font-mono">${{ "%.2f"|format(line.amount) }}</td>
+            <td class="px-4 py-2 text-right font-mono">${{ line.amount | money }}</td>
           </tr>
           {% endfor %}
         </tbody>
@@ -224,7 +224,7 @@
           <tr>
             <td class="px-4 py-2 font-medium text-slate-700">Total Employer Cost</td>
             <td class="px-4 py-2 text-right font-mono font-medium">
-              ${{ "%.2f"|format(paycheck.employer_fica + paycheck.employer_futa + paycheck.employer_suta + paycheck.employer_workers_comp + (employer_contributions | sum(attribute='amount'))) }}
+              ${{ (paycheck.employer_fica + paycheck.employer_futa + paycheck.employer_suta + paycheck.employer_workers_comp + (employer_contributions | sum(attribute='amount'))) | money }}
             </td>
           </tr>
         </tfoot>
@@ -240,7 +240,7 @@
         <tbody class="divide-y divide-slate-100">
           <tr>
             <td class="px-4 py-2 text-slate-600">Gross Wages</td>
-            <td class="px-4 py-2 text-right font-mono">${{ "%.2f"|format(paycheck.ytd_gross) }}</td>
+            <td class="px-4 py-2 text-right font-mono">${{ paycheck.ytd_gross | money }}</td>
           </tr>
         </tbody>
       </table>

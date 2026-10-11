@@ -55,7 +55,7 @@
   <span class="text-slate-500">EIN</span><span class="font-medium">{{ company.ein or "—" }}</span>
   <span class="text-slate-500">Quarter</span><span class="font-medium">Q{{ quarter }} {{ year }}</span>
   <span class="text-slate-500">Contribution rate</span><span class="font-medium tabular-nums">{{ "%.2f"|format(suta_rate * 100) }}%</span>
-  <span class="text-slate-500">Taxable wage base (per employee, per year)</span><span class="font-medium tabular-nums">${{ "{:,.2f}".format(wage_base) }}{% if wage_base_year != year %} <span class="text-amber-700 font-normal">({{ wage_base_year }} figure: no {{ year }} wage base on file)</span>{% endif %}</span>
+  <span class="text-slate-500">Taxable wage base (per employee, per year)</span><span class="font-medium tabular-nums">${{ wage_base | money }}{% if wage_base_year != year %} <span class="text-amber-700 font-normal">({{ wage_base_year }} figure: no {{ year }} wage base on file)</span>{% endif %}</span>
   <span class="text-slate-500">Employees paid</span><span class="font-medium tabular-nums">{{ totals.employee_count }}</span>
 </div>
 
@@ -76,20 +76,20 @@
       <tr>
         <td class="px-4 py-2 text-slate-900 font-medium">{{ r.employee.last_name }}, {{ r.employee.first_name }}</td>
         <td class="px-4 py-2 text-slate-600 font-mono">{{ r.ssn or "—" }}</td>
-        <td class="px-4 py-2 text-right tabular-nums">${{ "%.2f"|format(r.total_wages) }}</td>
-        <td class="px-4 py-2 text-right tabular-nums text-slate-600">${{ "%.2f"|format(r.excess_wages) }}</td>
-        <td class="px-4 py-2 text-right tabular-nums">${{ "%.2f"|format(r.taxable_wages) }}</td>
-        <td class="px-4 py-2 text-right tabular-nums">${{ "%.2f"|format(r.contributions) }}</td>
+        <td class="px-4 py-2 text-right tabular-nums">${{ r.total_wages | money }}</td>
+        <td class="px-4 py-2 text-right tabular-nums text-slate-600">${{ r.excess_wages | money }}</td>
+        <td class="px-4 py-2 text-right tabular-nums">${{ r.taxable_wages | money }}</td>
+        <td class="px-4 py-2 text-right tabular-nums">${{ r.contributions | money }}</td>
       </tr>
       {% endfor %}
     </tbody>
     <tfoot class="bg-slate-50 font-semibold">
       <tr>
         <td class="px-4 py-2" colspan="2">Total</td>
-        <td class="px-4 py-2 text-right tabular-nums">${{ "%.2f"|format(totals.total_wages) }}</td>
-        <td class="px-4 py-2 text-right tabular-nums">${{ "%.2f"|format(totals.excess_wages) }}</td>
-        <td class="px-4 py-2 text-right tabular-nums">${{ "%.2f"|format(totals.taxable_wages) }}</td>
-        <td class="px-4 py-2 text-right tabular-nums">${{ "%.2f"|format(totals.contributions) }}</td>
+        <td class="px-4 py-2 text-right tabular-nums">${{ totals.total_wages | money }}</td>
+        <td class="px-4 py-2 text-right tabular-nums">${{ totals.excess_wages | money }}</td>
+        <td class="px-4 py-2 text-right tabular-nums">${{ totals.taxable_wages | money }}</td>
+        <td class="px-4 py-2 text-right tabular-nums">${{ totals.contributions | money }}</td>
       </tr>
     </tfoot>
   </table>

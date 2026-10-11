@@ -67,18 +67,18 @@
           {% endif %}
         </td>
         <td class="px-4 py-3 text-right tabular-nums text-slate-600">
-          {% if row.rate %}${{ "%.4f"|format(row.rate) }}{% else %}—{% endif %}
+          {% if row.rate %}${{ row.rate | money(4) }}{% else %}—{% endif %}
         </td>
-        <td class="px-4 py-3 text-right tabular-nums">${{ "%.2f"|format(row.gross) }}</td>
-        <td class="px-4 py-3 text-right tabular-nums font-medium">${{ "%.2f"|format(row.premium) }}</td>
+        <td class="px-4 py-3 text-right tabular-nums">${{ row.gross | money }}</td>
+        <td class="px-4 py-3 text-right tabular-nums font-medium">${{ row.premium | money }}</td>
       </tr>
       {% endfor %}
     </tbody>
     <tfoot>
       <tr class="bg-slate-50 border-t border-slate-200 font-semibold">
         <td class="px-4 py-3 text-slate-700" colspan="3">Totals</td>
-        <td class="px-4 py-3 text-right tabular-nums">${{ "%.2f"|format(section.totals.gross) }}</td>
-        <td class="px-4 py-3 text-right tabular-nums">${{ "%.2f"|format(section.totals.premium) }}</td>
+        <td class="px-4 py-3 text-right tabular-nums">${{ section.totals.gross | money }}</td>
+        <td class="px-4 py-3 text-right tabular-nums">${{ section.totals.premium | money }}</td>
       </tr>
     </tfoot>
   </table>
@@ -88,7 +88,7 @@
 {% if consolidated and groups %}
 <div class="bg-slate-50 rounded-lg border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-900 flex justify-between">
   <span>All companies — grand total premium</span>
-  <span class="tabular-nums">${{ "%.2f"|format(totals.premium) }} on ${{ "%.2f"|format(totals.gross) }} gross</span>
+  <span class="tabular-nums">${{ totals.premium | money }} on ${{ totals.gross | money }} gross</span>
 </div>
 {% endif %}
 {% elif company_id and year %}

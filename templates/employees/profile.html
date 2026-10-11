@@ -126,9 +126,9 @@
           <dt class="text-slate-500">Pay Rate</dt>
           <dd class="text-slate-900 mt-0.5 text-lg font-semibold tabular-nums">
             {% if employee.employment_type == 'salaried' %}
-              ${{ "{:,.2f}".format(employee.pay_rate) }}<span class="text-sm font-normal text-slate-400">/yr</span>
+              ${{ employee.pay_rate | money }}<span class="text-sm font-normal text-slate-400">/yr</span>
             {% else %}
-              ${{ "{:.2f}".format(employee.pay_rate) }}<span class="text-sm font-normal text-slate-400">/hr</span>
+              ${{ employee.pay_rate | money }}<span class="text-sm font-normal text-slate-400">/hr</span>
             {% endif %}
           </dd>
         </div>
@@ -214,7 +214,7 @@
               {% if enrollment.plan.employee_contribution_type == 'percent' %}
                 {{ amt }}%
               {% else %}
-                ${{ "%.2f"|format(amt) }}
+                ${{ amt | money }}
               {% endif %}
             </td>
             <td class="py-2 text-slate-500">{{ enrollment.effective_date.strftime('%m/%d/%Y') }}</td>
@@ -283,19 +283,19 @@
         </div>
         <div class="flex justify-between">
           <dt class="text-slate-500">Dependents Amt</dt>
-          <dd class="text-slate-900 tabular-nums">${{ "%.2f"|format(w4.dependents_amount) }}</dd>
+          <dd class="text-slate-900 tabular-nums">${{ w4.dependents_amount | money }}</dd>
         </div>
         <div class="flex justify-between">
           <dt class="text-slate-500">Other Income</dt>
-          <dd class="text-slate-900 tabular-nums">${{ "%.2f"|format(w4.other_income) }}</dd>
+          <dd class="text-slate-900 tabular-nums">${{ w4.other_income | money }}</dd>
         </div>
         <div class="flex justify-between">
           <dt class="text-slate-500">Deductions</dt>
-          <dd class="text-slate-900 tabular-nums">${{ "%.2f"|format(w4.deductions_amount) }}</dd>
+          <dd class="text-slate-900 tabular-nums">${{ w4.deductions_amount | money }}</dd>
         </div>
         <div class="flex justify-between">
           <dt class="text-slate-500">Extra Withholding</dt>
-          <dd class="text-slate-900 tabular-nums">${{ "%.2f"|format(w4.extra_withholding) }}</dd>
+          <dd class="text-slate-900 tabular-nums">${{ w4.extra_withholding | money }}</dd>
         </div>
         <div class="pt-1 border-t border-slate-100 text-xs text-slate-400">
           Effective {{ w4.effective_date.strftime('%m/%d/%Y') }}
@@ -339,7 +339,7 @@
         </div>
         <div class="flex justify-between">
           <dt class="text-slate-500">Extra Withholding</dt>
-          <dd class="text-slate-900 tabular-nums">${{ "%.2f"|format(ok_w.extra_withholding) }}</dd>
+          <dd class="text-slate-900 tabular-nums">${{ ok_w.extra_withholding | money }}</dd>
         </div>
         <div class="pt-1 border-t border-slate-100 text-xs text-slate-400">
           Effective {{ ok_w.effective_date.strftime('%m/%d/%Y') }}
@@ -365,7 +365,7 @@
         <div class="flex justify-between">
           <dt class="text-slate-500">{{ g.garnishment_type | replace("_", " ") | title }}</dt>
           <dd class="text-slate-900 tabular-nums">
-            {% if g.amount_type == 'percent' %}{{ "%.2f"|format(g.percent) }}%{% else %}${{ "%.2f"|format(g.amount) }}{% endif %}
+            {% if g.amount_type == 'percent' %}{{ "%.2f"|format(g.percent) }}%{% else %}${{ g.amount | money }}{% endif %}
           </dd>
         </div>
         {% endfor %}

@@ -63,10 +63,10 @@
         <td class="px-4 py-2 text-slate-900 font-medium">{{ row.payee_name }}</td>
         <td class="px-4 py-2 text-slate-600">{{ row.liability_type | replace("_", " ") | title }}</td>
         <td class="px-4 py-2 text-right text-slate-600 tabular-nums">{{ row.count }}</td>
-        <td class="px-4 py-2 text-right text-slate-900 tabular-nums">${{ "%.2f"|format(row.total) }}</td>
-        <td class="px-4 py-2 text-right text-green-700 tabular-nums">${{ "%.2f"|format(row.remitted) }}</td>
+        <td class="px-4 py-2 text-right text-slate-900 tabular-nums">${{ row.total | money }}</td>
+        <td class="px-4 py-2 text-right text-green-700 tabular-nums">${{ row.remitted | money }}</td>
         <td class="px-4 py-2 text-right tabular-nums {{ 'text-red-600 font-medium' if row.total - row.remitted > 0 else 'text-slate-600' }}">
-          ${{ "%.2f"|format(row.total - row.remitted) }}
+          ${{ (row.total - row.remitted) | money }}
         </td>
         {% if has_role(request, 'approver') %}
         <td class="px-4 py-2 text-right">
@@ -93,9 +93,9 @@
     <tfoot class="bg-slate-50 font-semibold">
       <tr>
         <td class="px-4 py-2 text-slate-900" colspan="3">Total</td>
-        <td class="px-4 py-2 text-right tabular-nums">${{ "%.2f"|format(section.totals.total) }}</td>
-        <td class="px-4 py-2 text-right tabular-nums">${{ "%.2f"|format(section.totals.remitted) }}</td>
-        <td class="px-4 py-2 text-right tabular-nums">${{ "%.2f"|format(section.totals.total - section.totals.remitted) }}</td>
+        <td class="px-4 py-2 text-right tabular-nums">${{ section.totals.total | money }}</td>
+        <td class="px-4 py-2 text-right tabular-nums">${{ section.totals.remitted | money }}</td>
+        <td class="px-4 py-2 text-right tabular-nums">${{ (section.totals.total - section.totals.remitted) | money }}</td>
         {% if has_role(request, 'approver') %}<td></td>{% endif %}
       </tr>
     </tfoot>
@@ -105,7 +105,7 @@
 {% if consolidated and groups %}
 <div class="bg-slate-50 rounded-lg border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-900 flex justify-between">
   <span>All companies — grand total</span>
-  <span class="tabular-nums">${{ "%.2f"|format(totals.total) }} ({{ "%.2f"|format(totals.remitted) }} remitted)</span>
+  <span class="tabular-nums">${{ totals.total | money }} (${{ totals.remitted | money }} remitted)</span>
 </div>
 {% endif %}
 {% elif company_id %}

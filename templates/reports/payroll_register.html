@@ -85,10 +85,10 @@
           </a>
         </td>
         <td class="px-4 py-3 text-slate-500 capitalize">{{ pc.employee.employment_type.replace("_", " ") }}</td>
-        <td class="px-4 py-3 text-right tabular-nums">${{ "%.2f"|format(pc.gross_wages) }}</td>
-        <td class="px-4 py-3 text-right tabular-nums text-slate-500">${{ "%.2f"|format(pc.total_deductions) }}</td>
-        <td class="px-4 py-3 text-right tabular-nums text-slate-500">${{ "%.2f"|format(pc.total_taxes_withheld) }}</td>
-        <td class="px-4 py-3 text-right tabular-nums font-medium">${{ "%.2f"|format(pc.net_pay) }}</td>
+        <td class="px-4 py-3 text-right tabular-nums">${{ pc.gross_wages | money }}</td>
+        <td class="px-4 py-3 text-right tabular-nums text-slate-500">${{ pc.total_deductions | money }}</td>
+        <td class="px-4 py-3 text-right tabular-nums text-slate-500">${{ pc.total_taxes_withheld | money }}</td>
+        <td class="px-4 py-3 text-right tabular-nums font-medium">${{ pc.net_pay | money }}</td>
         <td class="px-4 py-3 text-center">
           {% set s = pc.status %}
           <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium
@@ -106,10 +106,10 @@
     <tfoot>
       <tr class="bg-slate-50 border-t border-slate-200 font-semibold">
         <td class="px-4 py-3 text-slate-700" colspan="2">Totals</td>
-        <td class="px-4 py-3 text-right tabular-nums">${{ "%.2f"|format(totals.gross) }}</td>
-        <td class="px-4 py-3 text-right tabular-nums">${{ "%.2f"|format(totals.deductions) }}</td>
-        <td class="px-4 py-3 text-right tabular-nums">${{ "%.2f"|format(totals.taxes) }}</td>
-        <td class="px-4 py-3 text-right tabular-nums">${{ "%.2f"|format(totals.net) }}</td>
+        <td class="px-4 py-3 text-right tabular-nums">${{ totals.gross | money }}</td>
+        <td class="px-4 py-3 text-right tabular-nums">${{ totals.deductions | money }}</td>
+        <td class="px-4 py-3 text-right tabular-nums">${{ totals.taxes | money }}</td>
+        <td class="px-4 py-3 text-right tabular-nums">${{ totals.net | money }}</td>
         <td></td>
       </tr>
     </tfoot>

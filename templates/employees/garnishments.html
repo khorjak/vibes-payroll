@@ -38,7 +38,7 @@
             {% if order.amount_type == 'percent' %}
               {{ "%.2f" | format(order.percent) }}%
             {% else %}
-              ${{ "%.2f" | format(order.amount) }}
+              ${{ order.amount | money }}
             {% endif %}
           </td>
           <td class="px-4 py-3 text-sm text-slate-600">{{ order.effective_date }}</td>

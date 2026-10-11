@@ -570,7 +570,7 @@ class TestSutaReport:
         """[total, excess, taxable, contributions] of the first employee row."""
         import re
         body = page.split("<tbody", 1)[1].split("</tbody>", 1)[0]
-        return re.findall(r"tabular-nums[^>]*>\$([\d.]+)</td>", body)[:4]
+        return [v.replace(",", "") for v in re.findall(r"tabular-nums[^>]*>\$([\d,.]+)</td>", body)[:4]]
 
     def _get(self, client, company, quarter=2, year=2026):
         return client.get(f"/reports/suta?company_id={company.id}&year={year}&quarter={quarter}")
@@ -594,7 +594,7 @@ class TestSutaReport:
         suta = next(l.amount for l in pc.lines if l.description == "SUTA")
         page = self._get(client, company).text
         assert "Smith, Jane" in page
-        assert "$2500.00" in page            # total and taxable wages, under the base
+        assert "$2,500.00" in page            # total and taxable wages, under the base
         assert f"${suta:.2f}" in page        # contribution as calculated
 
     def test_draft_paychecks_excluded(self, client, db, company, salaried_employee):
@@ -660,7 +660,7 @@ class TestSutaReport:
     def test_totals_row(self, client, db, company, salaried_employee, hourly_employee):
         self._check(db, company, salaried_employee, date(2026, 5, 20), 1000)
         self._check(db, company, hourly_employee, date(2026, 5, 20), 500)
-        assert "$1500.00" in self._get(client, company).text
+        assert "$1,500.00" in self._get(client, company).text
 
 
 # ── Reports count approved/paid paychecks only ──────────────────────────────

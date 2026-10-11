@@ -144,7 +144,7 @@
               {% if plan.employee_contribution_type == 'percent' %}
                 {{ plan.employee_contribution_amount }}%
               {% else %}
-                ${{ "%.2f"|format(plan.employee_contribution_amount) }}
+                ${{ plan.employee_contribution_amount | money }}
               {% endif %}
             </td>
             <td class="py-2 text-right text-slate-500">
@@ -229,7 +229,7 @@
           <span class="font-mono text-slate-700 font-semibold">{{ code.ncci_code }}</span>
           <span class="text-slate-500 text-right ml-2 flex-1">{{ code.description }}</span>
           {% if code.rate_per_100_wages %}
-          <span class="text-slate-900 ml-2 shrink-0">${{ code.rate_per_100_wages }}</span>
+          <span class="text-slate-900 ml-2 shrink-0">${{ code.rate_per_100_wages | money(4) }}</span>
           {% endif %}
         </li>
         {% endfor %}
