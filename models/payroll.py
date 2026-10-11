@@ -8,6 +8,7 @@ from .base import Base
 if TYPE_CHECKING:
     from .company import Company
     from .employee import Employee
+    from .leave import LeaveEntry
 
 PAY_PERIOD_STATUSES = ["open", "draft", "approved", "paid", "closed"]
 PAYCHECK_STATUSES = ["draft", "approved", "paid", "voided"]
@@ -96,6 +97,7 @@ class Paycheck(Base):
     pay_period: Mapped["PayPeriod"] = relationship("PayPeriod", back_populates="paychecks")
     lines: Mapped[List["PaycheckLine"]] = relationship("PaycheckLine", back_populates="paycheck", cascade="all, delete-orphan")
     liabilities: Mapped[List["ClientLiability"]] = relationship("ClientLiability", back_populates="paycheck", cascade="all, delete-orphan")
+    leave_entries: Mapped[List["LeaveEntry"]] = relationship("LeaveEntry", back_populates="paycheck", cascade="all, delete-orphan")
 
 
 class PaycheckLine(Base):

@@ -291,6 +291,29 @@
         </table>
       </div>
 
+      {% if time_off %}
+      <!-- Time off -->
+      <div class="side-section">
+        <div class="section-head">Time Off (hours)</div>
+        <table>
+          <tr>
+            <td></td>
+            <td class="amt" style="color:#64748b;">Accrued</td>
+            <td class="amt" style="color:#64748b;">Used</td>
+            <td class="amt" style="color:#64748b;">Balance</td>
+          </tr>
+          {% for t in time_off %}
+          <tr>
+            <td style="color:#475569;">{{ t.label }}</td>
+            <td class="amt">{{ "%.2f"|format(t.accrued) }}</td>
+            <td class="amt">{{ "%.2f"|format(t.used) }}</td>
+            <td class="amt">{{ "%.2f"|format(t.balance) }}</td>
+          </tr>
+          {% endfor %}
+        </table>
+      </div>
+      {% endif %}
+
       <!-- Employer costs -->
       <div class="side-section">
         <div class="section-head">Employer Costs</div>

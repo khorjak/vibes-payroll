@@ -281,4 +281,4 @@ Recommendation is option 1. The decision is already recorded in the project memo
 
 - Re-opening the 404-vs-403 convention, per-company roles, or admin-bypasses-scope — all settled in `plans/MULTI-COMPANY-PLAN.md`.
 - Consolidation for 941 / W-2 / OK withholding. Still per-EIN, still refused.
-- The remaining unbuilt features in `plans/PLAN.md` Open Questions (ACH, email pay stubs, PTO accrual, 1099, multi-state).
+- The remaining unbuilt features in `plans/PLAN.md` Open Questions (ACH, email pay stubs, 1099, multi-state; PTO accrual was built later).

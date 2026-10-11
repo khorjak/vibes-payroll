@@ -17,7 +17,7 @@
 
 {% if not employees %}
 <div class="bg-white rounded-lg border border-slate-200 py-12 text-center text-slate-400">
-  No active hourly employees found for this company.
+  No active employees found for this company.
 </div>
 {% else %}
 <div class="bg-white rounded-lg border border-slate-200 overflow-x-auto">
@@ -43,6 +43,6 @@
   </table>
 </div>
 
-<p class="mt-3 text-xs text-slate-400">Changes auto-save after 800 ms. Hours in decimal (e.g. 8.5 = 8 hr 30 min).</p>
+<p class="mt-3 text-xs text-slate-400">Changes auto-save after 800 ms. Hours in decimal (e.g. 8.5 = 8 hr 30 min). "Bal" is the PTO or sick balance from approved pay runs, shown for employees with a time off policy; it turns red when the hours entered are more than the balance.</p>
 {% endif %}
 {% endblock %}

@@ -44,7 +44,7 @@ Every user has one role. Your role applies to every company you are assigned to.
 | Role | Intended for | Can do |
 |---|---|---|
 | **Read-only** | Owners, auditors | View everything they can access. Change nothing. |
-| **Preparer** | Payroll clerks | Everything read-only can, plus add and edit employees, tax elections, benefit enrollments and garnishments; create pay periods; enter timesheets; calculate the draft payroll; create off-cycle payments. |
+| **Preparer** | Payroll clerks | Everything read-only can, plus add and edit employees, tax elections, benefit enrollments, garnishments and time off policies and balances; create pay periods; enter timesheets; calculate the draft payroll; create off-cycle payments. |
 | **Approver** | Payroll managers | Everything read-only can, plus approve a payroll run, mark it paid, and void a paycheck. |
 | **Admin** | Whoever runs the system | Everything, plus company, benefit plan and workers comp setup, user management, and yearly tax settings (wage bases, federal and Oklahoma withholding tables). |
 
@@ -199,6 +199,26 @@ Payroll applies active orders in legal priority order (child support first, then
 
 "Disposable earnings" is gross pay minus the taxes required by law (income tax, Social Security, Medicare). Health premiums, 401(k) contributions and other voluntary deductions are **not** subtracted, so they never reduce what an order can take. If a support order in your state allows health premiums to be deducted first, check with your accountant or attorney; that adjustment is not modeled.
 
+### Time off (PTO and sick balances)
+
+PTO and sick hours each have their own balance. A balance is tracked only for employees with a policy for it.
+
+1. On the employee's profile, the **Time Off** card shows each tracked balance. Choose **Manage**.
+2. Under **PTO** or **Sick**, choose **Set up policy** (or **Edit policy**) and enter:
+   - **Accrual**: **Per pay period** (the same hours on every regular paycheck, e.g. 3.08 hours biweekly = 80 hours a year) or **Per hour worked** (a fraction of an hour for each hour worked, e.g. 0.0385 = 80 hours a year at 2,080 hours). Per hour worked counts regular, overtime and double time hours, not PTO, sick or holiday hours. Salaried employees count as working 2,080 hours a year.
+   - **Maximum balance** (optional): accrual pauses while the balance is at this many hours.
+   - **Year-end carryover limit** (optional): hours over this limit on December 31 are forfeited. The forfeit is recorded with the first pay run calculated in the new year, dated January 1. A new or changed limit applies from the next year-end, never to one already past.
+3. Choose **Save policy**. To stop tracking, choose **Stop tracking** in the Accrual list and save; the history stays.
+4. To enter an opening balance or correct one, choose **Adjust balance**, enter the hours (negative to take hours away), the date and a reason, and choose **Save adjustment**.
+
+Hours accrue and are used through payroll:
+- Enter hours taken in the **PTO** and **Sick** columns of the timesheet ([Stage 2](#stage-2-enter-timesheets-preparer)), for salaried employees too.
+- **Calculate** works out each paycheck's hours accrued and used. They count toward the balance once the pay run is approved. Recalculating replaces them, and voiding the paycheck removes them.
+- Off-cycle payments record hours used but accrue nothing.
+- A balance can go negative. The timesheet shows each balance under the PTO and Sick boxes, in red when the hours entered are more than the balance, but it does not stop you.
+
+The **History** list on the Time Off page shows every approved change: accruals, hours used, adjustments (with who made them) and year-end forfeits. Paychecks and pay stubs show the hours accrued, used and the balance after that paycheck.
+
 ### Editing, leaves, and terminations
 
 - **Edit** changes any field. Pay rate changes apply to paychecks calculated afterwards.
@@ -217,10 +237,10 @@ The run has four stages, done by two roles: preparer (stages 1-3), approver (sta
 
 ### Stage 2: Enter timesheets (preparer)
 
-Only needed for **hourly and part-time** employees. Salaried employees are paid automatically from their salary, and any hours entered for them are ignored.
+Needed for **hourly and part-time** employees, and for salaried employees who took PTO or sick time. Salaried employees are paid automatically from their salary; their rows only have **PTO** and **Sick** boxes, which reduce their [time off balances](#time-off-pto-and-sick-balances) without changing their pay.
 
 1. Open the pay period and choose **Timesheets**.
-2. For each employee enter hours in: regular, overtime, double time, PTO, sick, and holiday.
+2. For each hourly or part-time employee enter hours in: regular, overtime, double time, PTO, sick, and holiday. Under the PTO and Sick boxes, **Bal** shows the employee's balance from approved pay runs if they have a time off policy; it turns red when the hours entered are more than the balance.
 3. Each row saves on its own about a second after you change a value; a saved confirmation appears on the row. Only the row you edited is saved. On a phone the hour boxes are larger and bring up a number keypad, and the employee name stays in view while you swipe across the hour columns.
 
 How hours turn into pay: regular, PTO, sick and holiday hours are paid at the hourly rate; overtime at 1.5 times; double time at 2 times. **Enter overtime hours yourself.** The system does not calculate overtime from a total.
@@ -292,12 +312,12 @@ Approvers and admins can void a paycheck that is *draft* or *approved*.
 
 Things to know:
 - A **paid** paycheck cannot be voided.
-- A voided paycheck is excluded from reports and from year-to-date totals.
+- A voided paycheck is excluded from reports and from year-to-date totals, and its PTO and sick hours come off the balances.
 - The period's status does not change, and no replacement paycheck is created. If the employee is still owed pay, create an off-cycle payment.
 
 ## 11. Pay stubs
 
-Open any paycheck and choose **Pay Stub PDF**. The stub shows earnings, deductions, taxes, net pay, and year-to-date totals.
+Open any paycheck and choose **Pay Stub PDF**. The stub shows earnings, deductions, taxes, net pay, year-to-date totals, and, for employees with a time off policy, the PTO and sick hours accrued, used and the balance after this paycheck.
 
 If the site reports the PDF service is unavailable (HTTP 503), a system library is missing on the server; tell your administrator. Everything else keeps working.
 
@@ -330,6 +350,7 @@ Open **Reports** and pick a report. Every report lets you choose the company; mo
 6. Review employee addresses and SSNs on the profiles before producing W-2s.
 7. Back up the database and the encryption key (see your administrator).
 8. Admins: check **Tax Settings** has next year's wage bases and federal and Oklahoma withholding tables before the first payroll of January.
+9. Approve every December pay run before calculating January's. Year-end time off forfeits are worked out when the first January pay run is calculated, from the balances approved by then.
 
 Confirm figures against the official IRS and Oklahoma Tax Commission instructions before filing.
 
@@ -347,6 +368,8 @@ Confirm figures against the official IRS and Oklahoma Tax Commission instruction
 | No income tax withheld at all | The W-4 or Oklahoma election is marked *Exempt*. Check the profile. |
 | Federal income tax is zero | Wages for the period are below the withholding threshold for the employee's filing status and W-4 amounts. This is expected. |
 | Cannot calculate or edit hours | The period is already approved or paid. |
+| Time off balance did not change after Calculate | Hours count once the pay run is approved. The employee also needs a policy for that type of time off. |
+| No time off was accrued on a paycheck | The balance is at its maximum, the payment is off-cycle, or (per hour worked) no regular, overtime or double time hours were entered. |
 | "Cannot approve" or "Cannot mark paid" | The period is not in the expected earlier status. Calculate first, then approve, then mark paid. |
 | Cannot void a paycheck | It is already paid or already voided. |
 | Benefit not deducted | The plan is inactive, the enrollment has ended, or the contribution amount is zero. |
@@ -361,4 +384,5 @@ Confirm figures against the official IRS and Oklahoma Tax Commission instruction
 - **Employer insurance premiums** are not modeled. Client liabilities include the employee's deduction and any employer match, not a company-paid premium share.
 - **Test data only** on the Docker test deployment: it runs over plain HTTP, so anything typed (including your password) can be read on the network. Use fake SSNs and bank numbers there.
 - **Backups.** The database and the encryption key must both be backed up. Without the key, stored Social Security and bank numbers cannot be read.
-- **Audit log.** The system records who created or changed employees, pay periods, approvals, voids, user roles, and company assignments. It is stored in the database and is not yet shown on any screen.
+- **Time off payout** on termination is not calculated. If your policy pays out unused PTO, add it to the final paycheck as an off-cycle payment and enter a negative adjustment for the hours.
+- **Audit log.** The system records who created or changed employees, pay periods, approvals, voids, user roles, company assignments, and time off policies and adjustments. It is stored in the database and is not yet shown on any screen.

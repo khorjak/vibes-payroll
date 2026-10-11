@@ -375,6 +375,27 @@
       {% endif %}
     </div>
 
+    <!-- Time off -->
+    <div class="bg-white rounded-lg ring-1 ring-slate-200 p-5">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-sm font-semibold text-slate-700">Time Off</h2>
+        <a href="/employees/{{ employee.id }}/time-off"
+           class="text-xs font-medium text-indigo-600 hover:text-indigo-800">Manage</a>
+      </div>
+      {% if time_off_balances %}
+      <dl class="space-y-2 text-sm">
+        {% for lt, label in leave_types.items() if lt in time_off_balances %}
+        <div class="flex justify-between">
+          <dt class="text-slate-500">{{ label }}</dt>
+          <dd class="tabular-nums {{ 'text-red-600' if time_off_balances[lt] < 0 else 'text-slate-900' }}">{{ "%.2f"|format(time_off_balances[lt]) }} hrs</dd>
+        </div>
+        {% endfor %}
+      </dl>
+      {% else %}
+      <p class="text-sm text-slate-400">Not tracked.</p>
+      {% endif %}
+    </div>
+
   </div>
 </div>
 {% endblock %}

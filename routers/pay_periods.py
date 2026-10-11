@@ -30,6 +30,7 @@ from utils.csrf import CsrfProtect
 from utils.forms import safe_float
 from services.audit import log_change
 from services.tax_years import federal_table_for, ok_table_for, tax_year_for
+from services.leave import balances as leave_balances, paycheck_leave_summary
 
 from app_templates import templates
 
@@ -315,6 +316,7 @@ def paycheck_detail(
         "employee_taxes": [l for l in lines if l.line_type == "tax"],
         "employer_taxes": [l for l in lines if l.line_type == "employer_tax"],
         "employer_contributions": [l for l in lines if l.line_type == "employer_contribution"],
+        "time_off": paycheck_leave_summary(db, paycheck),
         "active_nav": "payroll",
     })
 
@@ -371,6 +373,7 @@ def paycheck_pdf(
         employee_taxes=[l for l in lines if l.line_type == "tax"],
         employer_taxes=[l for l in lines if l.line_type == "employer_tax"],
         employer_contributions=[l for l in lines if l.line_type == "employer_contribution"],
+        time_off=paycheck_leave_summary(db, paycheck),
     )
     pdf_bytes = WeasyHTML(string=html_str).write_pdf()
 
@@ -530,9 +533,9 @@ def timesheet_grid(
         .filter(
             Employee.company_id == pp.company_id,
             Employee.status == "active",
-            Employee.employment_type.in_(["hourly", "part_time"]),
         )
-        .order_by(Employee.last_name, Employee.first_name)
+        # Hourly first; salaried rows only record PTO and sick hours (their pay is fixed).
+        .order_by(Employee.employment_type == "salaried", Employee.last_name, Employee.first_name)
         .all()
     )
 
@@ -547,6 +550,7 @@ def timesheet_grid(
         "pp": pp,
         "employees": employees,
         "timesheets": timesheets,
+        "leave_balances": leave_balances(db, [e.id for e in employees]),
         "active_nav": "payroll",
     })
 
@@ -607,6 +611,7 @@ def save_timesheet_row(
             "pp": pp,
             "employee": employee,
             "ts": ts,
+            "leave_balances": leave_balances(db, [employee.id]),
             "saved": True,
         })
 

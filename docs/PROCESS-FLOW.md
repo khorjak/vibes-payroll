@@ -10,7 +10,7 @@ Four roles control *what* a user may do. A separate company assignment controls 
 |---|:-:|:-:|:-:|:-:|
 | View employees, payroll, reports | ✓ | ✓ | ✓ | ✓ |
 | Switch active company (among those assigned) | ✓ | ✓ | ✓ | ✓ |
-| Add/edit employees, W-4 and Oklahoma elections, benefit enrollments, garnishments | ✓ | ✓ | | |
+| Add/edit employees, W-4 and Oklahoma elections, benefit enrollments, garnishments, time off policies and balance adjustments | ✓ | ✓ | | |
 | Create pay periods and off-cycle payments, enter timesheets, calculate draft | ✓ | ✓ | | |
 | Approve a payroll run, void a paycheck, mark a period paid | ✓ | | ✓ | |
 | Company, benefit plan and workers comp code setup | ✓ | | | |
@@ -63,7 +63,7 @@ Paycheck status: `draft` → `approved` → `paid`. A paycheck can also become `
 
 ```mermaid
 flowchart TD
-    S1[Create pay period<br/>company, start, end, pay date, frequency] --> S2{Any hourly or<br/>part-time staff?}
+    S1[Create pay period<br/>company, start, end, pay date, frequency] --> S2{Hourly or part-time staff,<br/>or time off taken?}
     S2 -->|Yes| S3[Enter hours per employee<br/>each row saves on its own]
     S2 -->|No| S4
     S3 --> S4[Calculate draft]
@@ -79,7 +79,7 @@ flowchart TD
 Notes on each step:
 
 - **Calculate** replaces any existing draft paycheck for each employee, so it is safe to run repeatedly while the period is `open` or `draft`. It only drafts employees whose status is `active`.
-- **Salaried** employees are paid annual salary divided by the number of periods in their pay frequency. Timesheets are ignored for them.
+- **Salaried** employees are paid annual salary divided by the number of periods in their pay frequency. Their timesheet rows only take PTO and sick hours, which reduce their time off balances and never change their pay.
 - **Hourly and part-time** employees are paid from their timesheet. With no timesheet, gross pay is $0.00.
 - **Review flags** on the period page:
   - *Variance:* a draft whose gross differs from the employee's most recent approved or paid paycheck by more than 20%.
@@ -123,6 +123,17 @@ Inputs the calculation reads:
 
 **Client liabilities.** Each calculated paycheck also records what must be sent to outside parties: one entry per garnishment order (to its payee), and one per benefit plan (to the plan, including any employer match). Retirement plans are typed as retirement deposits, other plans as benefit premiums, child support as child support remittances. The Client liabilities report counts these once the paycheck is approved. Drafts owe nothing, recalculating replaces them, and a voided paycheck drops out. An approver marks them sent from the report with **Mark Remitted**, which stamps `remitted_at` and an optional reference on every outstanding entry for that payee, company and year (audit-logged per entry).
 
+**Time off.** For each employee with a PTO or sick policy (set on the employee's **Time Off** page), Calculate also records the paycheck's hours used (from the timesheet's PTO and Sick columns) and accrued:
+
+| Policy | Hours accrued on a paycheck |
+|---|---|
+| Per pay period | The policy's hours, on every regular paycheck |
+| Per hour worked | Rate × (regular + overtime + double time hours). Salaried employees count 2,080 hours a year ÷ pay periods |
+| Maximum balance | Accrual is cut so the balance after this paycheck's hours used does not go over it |
+| Year-end carryover limit | Before the first paycheck calculated in a new year, hours over the limit at December 31 are forfeited (one entry dated January 1). Only year-ends after the limit was set or changed |
+
+Off-cycle payments (a one-day period) accrue nothing. Like client liabilities, these entries hang off the draft paycheck: they count toward the balance once it is approved, recalculating replaces them, and voiding drops them. Preparers can also enter adjustments (opening balances, corrections) with a reason. Balances may go negative; the timesheet shows them, red when overdrawn, but does not block.
+
 Garnishment priority: child support, federal tax levy, state tax levy, student loan, creditor and bankruptcy, then other. Amounts are capped by the Consumer Credit Protection Act limits. Disposable earnings are gross pay less the taxes required by law (federal and Oklahoma income tax, Social Security, Medicare). Voluntary deductions such as health premiums and 401(k) deferrals are not subtracted, so they do not reduce the amount a creditor or support order can take. Some states let certain support orders net out health insurance premiums; that is not modeled.
 
 ## 6. Off-cycle payment
@@ -146,7 +157,7 @@ flowchart TD
     V2 -->|draft or approved| V3[Approver enters a reason and voids]
     V2 -->|paid| V4[Blocked: cannot void a paid paycheck]
     V2 -->|voided| V5[Blocked: already voided]
-    V3 --> V6[Excluded from reports and year-to-date totals]
+    V3 --> V6[Excluded from reports, year-to-date totals<br/>and time off balances]
 ```
 
 The reason, user and time are saved. Voiding one paycheck does not change the pay period's status. A voided check is not replaced automatically.
@@ -164,7 +175,7 @@ flowchart LR
     E7 --> E8[Next Calculate that covers the<br/>termination date drafts a final paycheck]
 ```
 
-Employees with status `active` are included in a payroll run, plus `terminated` employees whose termination date is between the period start date and its pay date (their final paycheck). A final paycheck for a salaried employee is the period salary prorated by calendar days, start through termination date, capped at the period end (`final_pay_fraction`); hourly pay follows the timesheet. Off-cycle amounts are never prorated. Accrued time-off payouts are not modeled. W-4 and Oklahoma elections are kept as history; the newest one by effective date is used. An employee with no election is withheld as single with no adjustments / 0 allowances, never $0. Benefit enrollments and garnishment orders are ended by giving an end date (they are not deleted).
+Employees with status `active` are included in a payroll run, plus `terminated` employees whose termination date is between the period start date and its pay date (their final paycheck). A final paycheck for a salaried employee is the period salary prorated by calendar days, start through termination date, capped at the period end (`final_pay_fraction`); hourly pay follows the timesheet. Off-cycle amounts are never prorated. Accrued time-off payouts are not calculated: pay one as an off-cycle payment and enter a negative balance adjustment for the hours. A final paycheck accrues a full period's hours under a per-pay-period policy. W-4 and Oklahoma elections are kept as history; the newest one by effective date is used. An employee with no election is withheld as single with no adjustments / 0 allowances, never $0. Benefit enrollments and garnishment orders are ended by giving an end date (they are not deleted).
 
 ## 9. Reports and filing scope
 
@@ -210,7 +221,7 @@ Access is re-checked on every request. If an admin removes a company from a user
 
 ## 11. Audit trail
 
-The audit log records who changed what and when for: employee create and update, marking a new hire as reported, pay period create (including off-cycle), paycheck approve and void, user role and active-flag changes, company assignment grants and revokes, and Tax Settings changes (old and new wage bases, federal and Oklahoma tables).
+The audit log records who changed what and when for: employee create and update, marking a new hire as reported, pay period create (including off-cycle), paycheck approve and void, user role and active-flag changes, company assignment grants and revokes, time off policy changes and balance adjustments, and Tax Settings changes (old and new wage bases, federal and Oklahoma tables).
 
 ## 12. Known limitations
 
@@ -223,5 +234,6 @@ These are current behaviors, not bugs in your data:
 - **W-2 export has Box 12 code D only.** Code D (traditional 401(k) deferrals) and the Box 13 retirement plan mark come from deduction lines flagged as 401(k) deferrals. Roth 401(k) (code AA), employer health coverage cost (DD) and HSA (W) are not exported, and paychecks calculated before 401(k) deferrals were flagged (October 2026) are left out of code D.
 - **Federal withholding tables need a yearly update.** An admin enters each year's IRS Publication 15-T tables under **Tax Settings** (published in December); 2025 and 2026 come with the system. Until then a pay date in that year uses the latest earlier year's tables, with warnings. Paychecks approved in 2026 before the 2026 tables were added used 2025's and are not recalculated.
 - **Oklahoma withholding tables need a yearly update.** An admin enters each year's OTC Packet OW-2 annual tables under **Tax Settings** (published in November); 2025 and 2026 come with the system. Until then a pay date in that year uses the latest earlier year's tables, with warnings. Paychecks approved before this change were calculated without the Oklahoma standard deduction band and always with the single table, so they over-withheld; they are not recalculated.
+- **Time off year-end uses balances approved by then.** Forfeits over the carryover limit are worked out when the first pay run of the year is calculated. A December pay run approved after that is not re-checked, so approve December first or correct the balance with an adjustment. The maximum balance is likewise checked against approved hours only, not other unapproved drafts.
 - **Hourly minimum wage check** ($7.25) applies when creating an employee.
 - The site runs over plain HTTP in the Docker test deployment. Use test data only.

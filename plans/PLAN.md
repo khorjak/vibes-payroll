@@ -388,7 +388,7 @@ open → draft → approved → paid → closed
 - **Direct deposit file generation** — NACHA ACH file format
 - **Email pay stubs** — SMTP integration
 - **Benefits enrollment portal** — employee self-service
-- **PTO accrual tracking** — balance management per employee
+- **PTO accrual tracking** — built (October 2026): PTO and sick balances per employee, accrued per hour worked or per pay period, with a maximum balance and year-end carryover limit (`models/leave.py`, `services/leave.py`). Not built: payout on termination, a balances report
 - **Multi-state employees** — out of scope initially; schema should not preclude it
 - **Contractor / 1099 payments** — separate from payroll; 1099-NEC at year-end
 - **Federal tax deposit reminders** — 941 semiweekly vs. monthly deposit schedule

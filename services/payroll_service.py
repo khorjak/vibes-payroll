@@ -16,6 +16,7 @@ from tax_engine.models import (
     PAY_PERIOD_FACTORS, FederalTable, OKTable, PaycheckInput, W4Input, OKWithholdingInput, GarnishmentInputItem,
 )
 from tax_engine.calculator import calculate_paycheck
+from services.leave import record_paycheck_leave
 from services.tax_years import federal_table_for, ok_table_for, tax_year_for
 
 _TWO = Decimal("0.01")
@@ -503,6 +504,7 @@ def draft_paycheck(
     db.flush()
 
     _create_paycheck_lines(paycheck, employee, timesheet, result, db, earning_label)
+    record_paycheck_leave(db, employee, pay_period, timesheet, paycheck, frequency)
     return paycheck
 
 

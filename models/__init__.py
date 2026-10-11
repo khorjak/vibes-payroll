@@ -11,6 +11,7 @@ from .user_company import UserCompany
 from .tax_year import TaxYear
 from .federal_withholding import FederalWithholdingTable
 from .oklahoma_withholding import OklahomaWithholdingTable
+from .leave import LeavePolicy, LeaveEntry
 
 __all__ = [
     "Base",
@@ -33,4 +34,6 @@ __all__ = [
     "TaxYear",
     "FederalWithholdingTable",
     "OklahomaWithholdingTable",
+    "LeavePolicy",
+    "LeaveEntry",
 ]
