@@ -1,5 +1,5 @@
 from datetime import date
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from fastapi import APIRouter, Depends, Form, Request, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from sqlalchemy import false
@@ -21,6 +21,7 @@ from routers.auth import (
 from utils.company_scope import (
     accessible_companies,
     assert_company_access,
+    get_scoped_company,
     get_scoped_employee,
     get_scoped_paycheck,
     get_scoped_pay_period,
@@ -162,7 +163,6 @@ def new_off_cycle(
         "companies": accessible_companies(current_user, db),
         "selected_company_id": active_company.id if active_company else None,
         "employees": employees,
-        "frequencies": _FREQUENCIES,
         "today": date.today().isoformat(),
         "errors": {},
         "active_nav": "payroll",
@@ -199,7 +199,6 @@ def create_off_cycle(
     company_id: int = Form(...),
     employee_id: int = Form(...),
     pay_date: str = Form(...),
-    frequency: str = Form("biweekly"),
     gross_amount: str = Form(...),
     description: str = Form("Off-Cycle Payment"),
 ):
@@ -216,27 +215,13 @@ def create_off_cycle(
             "companies": accessible_companies(current_user, db),
             "selected_company_id": company_id,
             "employees": _off_cycle_employees(db, company_id),
-            "frequencies": _FREQUENCIES,
             "today": date.today().isoformat(),
             "errors": errors,
             "active_nav": "payroll",
         }, status_code=422)
 
-    pay_dt = date.fromisoformat(pay_date)
-    pp = PayPeriod(
-        company_id=company_id,
-        start_date=pay_dt,
-        end_date=pay_dt,
-        pay_date=pay_dt,
-        frequency=frequency,
-        status="open",
-    )
-    db.add(pp)
-    db.flush()
-
     from models.benefit import EmployeeBenefitEnrollment
-    from models.garnishment import GarnishmentOrder
-    from services.payroll_service import draft_paycheck
+    from services.payroll_service import draft_paycheck, get_pay_frequency
 
     employee = get_scoped_employee(
         db, current_user, employee_id,
@@ -251,16 +236,27 @@ def create_off_cycle(
     # pairing is simply wrong -- an ordinary form mistake, so say so rather than
     # dead-ending on a bare 404.
     if employee.company_id != company_id:
-        db.rollback()
         return templates.TemplateResponse(request, "payroll/off_cycle.html", {
             "companies": accessible_companies(current_user, db),
             "selected_company_id": company_id,
             "employees": _off_cycle_employees(db, company_id),
-            "frequencies": _FREQUENCIES,
             "today": date.today().isoformat(),
             "errors": {"employee_id": "That employee belongs to a different company."},
             "active_nav": "payroll",
         }, status_code=422)
+
+    pay_dt = date.fromisoformat(pay_date)
+    # Taxes use the employee's own pay frequency (draft_paycheck), so the period records it too.
+    pp = PayPeriod(
+        company_id=company_id,
+        start_date=pay_dt,
+        end_date=pay_dt,
+        pay_date=pay_dt,
+        frequency=get_pay_frequency(employee, employee.company),
+        status="open",
+    )
+    db.add(pp)
+    db.flush()
 
     gross_val = safe_float(gross_amount, "gross_amount")
     if employee.employment_type != "salaried" and employee.pay_rate:
@@ -290,6 +286,112 @@ def create_off_cycle(
                            "pay_date": pay_date})
     db.commit()
     return RedirectResponse(f"/payroll/{pp.id}?flash=off_cycle_created", status_code=303)
+
+
+# ── Bonus run (BEFORE /{period_id} to avoid route shadowing) ──────────────────
+
+_BONUS_MAX = Decimal("1000000")  # the IRS 37% mandatory rate above $1M is not modeled
+
+
+def _bonus_page(request: Request, db: Session, company, values: dict, errors: dict, status_code: int = 200):
+    return templates.TemplateResponse(request, "payroll/bonus.html", {
+        "company": company,
+        "employees": _off_cycle_employees(db, company.id if company else None),
+        "values": values,
+        "errors": errors,
+        "active_nav": "payroll",
+    }, status_code=status_code)
+
+
+@router.get("/bonus/new", response_class=HTMLResponse)
+def new_bonus_run(
+    request: Request,
+    current_user: CurrentUser,
+    active_company: ActiveCompany,
+    db: Session = Depends(get_db),
+):
+    return _bonus_page(request, db, active_company,
+                       {"pay_date": date.today().isoformat(), "description": "Bonus"}, {})
+
+
+@router.post("/bonus/new")
+async def create_bonus_run(
+    request: Request,
+    current_user: PreparerUser,
+    _csrf: CsrfProtect,
+    db: Session = Depends(get_db),
+):
+    """One pay run paying a bonus to each employee given an amount (blank or 0 = none)."""
+    form = await request.form()
+    values = {k: v.strip() for k, v in form.items() if isinstance(v, str)}
+    company_id = values.get("company_id", "")
+    company = get_scoped_company(db, current_user, int(company_id) if company_id.isdigit() else 0)
+
+    errors = {}
+    try:
+        pay_dt = date.fromisoformat(values.get("pay_date", ""))
+    except ValueError:
+        errors["pay_date"] = "Enter a pay date."
+    description = values.get("description", "")
+    if not description:
+        errors["description"] = "Required."
+    elif len(description) > 100:
+        errors["description"] = "100 characters at most."
+
+    amounts = {}
+    for emp in _off_cycle_employees(db, company.id):
+        raw = values.get(f"amount_{emp.id}", "").replace(",", "").lstrip("$")
+        if not raw:
+            continue
+        try:
+            amount = Decimal(raw)
+        except InvalidOperation:
+            amount = None
+        if amount is None or not amount.is_finite() or amount < 0 or amount >= _BONUS_MAX:
+            errors[f"amount_{emp.id}"] = "Enter an amount under $1,000,000."
+        elif (amount := amount.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)) > 0:
+            amounts[emp.id] = amount
+    if not amounts and not errors:
+        errors["amounts"] = "Enter a bonus for at least one employee."
+
+    if errors:
+        return _bonus_page(request, db, company, values, errors, status_code=422)
+
+    from models.benefit import EmployeeBenefitEnrollment
+    from services.payroll_service import draft_paycheck
+
+    pp = PayPeriod(
+        company_id=company.id,
+        start_date=pay_dt,
+        end_date=pay_dt,
+        pay_date=pay_dt,
+        frequency=company.pay_frequency,
+        status="draft",
+    )
+    db.add(pp)
+    db.flush()
+    employees = (
+        db.query(Employee)
+        .options(
+            joinedload(Employee.w4_elections),
+            joinedload(Employee.ok_withholding_elections),
+            joinedload(Employee.benefit_enrollments).joinedload(EmployeeBenefitEnrollment.plan),
+            joinedload(Employee.workers_comp_code),
+            joinedload(Employee.garnishment_orders),
+        )
+        .filter(Employee.id.in_(amounts))
+        .all()
+    )
+    for employee in employees:
+        draft_paycheck(employee, pp, None, db, gross_override=amounts[employee.id],
+                       earning_label=description, bonus=True)
+
+    log_change(db, "pay_periods", pp.id, "insert",
+               changed_by=current_user.username,
+               new_values={"type": "bonus", "pay_date": pay_dt.isoformat(), "description": description,
+                           "amounts": {str(k): str(v) for k, v in amounts.items()}})
+    db.commit()
+    return RedirectResponse(f"/payroll/{pp.id}", status_code=303)
 
 
 # ── Paycheck routes (defined BEFORE /{period_id} to avoid route shadowing) ──
@@ -629,6 +731,12 @@ def calculate_draft(
     if pp.status not in ("open", "draft"):
         raise HTTPException(
             status_code=400, detail=f"Cannot calculate: pay period is '{pp.status}'"
+        )
+    if pp.is_off_cycle:
+        # Calculating drafts every active employee at regular pay, wiping the entered amounts.
+        raise HTTPException(
+            status_code=400,
+            detail="Off-cycle and bonus runs can't be recalculated: void the paycheck and create a new one.",
         )
 
     calculate_payroll_run(pp, db)

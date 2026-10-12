@@ -30,7 +30,8 @@
 
   {# Action buttons #}
   <div class="flex flex-wrap gap-2">
-    {% if s in ('open', 'draft') %}
+    {# An off-cycle or bonus run is drafted when created; recalculating would redraft the whole company. #}
+    {% if s in ('open', 'draft') and not pp.is_off_cycle %}
     <a href="/payroll/{{ pp.id }}/timesheets"
        class="px-3 py-1.5 text-sm border border-slate-300 rounded-md text-slate-700 hover:bg-slate-50">
       Timesheets
@@ -203,7 +204,7 @@
 {% else %}
 <div class="bg-white rounded-lg border border-slate-200 py-16 text-center">
   <p class="text-slate-400 mb-4">No paychecks yet.</p>
-  {% if s == 'open' and has_role(request, 'preparer') %}
+  {% if s == 'open' and not pp.is_off_cycle and has_role(request, 'preparer') %}
   <form method="post" action="/payroll/{{ pp.id }}/calculate" class="inline">
     <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
     <button type="submit"

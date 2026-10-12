@@ -65,10 +65,15 @@ def final_pay_fraction(employee: Employee, pay_period: PayPeriod) -> Decimal:
     return Decimal(max(0, min(worked, total))) / Decimal(total)
 
 
-def _active_enrollments(employee: Employee, pre_tax: bool):
-    """Open enrollments in active plans of the given tax treatment."""
+def _active_enrollments(employee: Employee, pre_tax: bool, bonus: bool = False):
+    """Open enrollments in active plans of the given tax treatment.
+
+    A bonus check takes only percent-of-pay plans (e.g. a 401k); fixed premiums are per regular paycheck.
+    """
     for enrollment in employee.benefit_enrollments:
         plan = enrollment.plan
+        if bonus and plan.employee_contribution_type != "percent":
+            continue
         if not enrollment.end_date and plan.active and plan.pre_tax == pre_tax:
             yield enrollment
 
@@ -97,35 +102,37 @@ def _employer_match(enrollment, contribution: Decimal, gross: Decimal) -> Decima
     return _round2(eligible * Decimal(str(plan.employer_match_percent)) / 100)
 
 
-def _sum_employee_deductions(employee: Employee, pre_tax: bool, gross: Decimal) -> Decimal:
+def _sum_employee_deductions(employee: Employee, pre_tax: bool, gross: Decimal, bonus: bool = False) -> Decimal:
     return sum(
-        (_employee_contribution(e, gross) for e in _active_enrollments(employee, pre_tax)),
+        (_employee_contribution(e, gross) for e in _active_enrollments(employee, pre_tax, bonus)),
         Decimal("0"),
     )
 
 
-def get_employee_pre_tax_deductions(employee: Employee, gross: Decimal) -> Decimal:
-    return _sum_employee_deductions(employee, True, gross)
+def get_employee_pre_tax_deductions(employee: Employee, gross: Decimal, bonus: bool = False) -> Decimal:
+    return _sum_employee_deductions(employee, True, gross, bonus)
 
 
-def get_employee_pre_tax_retirement(employee: Employee, gross: Decimal) -> Decimal:
+def get_employee_pre_tax_retirement(employee: Employee, gross: Decimal, bonus: bool = False) -> Decimal:
     """Part of the pre-tax total that reduces income-tax wages only (traditional 401k)."""
     return sum(
-        (_employee_contribution(e, gross) for e in _active_enrollments(employee, True)
+        (_employee_contribution(e, gross) for e in _active_enrollments(employee, True, bonus)
          if e.plan.deferral_is_fica_taxable),
         Decimal("0"),
     )
 
 
-def get_employee_post_tax_deductions(employee: Employee, gross: Decimal) -> Decimal:
-    return _sum_employee_deductions(employee, False, gross)
+def get_employee_post_tax_deductions(employee: Employee, gross: Decimal, bonus: bool = False) -> Decimal:
+    return _sum_employee_deductions(employee, False, gross, bonus)
 
 
-def get_active_garnishments(employee: Employee) -> list[GarnishmentInputItem]:
-    """Build garnishment inputs from active orders."""
+def get_active_garnishments(employee: Employee, bonus: bool = False) -> list[GarnishmentInputItem]:
+    """Build garnishment inputs from active orders; a bonus check takes only percent orders."""
     items = []
     for order in getattr(employee, "garnishment_orders", []):
         if not order.active or order.end_date:
+            continue
+        if bonus and order.amount_type != "percent":
             continue
         items.append(GarnishmentInputItem(
             garnishment_type=order.garnishment_type,
@@ -142,7 +149,9 @@ def get_active_garnishments(employee: Employee) -> list[GarnishmentInputItem]:
 def get_ytd_prior(employee_id: int, pay_period: PayPeriod, db: Session) -> dict:
     """
     Sum wages from all non-voided paychecks in the same calendar year whose
-    pay period's pay_date precedes the current pay period's pay_date.
+    pay period's pay_date precedes the current pay period's pay_date. Periods
+    sharing a pay date (a bonus run on payday) count in creation order, so the
+    later one sees the earlier one's wages against the wage bases.
     """
     year = pay_period.pay_date.year
     year_start = date(year, 1, 1)
@@ -150,7 +159,8 @@ def get_ytd_prior(employee_id: int, pay_period: PayPeriod, db: Session) -> dict:
     prior_filter = [
         Paycheck.employee_id == employee_id,
         Paycheck.status != "voided",
-        PayPeriod.pay_date < pay_period.pay_date,
+        or_(PayPeriod.pay_date < pay_period.pay_date,
+            and_(PayPeriod.pay_date == pay_period.pay_date, PayPeriod.id < pay_period.id)),
         PayPeriod.pay_date >= year_start,
     ]
 
@@ -215,6 +225,48 @@ def get_ytd_prior(employee_id: int, pay_period: PayPeriod, db: Session) -> dict:
     }
 
 
+def get_regular_withholding(employee_id: int, pay_period: PayPeriod, db: Session) -> dict:
+    """What a bonus needs from the employee's regular (not off-cycle or bonus) paychecks.
+
+    The flat supplemental rates are allowed only if that income tax was withheld from
+    regular wages in the current or preceding calendar year (IRS Pub. 15; OTC 710:90-1-6).
+    Otherwise the aggregate method uses the most recent regular paycheck this year:
+    its income-tax wages and the tax withheld from it.
+    """
+    year = pay_period.pay_date.year
+    regular = (
+        db.query(Paycheck)
+        .join(PayPeriod, Paycheck.pay_period_id == PayPeriod.id)
+        .options(joinedload(Paycheck.lines), joinedload(Paycheck.pay_period))
+        .filter(
+            Paycheck.employee_id == employee_id,
+            Paycheck.status != "voided",
+            PayPeriod.id != pay_period.id,
+            PayPeriod.pay_date <= pay_period.pay_date,
+            PayPeriod.pay_date >= date(year - 1, 1, 1),
+            or_(PayPeriod.start_date != PayPeriod.end_date, PayPeriod.end_date != PayPeriod.pay_date),
+        )
+        .order_by(PayPeriod.pay_date.desc(), PayPeriod.id.desc())
+        .all()
+    )
+
+    def tax(paycheck, description):
+        return sum((l.amount for l in paycheck.lines if l.line_type == "tax" and l.description == description),
+                   Decimal("0"))
+
+    latest = next((pc for pc in regular if pc.pay_period.pay_date.year == year), None)
+    zero = Decimal("0")
+    return {
+        "federal_flat_allowed": any(tax(pc, "Federal Income Tax") > 0 for pc in regular),
+        "ok_flat_allowed": any(tax(pc, "Oklahoma Income Tax") > 0 for pc in regular),
+        "regular_taxable": latest.gross_wages - sum(
+            (l.amount for l in latest.lines if l.line_type == "deduction" and l.is_pre_tax), zero,
+        ) if latest else zero,
+        "regular_federal_tax": tax(latest, "Federal Income Tax") if latest else zero,
+        "regular_ok_tax": tax(latest, "Oklahoma Income Tax") if latest else zero,
+    }
+
+
 def _add_hour_line(
     lines: list,
     paycheck_id: int,
@@ -248,13 +300,14 @@ def _create_paycheck_lines(
     result,
     db: Session,
     earning_label: Optional[str] = None,
+    bonus: bool = False,
 ) -> None:
     lines = []
     liabilities = []
     rate = Decimal(str(employee.pay_rate))
 
     # Earnings
-    if employee.employment_type == "salaried":
+    if bonus or employee.employment_type == "salaried":
         lines.append(
             PaycheckLine(
                 paycheck_id=paycheck.id,
@@ -276,7 +329,7 @@ def _create_paycheck_lines(
     # Benefit deductions (pre-tax, then post-tax) and any employer match
     gross = result.gross_wages
     for pre_tax in (True, False):
-        for enrollment in _active_enrollments(employee, pre_tax):
+        for enrollment in _active_enrollments(employee, pre_tax, bonus):
             plan = enrollment.plan
             amt = _employee_contribution(enrollment, gross)
             lines.append(
@@ -389,10 +442,13 @@ def draft_paycheck(
     db: Session,
     gross_override: Optional[Decimal] = None,
     earning_label: Optional[str] = None,
+    bonus: bool = False,
 ) -> Paycheck:
     """Calculate and save a draft Paycheck, replacing any existing draft for this employee/period.
 
     gross_override replaces the computed gross (used for a salaried off-cycle payment).
+    bonus (with gross_override) withholds at the supplemental rates, takes only percent
+    deductions and garnishments, and pays one earnings line labeled earning_label.
     """
     existing = (
         db.query(Paycheck)
@@ -418,10 +474,10 @@ def draft_paycheck(
         if employee.employment_type == "salaried":
             gross = _round2(gross * final_pay_fraction(employee, pay_period))
     ytd = get_ytd_prior(employee.id, pay_period, db)
-    pre_tax = get_employee_pre_tax_deductions(employee, gross)
-    pre_tax_retirement = get_employee_pre_tax_retirement(employee, gross)
-    post_tax = get_employee_post_tax_deductions(employee, gross)
-    garnishment_items = get_active_garnishments(employee)
+    pre_tax = get_employee_pre_tax_deductions(employee, gross, bonus)
+    pre_tax_retirement = get_employee_pre_tax_retirement(employee, gross, bonus)
+    post_tax = get_employee_post_tax_deductions(employee, gross, bonus)
+    garnishment_items = get_active_garnishments(employee, bonus)
 
     # No certificate on file: IRS Pub. 15-T and the OTC require withholding as
     # single with no adjustments / zero allowances, never zero withholding.
@@ -475,6 +531,8 @@ def draft_paycheck(
         ok_withholding=ok_w,
         suta_rate=suta_rate,
         workers_comp_rate=wc_rate,
+        is_supplemental=bonus,
+        **(get_regular_withholding(employee.id, pay_period, db) if bonus else {}),
     )
 
     result = calculate_paycheck(inp)
@@ -503,7 +561,7 @@ def draft_paycheck(
     db.add(paycheck)
     db.flush()
 
-    _create_paycheck_lines(paycheck, employee, timesheet, result, db, earning_label)
+    _create_paycheck_lines(paycheck, employee, timesheet, result, db, earning_label, bonus)
     record_paycheck_leave(db, employee, pay_period, timesheet, paycheck, frequency)
     return paycheck
 

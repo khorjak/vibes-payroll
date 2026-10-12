@@ -1,0 +1,94 @@
+{% extends "layout.html" %}
+{% block title %}Bonus Run{% endblock %}
+{% block breadcrumb %}<a href="/payroll/" class="hover:underline">Pay Runs</a> / Bonus Run{% endblock %}
+
+{% set field_cls = "w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" %}
+
+{% block content %}
+<div class="max-w-2xl">
+  <h1 class="text-xl font-semibold text-slate-800 mb-2">Bonus Run</h1>
+  <p class="text-sm text-slate-500 mb-6">
+    Pay a bonus to any number of employees in one pay run, separate from regular pay.
+    Federal tax is withheld at the flat 22% supplemental rate and Oklahoma tax at the year's top rate,
+    for employees who had that tax withheld from regular pay this year or last; for others the bonus is
+    taxed together with their latest regular paycheck.
+    Only percent-of-pay benefit deductions (such as a 401k) and percent garnishments come out; fixed amounts are skipped.
+  </p>
+
+  {% if not company %}
+  <p class="text-sm text-slate-500">Choose a company with the company switcher first.</p>
+  {% else %}
+  {% if errors %}
+  <div class="mb-4 px-4 py-3 rounded-md bg-red-50 ring-1 ring-red-200 text-sm text-red-800">
+    {{ errors.amounts or "Nothing was saved. Check the highlighted fields." }}
+  </div>
+  {% endif %}
+
+  <form method="post" action="/payroll/bonus/new" class="space-y-5">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+    <input type="hidden" name="company_id" value="{{ company.id }}">
+
+    <div class="bg-white rounded-lg border border-slate-200 p-6 space-y-4">
+      <p class="text-sm text-slate-700"><span class="font-medium">Company:</span> {{ company.name }}</p>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label for="pay_date" class="block text-sm font-medium text-slate-700 mb-1">Pay Date</label>
+          <input id="pay_date" type="date" name="pay_date" required value="{{ values.pay_date }}"
+                 class="{{ field_cls }} {{ 'border-red-400' if errors.pay_date else 'border-slate-300' }}">
+          {% if errors.pay_date %}<p class="text-xs text-red-600 mt-1">{{ errors.pay_date }}</p>{% endif %}
+        </div>
+        <div>
+          <label for="description" class="block text-sm font-medium text-slate-700 mb-1">Description</label>
+          <input id="description" name="description" required maxlength="100" value="{{ values.description }}"
+                 class="{{ field_cls }} {{ 'border-red-400' if errors.description else 'border-slate-300' }}">
+          <p class="text-xs text-slate-400 mt-1">Labels the earnings line on each pay stub, e.g. "Christmas Bonus".</p>
+          {% if errors.description %}<p class="text-xs text-red-600 mt-1">{{ errors.description }}</p>{% endif %}
+        </div>
+      </div>
+    </div>
+
+    {% if employees %}
+    <div class="bg-white rounded-lg border border-slate-200 overflow-x-auto">
+      <table class="min-w-full text-sm">
+        <thead class="bg-slate-50">
+          <tr class="text-xs text-slate-500 uppercase">
+            <th class="px-4 py-3 text-left font-medium">Employee</th>
+            <th class="px-4 py-3 text-left font-medium">Bonus (gross)</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100">
+          {% for emp in employees %}
+          {% set n = "amount_" ~ emp.id %}
+          <tr>
+            <td class="px-4 py-2 text-slate-900">
+              <label for="{{ n }}">{{ emp.full_name }}</label>
+              <span class="block text-xs text-slate-400">{{ emp.employment_type | replace("_", " ") | title }}</span>
+            </td>
+            <td class="px-4 py-2">
+              <div class="relative w-40">
+                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">$</span>
+                <input id="{{ n }}" name="{{ n }}" inputmode="decimal" placeholder="None" value="{{ values[n] }}"
+                       class="{{ field_cls }} pl-7 {{ 'border-red-400' if errors[n] else 'border-slate-300' }}">
+              </div>
+              {% if errors[n] %}<p class="text-xs text-red-600 mt-1">{{ errors[n] }}</p>{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="text-xs text-slate-500">Leave an amount blank to skip that employee. Each bonus becomes a draft paycheck to review and approve like any pay run.</p>
+
+    <div class="flex gap-3">
+      <button type="submit" class="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-md hover:bg-indigo-700">
+        Create Bonus Run
+      </button>
+      <a href="/payroll/" class="px-4 py-2 text-sm text-slate-600 hover:text-slate-800">Cancel</a>
+    </div>
+    {% else %}
+    <p class="text-sm text-slate-500">No active employees for this company.</p>
+    {% endif %}
+  </form>
+  {% endif %}
+</div>
+{% endblock %}

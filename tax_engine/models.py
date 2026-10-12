@@ -125,7 +125,17 @@ class PaycheckInput:
 
     garnishments: List["GarnishmentInputItem"] = field(default_factory=list)
 
-    is_supplemental: bool = False  # True for bonuses — uses flat 22% federal rate
+    # True for bonuses: flat 22% federal and Oklahoma's top rate, ignoring the W-4 / OK-W-4
+    # except the exempt flags.
+    is_supplemental: bool = False
+    # Supplemental only. Each flat rate needs that income tax withheld from the employee's
+    # regular wages (this year or last); otherwise the aggregate method adds the most recent
+    # regular paycheck's income-tax wages and subtracts the tax withheld from it.
+    federal_flat_allowed: bool = True
+    ok_flat_allowed: bool = True
+    regular_taxable: Decimal = field(default_factory=lambda: Decimal("0"))
+    regular_federal_tax: Decimal = field(default_factory=lambda: Decimal("0"))
+    regular_ok_tax: Decimal = field(default_factory=lambda: Decimal("0"))
 
 
 @dataclass
