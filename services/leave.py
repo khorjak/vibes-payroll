@@ -79,10 +79,9 @@ def _hours(value) -> Decimal:
 def record_paycheck_leave(db: Session, employee, pay_period, timesheet, paycheck, frequency: str) -> None:
     """Write the paycheck's used and accrued hours for each tracked leave type.
 
-    Off-cycle payments (a one-day period) record hours used but accrue nothing.
+    Off-cycle payments and bonus runs (a one-day period) record hours used but accrue nothing.
     """
     policies = db.query(LeavePolicy).filter(LeavePolicy.employee_id == employee.id).all()
-    off_cycle = pay_period.start_date == pay_period.end_date == pay_period.pay_date
     used_by_type = {"pto": _hours(timesheet and timesheet.pto_hours),
                     "sick": _hours(timesheet and timesheet.sick_hours)}
     if employee.employment_type == "salaried":
@@ -98,7 +97,7 @@ def record_paycheck_leave(db: Session, employee, pay_period, timesheet, paycheck
         used = used_by_type.get(policy.leave_type, Decimal("0"))
         if used:
             db.add(LeaveEntry(**entry, kind="used", hours=-used))
-        if off_cycle:
+        if pay_period.is_off_cycle:
             continue
         rate = Decimal(str(policy.rate))
         earned = worked * rate if policy.method == "per_hour" else rate

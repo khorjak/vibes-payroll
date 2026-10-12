@@ -11,7 +11,7 @@ Four roles control *what* a user may do. A separate company assignment controls 
 | View employees, payroll, reports | ✓ | ✓ | ✓ | ✓ |
 | Switch active company (among those assigned) | ✓ | ✓ | ✓ | ✓ |
 | Add/edit employees, W-4 and Oklahoma elections, benefit enrollments, garnishments, time off policies and balance adjustments | ✓ | ✓ | | |
-| Create pay periods and off-cycle payments, enter timesheets, calculate draft | ✓ | ✓ | | |
+| Create pay periods, off-cycle payments and bonus runs, enter timesheets, calculate draft | ✓ | ✓ | | |
 | Approve a payroll run, void a paycheck, mark a period paid | ✓ | | ✓ | |
 | Company, benefit plan and workers comp code setup | ✓ | | | |
 | User management and company assignment | ✓ | | | |
@@ -56,6 +56,8 @@ stateDiagram-v2
 | `draft` | Yes | Yes | Approver (Approve) |
 | `approved` | No | No | Approver (Mark paid) |
 | `paid` | No | No | Final |
+
+Off-cycle payments and bonus runs are created already in `draft`, with no timesheets, and cannot be recalculated (`PayPeriod.is_off_cycle`: start, end and pay date are the same day).
 
 Paycheck status: `draft` → `approved` → `paid`. A paycheck can also become `voided`. Only paychecks in `draft` or `approved` can be voided; a `paid` paycheck cannot.
 
@@ -117,7 +119,7 @@ Inputs the calculation reads:
 | Wage bases | **Tax Settings** row for the pay date's calendar year (`tax_years` table): Social Security and Oklahoma SUTA wage bases. Shipped with 2024 to 2026: Social Security $168,600 / $176,100 / $184,500, Oklahoma SUTA $27,000 / $28,200 / $25,000. A missing year uses the latest earlier year and the period page warns. FUTA's $7,000 is fixed by law |
 | Workers comp rate | Employee's workers comp code (rate per $100 of wages); none for an employee marked exempt from workers comp |
 | Pre-tax treatment | Every pre-tax plan lowers federal and Oklahoma income tax wages. Only non-401k pre-tax plans (health, dental, vision, FSA, HSA, other) also lower Social Security, Medicare, FUTA and SUTA wages; a traditional 401(k) deferral does not (`FICA_TAXABLE_PRE_TAX_TYPES`). Employer FICA follows the same wages. |
-| Year-to-date wages | Earlier non-voided paychecks in the same calendar year: gross less Section 125 pre-tax deductions. Post-tax deductions, garnishments and 401(k) deferrals are not subtracted, because the Social Security, FUTA and SUTA wage bases count wages paid, not take-home pay |
+| Year-to-date wages | Earlier non-voided paychecks in the same calendar year (on a shared pay date, periods created earlier, such as the regular run before a same-day bonus run): gross less Section 125 pre-tax deductions. Post-tax deductions, garnishments and 401(k) deferrals are not subtracted, because the Social Security, FUTA and SUTA wage bases count wages paid, not take-home pay |
 
 **Employer match.** A plan with a match percentage adds an employer contribution line: the match percent of the employee's contribution, counting at most the cap percent of gross pay. For example, "100% up to 4%" on a $2,500 check matches at most $100. The match is employer money, so it never reduces the employee's net pay or appears in their deductions.
 
@@ -132,13 +134,13 @@ Inputs the calculation reads:
 | Maximum balance | Accrual is cut so the balance after this paycheck's hours used does not go over it |
 | Year-end carryover limit | Before the first paycheck calculated in a new year, hours over the limit at December 31 are forfeited (one entry dated January 1). Only year-ends after the limit was set or changed |
 
-Off-cycle payments (a one-day period) accrue nothing. Like client liabilities, these entries hang off the draft paycheck: they count toward the balance once it is approved, recalculating replaces them, and voiding drops them. Preparers can also enter adjustments (opening balances, corrections) with a reason. Balances may go negative; the timesheet shows them, red when overdrawn, but does not block.
+Off-cycle payments and bonus runs (a one-day period) accrue nothing. Like client liabilities, these entries hang off the draft paycheck: they count toward the balance once it is approved, recalculating replaces them, and voiding drops them. Preparers can also enter adjustments (opening balances, corrections) with a reason. Balances may go negative; the timesheet shows them, red when overdrawn, but does not block.
 
 Garnishment priority: child support, federal tax levy, state tax levy, student loan, creditor and bankruptcy, then other. Amounts are capped by the Consumer Credit Protection Act limits. Disposable earnings are gross pay less the taxes required by law (federal and Oklahoma income tax, Social Security, Medicare). Voluntary deductions such as health premiums and 401(k) deferrals are not subtracted, so they do not reduce the amount a creditor or support order can take. Some states let certain support orders net out health insurance premiums; that is not modeled.
 
-## 6. Off-cycle payment
+## 6. Off-cycle payment and bonus run
 
-For a one-off payment to one employee outside the normal schedule.
+An off-cycle payment is a one-off payment of regular wages to one employee outside the normal schedule.
 
 ```mermaid
 flowchart LR
@@ -147,7 +149,29 @@ flowchart LR
     O3 --> O4[Approver marks paid]
 ```
 
-The new period starts in `draft` so it follows the normal approve and mark-paid steps. For hourly and part-time employees the gross amount is converted to hours at their pay rate. For salaried employees the amount entered is the gross for that paycheck, in place of their per-period salary. For a salaried employee, the description you enter labels the earnings line; hourly paychecks keep their normal "Regular Pay" line.
+The new period starts in `draft` so it follows the normal approve and mark-paid steps. Taxes use the employee's pay frequency (the company's if the employee has none), and the period records it. For hourly and part-time employees the gross amount is converted to hours at their pay rate. For salaried employees the amount entered is the gross for that paycheck, in place of their per-period salary. For a salaried employee, the description you enter labels the earnings line; hourly paychecks keep their normal "Regular Pay" line.
+
+A bonus run pays a bonus to several employees in one one-day period.
+
+```mermaid
+flowchart LR
+    B1[Enter pay date, description,<br/>a gross amount per employee] --> B2[System creates a one-day pay period<br/>and a draft paycheck per amount]
+    B2 --> B3[Approver approves]
+    B3 --> B4[Approver marks paid]
+```
+
+Each bonus paycheck has one earnings line (the description, no hours) and is calculated as supplemental wages:
+
+| Item | Bonus paycheck |
+|---|---|
+| Federal income tax | Flat 22% (IRS Pub. 15 optional flat rate) if federal income tax was withheld from the employee's regular wages this year or last; the W-4 is ignored except an exempt one. Otherwise the aggregate method |
+| Oklahoma income tax | The year's top rate, the last bracket of the Oklahoma table in **Tax Settings** (4.75% for 2025, 4.5% for 2026), if Oklahoma tax was withheld from regular wages this year or last (OAC 710:90-1-6); allowances and extra withholding are ignored, an exempt election withholds $0. Otherwise the aggregate method |
+| Social Security, Medicare, FUTA, SUTA, workers comp | As on any paycheck, with year-to-date wage bases |
+| Benefit deductions | Percent-of-pay plans only (e.g. a 401k), with any employer match; fixed-dollar plans are skipped |
+| Garnishments | Percent orders only; fixed-amount orders are skipped |
+| Time off | No accrual |
+
+*Regular wages* are non-voided paychecks from regular pay periods (not off-cycle payments or earlier bonuses), drafts included. The **aggregate method** adds the bonus to the income-tax wages of the employee's most recent regular paycheck this year, works out withholding on the total as one regular paycheck (W-4 or Oklahoma election, employee's pay frequency), and subtracts the tax already withheld from that paycheck. With no regular paycheck this year, the bonus is taxed as one regular paycheck on its own. Federal and Oklahoma are decided separately.
 
 ## 7. Voiding a paycheck
 
@@ -221,14 +245,15 @@ Access is re-checked on every request. If an admin removes a company from a user
 
 ## 11. Audit trail
 
-The audit log records who changed what and when for: employee create and update, marking a new hire as reported, pay period create (including off-cycle), paycheck approve and void, user role and active-flag changes, company assignment grants and revokes, time off policy changes and balance adjustments, and Tax Settings changes (old and new wage bases, federal and Oklahoma tables).
+The audit log records who changed what and when for: employee create and update, marking a new hire as reported, pay period create (including off-cycle and bonus runs, with each employee's amount), paycheck approve and void, user role and active-flag changes, company assignment grants and revokes, time off policy changes and balance adjustments, and Tax Settings changes (old and new wage bases, federal and Oklahoma tables).
 
 ## 12. Known limitations
 
 These are current behaviors, not bugs in your data:
 
 - **Remittances are marked per payee, not per payment.** **Mark Remitted** covers everything outstanding for a payee, company and year. There is no partial amount and no undo.
-- **Recalculating an off-cycle period redrafts everyone.** An off-cycle payment lives in its own one-day pay period. Choosing Recalculate on it drafts every active employee in the company, not just the one paid, and a salaried employee's entered amount is replaced by their normal salary. Approve the off-cycle period as created; to change it, void the paycheck and create a new off-cycle payment.
+- **Off-cycle and bonus runs cannot be recalculated.** To change one, void the paycheck and create a new one.
+- **Bonus withholding history comes from this system only.** The flat rates need income tax withheld from regular wages this year or last. Paychecks run before the system was in use are not seen, so an employee with no regular paychecks here is taxed by the aggregate method. The IRS mandatory 37% rate on supplemental wages over $1 million in a year is not calculated (each bonus must be under $1,000,000).
 - **Employer share of insurance premiums** is not modeled. Only the employee's deduction (plus any employer match on the plan) appears in client liabilities.
 - **Wage bases need a yearly update.** An admin adds each new year's Social Security and Oklahoma SUTA wage bases under **Tax Settings** once published (SSA in October, OESC in winter). Until then, a pay date in that year uses the latest earlier year's figures, with a warning on the pay period page, the Tax Settings page and the SUTA report. Changing a year's figures does not recalculate approved or paid paychecks; in particular, paychecks approved before per-year wage bases existed used $176,100 and $27,000 whatever the year.
 - **W-2 export has Box 12 code D only.** Code D (traditional 401(k) deferrals) and the Box 13 retirement plan mark come from deduction lines flagged as 401(k) deferrals. Roth 401(k) (code AA), employer health coverage cost (DD) and HSA (W) are not exported, and paychecks calculated before 401(k) deferrals were flagged (October 2026) are left out of code D.

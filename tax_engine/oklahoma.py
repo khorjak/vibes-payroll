@@ -43,3 +43,13 @@ def calc_ok_withholding(
     annual_tax = _apply_brackets(ok_taxable, table.schedules[status])
     per_period = (annual_tax / periods).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
     return max(Decimal("0"), per_period + ok.extra_withholding).quantize(Decimal("0.01"))
+
+
+def calc_supplemental_ok(wages: Decimal, table: OKTable) -> Decimal:
+    """Bonus paid separately: Oklahoma's top rate (the last bracket's), as OTC allows.
+
+    OTC permits this only when Oklahoma tax was withheld from the employee's regular
+    wages; the caller (calculate_paycheck) uses the aggregate method otherwise.
+    """
+    top_rate = table.schedules["single"][-1][2]
+    return (wages * top_rate).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)

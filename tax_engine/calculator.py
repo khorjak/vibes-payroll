@@ -17,7 +17,7 @@ from decimal import Decimal
 from .models import PaycheckInput, PaycheckResult, TaxResult, GarnishmentResultItem
 from .fica import calc_ss_employee, calc_ss_employer, calc_medicare_employee, calc_medicare_employer
 from .federal import calc_federal_withholding, calc_supplemental_federal
-from .oklahoma import calc_ok_withholding
+from .oklahoma import calc_ok_withholding, calc_supplemental_ok
 from .unemployment import calc_futa, calc_suta
 from .workers_comp import calc_workers_comp
 from .garnishments import calc_garnishments, GarnishmentInput
@@ -34,14 +34,28 @@ def calculate_paycheck(inp: PaycheckInput) -> PaycheckResult:
     # Federal income tax
     if inp.w4 is not None and inp.w4.exempt:
         pass  # exempt covers supplemental wages too (no $1M+ mandatory rate modeled)
-    elif inp.is_supplemental:
+    elif inp.is_supplemental and inp.federal_flat_allowed:
         taxes.federal_income_tax = calc_supplemental_federal(taxable)
+    elif inp.is_supplemental and inp.w4 is not None:
+        # Aggregate method (IRS Pub. 15): tax the bonus plus the most recent regular
+        # paycheck's wages as one payment, less the tax already withheld from them.
+        total = calc_federal_withholding(taxable + inp.regular_taxable, inp.pay_frequency, inp.w4,
+                                         table=inp.federal_table)
+        taxes.federal_income_tax = max(Decimal("0"), total - inp.regular_federal_tax)
     elif inp.w4 is not None:
         taxes.federal_income_tax = calc_federal_withholding(taxable, inp.pay_frequency, inp.w4, table=inp.federal_table)
 
     # Oklahoma state income tax
-    if inp.ok_withholding is not None:
-        taxes.ok_income_tax = calc_ok_withholding(taxable, inp.pay_frequency, inp.ok_withholding, table=inp.ok_table)
+    ok = inp.ok_withholding
+    if ok is None or ok.exempt:
+        pass
+    elif inp.is_supplemental and inp.ok_flat_allowed:
+        taxes.ok_income_tax = calc_supplemental_ok(taxable, inp.ok_table)
+    elif inp.is_supplemental:
+        total = calc_ok_withholding(taxable + inp.regular_taxable, inp.pay_frequency, ok, table=inp.ok_table)
+        taxes.ok_income_tax = max(Decimal("0"), total - inp.regular_ok_tax)
+    else:
+        taxes.ok_income_tax = calc_ok_withholding(taxable, inp.pay_frequency, ok, table=inp.ok_table)
 
     # Employee FICA
     taxes.ss_employee = calc_ss_employee(fica_wages, inp.ytd_ss_wages_prior, wage_base=inp.ss_wage_base)

@@ -14,7 +14,7 @@ Self-hosted payroll application for small businesses operating in Oklahoma. Hand
 - Benefit plan enrollment (health, dental, 401k, FSA/HSA) with pre-tax and post-tax deductions, fixed or percent-of-gross contributions, and employer match
 - Garnishment order management (child support, creditor, tax levy, student loan)
 - Full payroll run workflow: open → draft → approve → paid
-- Off-cycle payroll for individual employees
+- Off-cycle payroll for individual employees, and bonus runs paying several employees at once (22% federal and Oklahoma's top rate when tax was withheld from regular pay, else the aggregate method; percent-of-pay deductions only)
 - Timesheet entry for hourly and part-time employees (salaried rows record PTO and sick hours only)
 - PTO and sick balances: per-employee accrual (per hour worked or per pay period), maximum balance, year-end carryover limit, adjustments, and balances on paychecks and pay stubs
 - Tax engine: federal (IRS Pub 15), Oklahoma (OTC tables), FICA, FUTA, SUTA, workers comp

@@ -42,6 +42,11 @@ class PayPeriod(Base):
     timesheets: Mapped[List["Timesheet"]] = relationship("Timesheet", back_populates="pay_period")
     paychecks: Mapped[List["Paycheck"]] = relationship("Paycheck", back_populates="pay_period")
 
+    @property
+    def is_off_cycle(self) -> bool:
+        """Off-cycle payments and bonus runs live in a one-day period (start = end = pay date)."""
+        return self.start_date == self.end_date == self.pay_date
+
 
 class Timesheet(Base):
     __tablename__ = "timesheets"

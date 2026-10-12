@@ -14,7 +14,7 @@ Button and menu names below match the screens as closely as possible. If a butto
 6. [Tax settings (admins)](#6-tax-settings-admins)
 7. [Managing employees](#7-managing-employees)
 8. [Running payroll](#8-running-payroll)
-9. [Off-cycle payments](#9-off-cycle-payments)
+9. [Off-cycle payments and bonuses](#9-off-cycle-payments-and-bonuses)
 10. [Voiding a paycheck](#10-voiding-a-paycheck)
 11. [Pay stubs](#11-pay-stubs)
 12. [Reports](#12-reports)
@@ -44,7 +44,7 @@ Every user has one role. Your role applies to every company you are assigned to.
 | Role | Intended for | Can do |
 |---|---|---|
 | **Read-only** | Owners, auditors | View everything they can access. Change nothing. |
-| **Preparer** | Payroll clerks | Everything read-only can, plus add and edit employees, tax elections, benefit enrollments, garnishments and time off policies and balances; create pay periods; enter timesheets; calculate the draft payroll; create off-cycle payments. |
+| **Preparer** | Payroll clerks | Everything read-only can, plus add and edit employees, tax elections, benefit enrollments, garnishments and time off policies and balances; create pay periods and bonus runs; enter timesheets; calculate the draft payroll; create off-cycle payments. |
 | **Approver** | Payroll managers | Everything read-only can, plus approve a payroll run, mark it paid, and void a paycheck. |
 | **Admin** | Whoever runs the system | Everything, plus company, benefit plan and workers comp setup, user management, and yearly tax settings (wage bases, federal and Oklahoma withholding tables). |
 
@@ -231,7 +231,7 @@ The run has four stages, done by two roles: preparer (stages 1-3), approver (sta
 
 ### Stage 1: Create the pay period (preparer)
 
-1. **Payroll → New Pay Period**.
+1. **Pay Runs → New Pay Period**.
 2. Choose the company; enter the **start date**, **end date**, **pay date**, and **frequency**. All three dates are required.
 3. Save. The period is created as **open**.
 
@@ -264,7 +264,7 @@ The period page flags things worth a second look:
 - **Variance flag.** A draft whose gross pay is more than 20% different from the employee's previous approved or paid paycheck. Often a typo in hours, or a rate change.
 - **Terminated employees needing a final paycheck.** See below.
 
-Found a mistake? Fix the source (timesheet hours, employee rate, tax election, benefit enrollment), then choose **Recalculate**. Recalculating replaces the drafts. It is allowed any time before approval.
+Found a mistake? Fix the source (timesheet hours, employee rate, tax election, benefit enrollment), then choose **Recalculate**. Recalculating replaces the drafts. It is allowed any time before approval, except on off-cycle and bonus runs.
 
 #### Final paychecks
 
@@ -289,18 +289,41 @@ The system records payroll. It does not send money or file returns for you.
 
 > Once approved, a period cannot be recalculated or edited. To correct one paycheck, void it (see [Voiding a paycheck](#10-voiding-a-paycheck)).
 
-## 9. Off-cycle payments
+## 9. Off-cycle payments and bonuses
 
-Use for a one-off payment to one employee outside the regular schedule.
+### Off-cycle payment
 
-1. **Payroll → Off-Cycle Payroll**.
-2. Choose the company, then the employee (the list shows that company's active employees), the **pay date**, and the **gross amount**. The gross amount must be greater than zero.
+Use for a one-off payment of regular wages to one employee outside the regular schedule, such as a missed paycheck. For bonuses, use a [bonus run](#bonus-run) instead.
+
+1. **Pay Runs → Off-Cycle**.
+2. Choose the company, then the employee (the list shows that company's active employees), the **pay date**, and the **gross amount**. The gross amount must be greater than zero. Taxes use the employee's pay frequency, or the company's if the employee has none.
 3. Save. The system creates a one-day pay period with a draft paycheck.
 4. An approver approves and marks it paid, like any other run.
 
 The gross amount you enter is what the paycheck pays. For **hourly and part-time** employees it is converted to hours at their pay rate. For **salaried** employees it replaces their per-period salary for this paycheck. For a salaried employee, the description you enter labels the earnings line, for example "Bonus". Hourly and part-time paychecks keep their normal "Regular Pay" line.
 
-Do not choose **Recalculate** on an off-cycle period. It redrafts every active employee in the company and replaces a salaried employee's entered amount with their normal salary. To change an off-cycle payment, void the paycheck and create a new one.
+An off-cycle or bonus period has no **Timesheets** or **Recalculate** button: recalculating would redraft every employee in the company at regular pay. To change one, void the paycheck and create a new one.
+
+### Bonus run
+
+Use to pay a bonus (Christmas bonus, performance bonus and so on) to any number of employees at once.
+
+1. Choose the company with the company switcher, then **Pay Runs → Bonus Run**.
+2. Enter the **Pay Date** and a **Description**, for example "Christmas Bonus". It labels the earnings line on each pay stub.
+3. Enter each employee's bonus in **Bonus (gross)**. Leave it blank to skip that employee.
+4. Choose **Create Bonus Run**. The system creates one one-day pay period with a draft paycheck per employee.
+5. An approver approves and marks it paid, like any other run.
+
+A bonus paycheck is taxed and deducted differently from a regular one:
+- **Federal income tax** is a flat 22% (the IRS supplemental rate), whatever the W-4 says. An employee with an exempt W-4 still has none withheld.
+- **Oklahoma income tax** is the year's top rate from the Oklahoma tables under **Tax Settings** (4.75% in 2025, 4.5% in 2026), whatever the allowances. An exempt employee has none withheld.
+- **The flat rates need withholding on regular pay.** Each flat rate is used only if that tax (federal or Oklahoma) was withheld from the employee's regular paychecks this year or last year. Off-cycle payments and earlier bonuses do not count. If none was, the bonus is added to the employee's latest regular paycheck this year and taxed as one regular paycheck, less the tax already withheld from that paycheck; with no regular paycheck this year, it is taxed as a regular paycheck on its own. Only paychecks run in this system are checked.
+- **Social Security, Medicare, FUTA, SUTA and workers comp** are calculated as on any paycheck.
+- **Benefit deductions** come out only for percent-of-pay plans, such as a 401k set as a percent (with any employer match). Fixed-dollar deductions, such as a health premium, are skipped: they are taken from regular paychecks.
+- **Garnishments** come out only for orders set as a percent. Fixed-amount orders are skipped.
+- No PTO or sick time accrues.
+
+Each bonus must be under $1,000,000; the IRS mandatory 37% rate on supplemental wages over $1 million in a year is not calculated.
 
 ## 10. Voiding a paycheck
 
@@ -369,11 +392,13 @@ Confirm figures against the official IRS and Oklahoma Tax Commission instruction
 | Federal income tax is zero | Wages for the period are below the withholding threshold for the employee's filing status and W-4 amounts. This is expected. |
 | Cannot calculate or edit hours | The period is already approved or paid. |
 | Time off balance did not change after Calculate | Hours count once the pay run is approved. The employee also needs a policy for that type of time off. |
-| No time off was accrued on a paycheck | The balance is at its maximum, the payment is off-cycle, or (per hour worked) no regular, overtime or double time hours were entered. |
+| No time off was accrued on a paycheck | The balance is at its maximum, the payment is off-cycle or a bonus, or (per hour worked) no regular, overtime or double time hours were entered. |
 | "Cannot approve" or "Cannot mark paid" | The period is not in the expected earlier status. Calculate first, then approve, then mark paid. |
 | Cannot void a paycheck | It is already paid or already voided. |
 | Benefit not deducted | The plan is inactive, the enrollment has ended, or the contribution amount is zero. |
 | Garnishment is less than the order | Legal limits on disposable earnings cap it. |
+| Bonus withholding is not 22% | No federal (or Oklahoma) tax was withheld from the employee's regular paychecks in this system this year or last, so the bonus was taxed with their latest regular paycheck instead. See [Bonus run](#bonus-run). |
+| Health premium or fixed garnishment missing on a bonus | Bonus runs take only percent-of-pay deductions and percent garnishments. See [Bonus run](#bonus-run). |
 | Cannot demote or deactivate an admin | You are trying to change the last active admin. Make another admin first. |
 | Workers comp code will not save | The code belongs to a different company than the employee. |
 | PDF pay stub fails | Server is missing a PDF library. Tell your administrator. |

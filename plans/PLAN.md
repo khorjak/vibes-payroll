@@ -285,7 +285,7 @@ payroll/
 4. **Review** — flag anomalies (e.g., large variance from prior period)
 5. **Approve** — lock the run; paychecks become immutable
 6. **Mark paid** — record payment date and check numbers (optional first check number, numbered consecutively; per-paycheck edit on the paycheck page)
-7. **Off-cycle** — manual check entry outside a regular pay period
+7. **Off-cycle** — manual check entry outside a regular pay period; **bonus run** pays several employees supplemental wages in one one-day period (built: `/payroll/bonus/new`, flat 22% federal and Oklahoma's top rate, percent-of-pay deductions and percent garnishments only; the aggregate method when no tax was withheld from regular wages this year or last)
 
 ### Paycheck Detail
 - Itemized earnings, deductions, taxes, employer costs
