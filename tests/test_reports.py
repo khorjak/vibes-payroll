@@ -903,3 +903,123 @@ class TestW2MedicareAndSsWages(_W2Helpers):
         self._check(db, company, salaried_employee, 1000, [])
         row = self._rows(client, company)[0]
         assert row["Box3_SSWages"] == row["Box5_MedWages"] == "1000.00"
+
+
+# ── Form 940 (annual FUTA) ──────────────────────────────────────────────────
+
+class TestForm940:
+    def _check(self, db, company, employee, pay_date, gross, lines=(), status="approved"):
+        from models.payroll import PaycheckLine
+        pp = PayPeriod(company_id=company.id, start_date=pay_date, end_date=pay_date,
+                       pay_date=pay_date, frequency="biweekly", status="approved")
+        db.add(pp)
+        db.flush()
+        pc = Paycheck(employee_id=employee.id, pay_period_id=pp.id, status=status,
+                      gross_wages=gross, net_pay=gross)
+        db.add(pc)
+        db.flush()
+        for line_type, description, amount, is_pre_tax, is_taxable in lines:
+            db.add(PaycheckLine(paycheck_id=pc.id, line_type=line_type, description=description,
+                                amount=amount, is_pre_tax=is_pre_tax, is_taxable=is_taxable))
+        db.commit()
+
+    def _summary(self, db, company, year=2026):
+        from routers.reports import _form_940, _load_paychecks
+        return _form_940(_load_paychecks(db, [company.id], year), year)
+
+    def _get(self, client, company, year=2026):
+        return client.get(f"/reports/form-940?company_id={company.id}&year={year}")
+
+    def test_no_params_prompts(self, client):
+        assert "Select a company" in client.get("/reports/form-940?company_id=0").text
+
+    def test_listed_on_index(self, client):
+        assert "/reports/form-940" in client.get("/reports/").text
+
+    def test_refuses_consolidation(self, client, company):
+        r = client.get("/reports/form-940?company_id=-1&year=2026")
+        assert r.status_code == 200
+        assert "filed per EIN" in r.text
+        assert "Form 940 Summary" not in r.text
+
+    def test_wage_base_and_lines(self, db, company, salaried_employee, hourly_employee):
+        # Jane: 5,000 in Q1, 4,000 in Q2 with 200 health (cafeteria) and 300 401k:
+        # FUTA subject 5,000 + 3,800; taxable 5,000 (Q1) + 2,000 (Q2); excess 1,800.
+        self._check(db, company, salaried_employee, date(2026, 3, 20), 5000)
+        self._check(db, company, salaried_employee, date(2026, 5, 20), 4000, [
+            ("deduction", "Health", 200, True, False),
+            ("deduction", "401k", 300, True, True),
+        ])
+        # Bob: 1,000 in Q3, all taxable.
+        self._check(db, company, hourly_employee, date(2026, 8, 20), 1000)
+        s = self._summary(db, company)
+        assert s["line_3"] == Decimal("10000")
+        assert s["line_4"] == Decimal("200")
+        assert s["line_5"] == Decimal("1800")
+        assert s["line_6"] == Decimal("2000")
+        assert s["line_7"] == Decimal("8000")
+        assert s["line_8"] == s["line_12"] == Decimal("48.00")
+        assert [q["taxable_wages"] for q in s["quarters"]] == [5000, 2000, 1000, 0]
+        assert [q["liability"] for q in s["quarters"]] == [Decimal("30.00"), Decimal("12.00"),
+                                                         Decimal("6.00"), Decimal("0.00")]
+        assert s["employee_count"] == 2
+
+    def test_base_accumulates_over_many_paychecks(self, db, company, salaried_employee):
+        for month in (1, 4, 7):
+            self._check(db, company, salaried_employee, date(2026, month, 15), 3000)
+        s = self._summary(db, company)
+        assert [q["taxable_wages"] for q in s["quarters"]] == [3000, 3000, 1000, 0]
+        assert s["line_5"] == Decimal("2000")
+
+    def test_drafts_and_voids_excluded(self, client, db, company, salaried_employee):
+        self._check(db, company, salaried_employee, date(2026, 5, 20), 1000, status="voided")
+        self._check(db, company, salaried_employee, date(2026, 6, 20), 1000, status="draft")
+        assert "No approved or paid payroll" in self._get(client, company).text
+
+    def test_other_year_ignored(self, db, company, salaried_employee):
+        self._check(db, company, salaried_employee, date(2025, 12, 31), 7000)
+        self._check(db, company, salaried_employee, date(2026, 1, 2), 1000)
+        assert self._summary(db, company)["line_7"] == Decimal("1000")
+
+    def test_quarter_rounding_lands_on_last_quarter(self, db, company, salaried_employee):
+        # 0.6% of 0.75 is 0.0045 per quarter: each rounds to 0.00, the year to 0.01.
+        for month in (2, 5, 8):
+            self._check(db, company, salaried_employee, date(2026, month, 1), Decimal("0.75"))
+        s = self._summary(db, company)
+        assert s["line_12"] == Decimal("0.01")
+        assert [q["liability"] for q in s["quarters"]][:3] == [0, 0, Decimal("0.01")]
+        assert sum(q["liability"] for q in s["quarters"]) == s["line_12"]
+
+    def test_deposit_rule_carries_until_over_500(self, db, company, salaried_employee, hourly_employee):
+        from models.employee import Employee
+        emps = [salaried_employee, hourly_employee]
+        for i in range(10):  # 12 employees x 7,000 = 504.00 of FUTA tax in all
+            e = Employee(company_id=company.id, first_name=f"E{i}", last_name="Extra",
+                         employment_type="hourly", pay_rate=20, status="active",
+                         hire_date=date(2026, 1, 1))
+            db.add(e)
+            emps.append(e)
+        db.commit()
+        # Q1: 6 employees x 7,000 -> 252.00 (carried); Q2: 6 more -> 252.00, 504.00 undeposited.
+        for n, e in enumerate(emps):
+            self._check(db, company, e, date(2026, 3 if n < 6 else 6, 15), 7000)
+        q = self._summary(db, company)["quarters"]
+        assert q[0]["deposit"] == 0 and q[0]["due"] is None
+        assert q[1]["deposit"] == Decimal("504.00") and q[1]["due"] == date(2026, 7, 31)
+        assert q[3]["deposit"] == 0 and q[3]["due"] is None
+
+    def test_q4_balance_due_jan_31(self, db, company, salaried_employee):
+        self._check(db, company, salaried_employee, date(2026, 2, 1), 1000)
+        q = self._summary(db, company)["quarters"]
+        assert q[3]["deposit"] == Decimal("6.00")
+        assert q[3]["due"] == date(2027, 1, 31)
+
+    def test_page_shows_real_payroll(self, client, db, company, salaried_employee):
+        pp = _run_payroll(client, db, company, salaried_employee)
+        pc = db.query(Paycheck).filter_by(pay_period_id=pp.id).one()
+        futa = next(l.amount for l in pc.lines if l.description == "FUTA")
+        page = self._get(client, company).text
+        assert "Form 940 Summary" in page
+        assert "$2,500.00" in page               # Lines 3 and 7, under the $7,000 base
+        assert f"${futa:,.2f}" in page            # Line 12 and FUTA on paychecks
+        assert "by Jan 31, 2027" in page

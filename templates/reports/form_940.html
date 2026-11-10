@@ -1,0 +1,132 @@
+{% extends "layout.html" %}
+{% block title %}Form 940 Data{% endblock %}
+{% block breadcrumb %}<a href="/reports/" class="hover:underline">Reports</a> / Form 940 Data{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+  <h1 class="text-xl font-semibold text-slate-800">Form 940 Data</h1>
+  <p class="text-sm text-slate-500 mt-1">Annual federal unemployment (FUTA) tax figures from approved and paid paychecks.</p>
+</div>
+
+{% if error %}
+<div class="mb-6 px-4 py-3 rounded-md text-sm bg-red-50 text-red-800 ring-1 ring-red-200">
+  {{ error }}
+</div>
+{% endif %}
+<form method="get" class="bg-white rounded-lg border border-slate-200 p-4 mb-6 flex flex-wrap gap-4 items-end">
+  <div class="flex flex-col gap-1">
+    <label for="company_id" class="text-xs font-medium text-slate-600">Company</label>
+    <select id="company_id" name="company_id"
+            class="max-w-full text-sm rounded-md border border-slate-300 px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+      <option value="0">— Select Company —</option>
+      {% for co in companies %}
+      <option value="{{ co.id }}" {% if co.id == company_id %}selected{% endif %}>{{ co.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="flex flex-col gap-1">
+    <label for="year" class="text-xs font-medium text-slate-600">Year</label>
+    <input id="year" type="number" name="year" value="{{ year }}" min="2000" max="2099"
+           class="text-sm rounded-md border border-slate-300 px-3 py-1.5 w-28 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+  </div>
+
+  <button type="submit"
+          class="px-4 py-1.5 text-sm bg-indigo-600 text-white rounded-md hover:bg-indigo-700">
+    Run Report
+  </button>
+</form>
+
+{% if summary %}
+{% macro row(label, value, strong=False) %}
+<div class="flex items-center justify-between gap-4 px-5 py-3 border-b border-slate-100 last:border-0 {{ 'bg-slate-50' if strong }}">
+  <span class="text-sm {{ 'font-semibold text-slate-700' if strong else 'text-slate-600' }}">{{ label }}</span>
+  <span class="text-sm tabular-nums {{ 'font-bold text-slate-900' if strong else 'font-medium text-slate-800' }}">${{ value | money }}</span>
+</div>
+{% endmacro %}
+
+<div class="max-w-2xl space-y-6">
+  <div class="bg-white rounded-lg border border-slate-200 overflow-x-auto">
+    <div class="px-5 py-3 border-b border-slate-200 bg-slate-50">
+      <span class="text-sm font-semibold text-slate-700">Form 940 Summary — {{ year }}</span>
+      <span class="block text-xs text-slate-500 mt-0.5">Line 1a state: OK · {{ summary.employee_count }} employee{{ "s" if summary.employee_count != 1 }} paid</span>
+    </div>
+    {{ row("3. Total payments to all employees", summary.line_3) }}
+    {{ row("4. Payments exempt from FUTA tax (cafeteria-plan deductions)", summary.line_4) }}
+    {{ row("5. Payments in excess of $7,000 per employee", summary.line_5) }}
+    {{ row("6. Subtotal (Line 4 + Line 5)", summary.line_6) }}
+    {{ row("7. Total taxable FUTA wages (Line 3 − Line 6)", summary.line_7) }}
+    {{ row("8. FUTA tax before adjustments (Line 7 × 0.6%)", summary.line_8) }}
+    {{ row("12. Total FUTA tax after adjustments", summary.line_12, strong=True) }}
+  </div>
+
+  <div class="bg-white rounded-lg border border-slate-200 overflow-x-auto">
+    <div class="px-5 py-3 border-b border-slate-200 bg-slate-50">
+      <span class="text-sm font-semibold text-slate-700">Part 5 — Quarterly liability and deposits</span>
+    </div>
+    <table class="min-w-full text-sm">
+      <thead>
+        <tr class="text-xs text-slate-500 uppercase">
+          <th class="px-5 py-2 text-left font-medium">Quarter</th>
+          <th class="px-5 py-2 text-right font-medium">Taxable FUTA Wages</th>
+          <th class="px-5 py-2 text-right font-medium">Liability (Line 16)</th>
+          <th class="px-5 py-2 text-left font-medium">Deposit</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-100">
+        {% for q in summary.quarters %}
+        <tr>
+          <td class="px-5 py-2 text-slate-700">16{{ "abcd"[q.quarter - 1] }}. Q{{ q.quarter }}</td>
+          <td class="px-5 py-2 text-right tabular-nums">${{ q.taxable_wages | money }}</td>
+          <td class="px-5 py-2 text-right tabular-nums">${{ q.liability | money }}</td>
+          <td class="px-5 py-2 text-slate-600">
+            {% if q.due %}${{ q.deposit | money }} by {{ q.due.strftime("%b %-d, %Y") }}
+            {% elif q.quarter < 4 %}None due, carried to next quarter
+            {% else %}None{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr class="bg-slate-50 border-t border-slate-200">
+          <td class="px-5 py-2 font-semibold text-slate-700">17. Total for year</td>
+          <td></td>
+          <td class="px-5 py-2 text-right tabular-nums font-bold text-slate-900">${{ summary.line_12 | money }}</td>
+          <td></td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+
+  <div class="text-xs text-slate-500 leading-relaxed space-y-2">
+    <p>
+      FUTA tax calculated on these paychecks: ${{ summary.futa_on_paychecks | money }}.
+      Each paycheck rounds its own FUTA, so this can differ from Line 12 by a few cents.
+      Enter the FUTA tax you actually deposited on Line 13.
+    </p>
+    <p>
+      A deposit is due when undeposited FUTA tax is over $500 at a quarter's end, by the last day
+      of the following month (next business day if that falls on a weekend or holiday); otherwise it carries
+      forward. The Q4 balance is deposited, or paid with Form 940 if $500 or less, by January 31.
+      Part 5 is required only when Line 12 is over $500.
+    </p>
+    <p>
+      Line 4 counts pre-tax cafeteria-plan deductions; 401(k) deferrals stay FUTA wages. Check the
+      matching Line 4 box (4a fringe benefits for health plans, 4d dependent care). Lines 9 to 11
+      (wages excluded from state unemployment tax, credit reduction states) are not calculated.
+      This is a data summary. Verify against the official IRS Form 940 instructions.
+    </p>
+  </div>
+</div>
+
+{% elif company_id > 0 %}
+<div class="bg-white rounded-lg border border-slate-200 px-4 py-10 text-center text-slate-400 text-sm">
+  No approved or paid payroll found for {{ year }}.
+</div>
+
+{% else %}
+<div class="bg-white rounded-lg border border-slate-200 px-4 py-10 text-center text-slate-400 text-sm">
+  Select a company and year to run this report.
+</div>
+{% endif %}
+{% endblock %}

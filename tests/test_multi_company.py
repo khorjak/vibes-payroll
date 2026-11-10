@@ -532,3 +532,13 @@ class TestMarkNewHireReportedAccess:
         r = auth_client.post(f"/employees/{emp_a.id}/new-hire-reported",
                              data={"csrf_token": token})
         assert r.status_code == 403
+
+
+class TestForm940Access:
+    def test_out_of_scope_company_is_404(self, auth_client, alpha_preparer, co_b):
+        login(auth_client, "alpha_prep", "alphapass123")
+        assert auth_client.get(f"/reports/form-940?company_id={co_b.id}&year=2026").status_code == 404
+
+    def test_own_company_renders(self, auth_client, alpha_preparer, co_a):
+        login(auth_client, "alpha_prep", "alphapass123")
+        assert auth_client.get(f"/reports/form-940?company_id={co_a.id}&year=2026").status_code == 200

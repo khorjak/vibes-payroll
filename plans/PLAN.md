@@ -299,6 +299,7 @@ payroll/
 - Deduction / benefit report
 - Client liability remittance list (approver **Mark Remitted** per payee, with optional reference)
 - 941 quarterly summary data
+- Form 940 annual FUTA summary, with quarterly liability and deposit due dates
 - Oklahoma SUTA quarterly wage detail (per employee)
 - W-2 data export (year-end)
 - Oklahoma OTC withholding summary
@@ -368,6 +369,7 @@ open → draft → approved → paid → closed
 - Payroll register
 - Tax liability summary
 - 941 quarterly data
+- Form 940 annual FUTA data, with Part 5 quarterly liability and FUTA deposit due dates ($500 rule)
 - Workers comp audit report
 - Client liability remittance report
 - W-2 data export (CSV + printable)
@@ -391,4 +393,4 @@ open → draft → approved → paid → closed
 - **PTO accrual tracking** — built (October 2026): PTO and sick balances per employee, accrued per hour worked or per pay period, with a maximum balance and year-end carryover limit (`models/leave.py`, `services/leave.py`). Not built: payout on termination, a balances report
 - **Multi-state employees** — out of scope initially; schema should not preclude it
 - **Contractor / 1099 payments** — separate from payroll; 1099-NEC at year-end
-- **Federal tax deposit reminders** — 941 semiweekly vs. monthly deposit schedule
+- **Federal tax deposit reminders** — 941 semiweekly vs. monthly deposit schedule. FUTA deposit due dates are on the Form 940 report
