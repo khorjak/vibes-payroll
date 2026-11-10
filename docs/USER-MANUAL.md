@@ -353,6 +353,7 @@ Open **Reports** and pick a report. Every report lets you choose the company; mo
 | **Payroll register** | Every paycheck in a pay period with gross, deductions, taxes, and net. | Reviewing a run; bookkeeping. |
 | **Tax liability** | Federal, Oklahoma, FICA, FUTA and SUTA amounts. | Knowing what you owe and when. |
 | **Quarterly 941** | Figures for the quarterly federal return. Choose year and quarter. | Preparing Form 941. |
+| **Form 940 Data** | Choose company and year. The annual federal unemployment (FUTA) return: Line 3 total payments, Line 4 payments exempt from FUTA (pre-tax health and other cafeteria-plan deductions; 401(k) deferrals stay taxable), Line 5 payments over $7,000 per employee, Lines 6 to 8, and Line 12 total FUTA tax at 0.6%. Part 5 lists each quarter's liability (Lines 16a to 16d, adding up to Line 17 = Line 12) with the deposit due: when undeposited FUTA tax is over $500 at a quarter's end, deposit it by the last day of the next month, otherwise it carries forward; the Q4 balance is due by January 31. Also shows the FUTA tax calculated on the paychecks for comparison. Lines 9 to 11 (state exclusions, credit reduction) and Line 13 (what you deposited) are left to you. | Preparing Form 940; knowing when FUTA deposits are due. |
 | **Workers comp** | Wages by workers comp code with premium. Wages paid to employees with no code are grouped as *Unclassified* (the row names those employees), and wages paid to exempt employees get their own *EXEMPT* row with no premium. | Insurance audit. |
 | **Oklahoma SUTA (OESC)** | Choose company, year and quarter. Per employee: total wages, excess wages, taxable wages and the SUTA contributions calculated, with totals, the company's rate and the taxable wage base for the chosen year. Approved and paid paychecks only. A **Print** button is provided. Only the last four SSN digits are shown. | Preparing your OESC quarterly contribution report. |
 | **Oklahoma withholding** | Oklahoma tax withheld. | State withholding filings. |
@@ -361,14 +362,14 @@ Open **Reports** and pick a report. Every report lets you choose the company; mo
 | **Client liabilities** | Amounts to send to garnishment payees, benefit carriers and retirement plans, once a payroll is approved. Voided paychecks drop out. Approvers get a **Mark Remitted** button on every payee row that still has an outstanding amount, with an optional check or ACH reference. | Knowing what to remit, and recording that you did. |
 | **New hire reporting** | Hires from the last 20 days not yet marked as reported, with a **Mark as reported** button on each row. | Meeting new hire reporting deadlines. |
 
-**Running across companies.** If you can access more than one company, six reports (register, tax liability, workers comp, deductions, client liabilities, new hires) can be run for *all* your companies at once. They show a subtotal per company and a grand total. The **941**, **Oklahoma SUTA**, **Oklahoma withholding**, and **W-2 export** must be run one company at a time, because each is filed under that company's own EIN.
+**Running across companies.** If you can access more than one company, six reports (register, tax liability, workers comp, deductions, client liabilities, new hires) can be run for *all* your companies at once. They show a subtotal per company and a grand total. The **941**, **Form 940**, **Oklahoma SUTA**, **Oklahoma withholding**, and **W-2 export** must be run one company at a time, because each is filed under that company's own EIN.
 
 ## 13. Year-end checklist
 
 1. Make sure every pay period for the year is **paid** and no drafts are left open.
 2. Void anything wrong *before* running year-end reports.
 3. Run the **Quarterly 941** and **Oklahoma SUTA** reports for each quarter and each company.
-4. Run **Oklahoma withholding** for the year.
+4. Run **Form 940 Data** and **Oklahoma withholding** for the year.
 5. Run **W-2 export** for each company and compare against the payroll register.
 6. Review employee addresses and SSNs on the profiles before producing W-2s.
 7. Back up the database and the encryption key (see your administrator).

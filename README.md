@@ -19,7 +19,7 @@ Self-hosted payroll application for small businesses operating in Oklahoma. Hand
 - PTO and sick balances: per-employee accrual (per hour worked or per pay period), maximum balance, year-end carryover limit, adjustments, and balances on paychecks and pay stubs
 - Tax engine: federal (IRS Pub 15), Oklahoma (OTC tables), FICA, FUTA, SUTA, workers comp
 - Pay stub PDF generation
-- Reports: payroll register, tax liability, quarterly 941, Oklahoma SUTA (OESC) wage detail, workers comp audit, Oklahoma withholding, deduction/benefit summary, client liability remittance, new hire reporting, W-2 CSV export
+- Reports: payroll register, tax liability, quarterly 941, annual Form 940 (FUTA), Oklahoma SUTA (OESC) wage detail, workers comp audit, Oklahoma withholding, deduction/benefit summary, client liability remittance, new hire reporting, W-2 CSV export
 - Final paychecks: terminated employees are drafted automatically (salary prorated) in the run covering their last day
 - Session authentication with role-based access (admin / preparer / approver / read-only)
 - Login rate limiting and security headers (CSP, HSTS, X-Frame-Options)

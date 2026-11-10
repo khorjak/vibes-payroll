@@ -2,7 +2,7 @@ import io
 import csv
 import re
 from datetime import date, datetime, timedelta, timezone
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
@@ -16,6 +16,7 @@ from models.payroll import PayPeriod, Paycheck, PaycheckLine, ClientLiability
 from models.user import User
 from models.workers_comp import WorkersCompCode
 from services.tax_years import tax_year_for
+from tax_engine.unemployment import FUTA_NET_RATE, FUTA_WAGE_BASE
 from utils.crypto import decrypt
 from routers.auth import ActiveCompany, ApproverUser, CurrentUser, get_current_user
 from utils.company_scope import (
@@ -404,6 +405,16 @@ def _masked_ssn(emp: Employee) -> str:
     return f"***-**-{raw[-4:]}" if raw and len(raw) >= 4 else ""
 
 
+def _cafeteria_pre_tax(pc) -> Decimal:
+    """Pre-tax deductions that also cut FICA/FUTA/SUTA wages: cafeteria-plan items,
+    not 401k deferrals (is_taxable)."""
+    return sum(
+        (Decimal(str(l.amount)) for l in pc.lines
+         if l.line_type == "deduction" and l.is_pre_tax and not l.is_taxable),
+        Decimal("0"),
+    )
+
+
 def _suta_rows(paychecks: list, year: int, quarter: int, wage_base: Decimal) -> list[dict]:
     """Per-employee SUTA wage detail for one quarter.
 
@@ -428,12 +439,7 @@ def _suta_rows(paychecks: list, year: int, quarter: int, wage_base: Decimal) -> 
         in_quarter = False
         for pc in pcs:
             gross = Decimal(str(pc.gross_wages))
-            pre_tax = sum(
-                (Decimal(str(l.amount)) for l in pc.lines
-                 if l.line_type == "deduction" and l.is_pre_tax and not l.is_taxable),
-                Decimal("0"),
-            )
-            subject = max(Decimal("0"), gross - pre_tax)
+            subject = max(Decimal("0"), gross - _cafeteria_pre_tax(pc))
             taxable = min(subject, max(Decimal("0"), wage_base - ytd))
             ytd += subject
             pay_date = pc.pay_period.pay_date
@@ -502,6 +508,103 @@ def suta_report(
         "wage_base": tax_year.ok_suta_wage_base,
         "wage_base_year": tax_year.year,
         "suta_rate": (company.suta_rate or Decimal("0.027")) if company else None,
+    })
+
+
+def _cents(d: Decimal) -> Decimal:
+    return d.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+
+def _form_940(paychecks: list, year: int) -> dict:
+    """Form 940 Parts 2, 4 and 5 from one year of approved/paid paychecks.
+
+    Taxable FUTA wages are each employee's first $7,000 of gross less cafeteria-plan
+    deductions (Line 4), walked in pay-date order so the base carries across quarters.
+    Lines 9-11 (state exclusions, credit reduction) are not calculated.
+    """
+    zero = Decimal("0")
+    gross = exempt = taxable = zero
+    q_taxable = {q: zero for q in _QUARTER_MONTHS}
+    ytd: dict[int, Decimal] = {}
+    futa_on_paychecks = zero
+    for pc in sorted(paychecks, key=lambda p: (p.pay_period.pay_date, p.id)):
+        pc_gross = Decimal(str(pc.gross_wages))
+        pc_exempt = min(_cafeteria_pre_tax(pc), pc_gross)
+        subject = pc_gross - pc_exempt
+        prior = ytd.get(pc.employee_id, zero)
+        pc_taxable = min(subject, max(zero, FUTA_WAGE_BASE - prior))
+        ytd[pc.employee_id] = prior + subject
+        gross += pc_gross
+        exempt += pc_exempt
+        taxable += pc_taxable
+        q_taxable[(pc.pay_period.pay_date.month - 1) // 3 + 1] += pc_taxable
+        futa_on_paychecks += sum(
+            (Decimal(str(l.amount)) for l in pc.lines
+             if l.line_type == "employer_tax" and l.description == "FUTA"),
+            zero,
+        )
+
+    line_8 = _cents(taxable * FUTA_NET_RATE)
+    # Line 17 must equal Line 12: rounding goes to the last quarter with taxable wages.
+    liability = {q: _cents(v * FUTA_NET_RATE) for q, v in q_taxable.items()}
+    last = max((q for q, v in q_taxable.items() if v), default=4)
+    liability[last] += line_8 - sum(liability.values())
+
+    # Deposit rule (Form 940 instructions): deposit when undeposited FUTA tax exceeds
+    # $500 at a quarter's end, by the last day of the following month; otherwise carry
+    # it forward. Whatever is left after Q4 is deposited or paid with the return by Jan 31.
+    quarters = []
+    undeposited = zero
+    for q in _QUARTER_MONTHS:
+        undeposited += liability[q]
+        due = date(year + 1, 1, 31) if q == 4 else date(year, 3 * q + 1, 30 if q == 1 else 31)
+        deposit = undeposited if undeposited > 500 or q == 4 else zero
+        quarters.append({"quarter": q, "taxable_wages": q_taxable[q], "liability": liability[q],
+                         "deposit": deposit, "due": due if deposit else None})
+        undeposited -= deposit
+
+    return {
+        "line_3": gross,
+        "line_4": exempt,
+        "line_5": gross - exempt - taxable,
+        "line_6": gross - taxable,
+        "line_7": taxable,
+        "line_8": line_8,
+        "line_12": line_8,
+        "futa_on_paychecks": futa_on_paychecks,
+        "quarters": quarters,
+        "employee_count": len(ytd),
+    }
+
+
+@router.get("/form-940", response_class=HTMLResponse)
+def form_940(
+    request: Request,
+    current_user: CurrentUser,
+    active_company: ActiveCompany,
+    db: Session = Depends(get_db),
+    company_id: int = 0,
+    year: int = 0,
+):
+    if not company_id and active_company:
+        company_id = active_company.id
+    # Form 940 is filed per EIN -- never consolidated.
+    company_ids, error = _report_scope(
+        current_user, db, company_id, allow_consolidated=False,
+    )
+    if not year:
+        year = date.today().year
+    paychecks = _load_paychecks(db, company_ids, year) if company_ids else []
+
+    return templates.TemplateResponse(request, "reports/form_940.html", {
+        "active_nav": "reports",
+        "companies": accessible_companies(current_user, db),
+        "company_id": company_id,
+        "consolidated": False,
+        "allow_consolidated": False,
+        "error": error,
+        "year": year,
+        "summary": _form_940(paychecks, year) if paychecks else {},
     })
 
 

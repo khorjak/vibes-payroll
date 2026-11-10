@@ -206,9 +206,9 @@ Employees with status `active` are included in a payroll run, plus `terminated` 
 ```mermaid
 flowchart TD
     R[Reports page] --> SC{Company selected}
-    SC -->|One company| ALL[All ten reports available]
+    SC -->|One company| ALL[All eleven reports available]
     SC -->|All my companies| SIX[Six reports show per-company<br/>subtotals plus grand total]
-    SC -->|All my companies| BLOCK[941, SUTA, W-2 export, Oklahoma withholding<br/>refuse: filed per EIN]
+    SC -->|All my companies| BLOCK[941, 940, SUTA, W-2 export,<br/>Oklahoma withholding<br/>refuse: filed per EIN]
 ```
 
 | Report | Consolidated across companies |
@@ -220,11 +220,14 @@ flowchart TD
 | Client liabilities | Yes |
 | New hire reporting | Yes |
 | Quarterly 941 | No, run per company |
+| Form 940 | No, run per company |
 | Oklahoma SUTA | No, run per company |
 | Oklahoma withholding | No, run per company |
 | W-2 CSV export (Boxes 1-6, 12 code D, 13 retirement plan, 16-17) | No, run per company |
 
 Reports count only approved and paid paychecks. Drafts and voided paychecks are left out, so totals do not change while a run is under review. The exception is the payroll register, which lists every paycheck in the chosen period, drafts included, for review before approval.
+
+**Form 940 report.** For one company and year, from approved and paid paychecks. Each employee's FUTA subject wages (gross less cafeteria-plan pre-tax deductions, which are Line 4) are walked in pay date order, and the first $7,000 is taxable (Line 7); the rest is Line 5. Line 8 and Line 12 are Line 7 x 0.6%, which assumes the full 5.4% credit for Oklahoma SUTA paid on time and no credit reduction (Lines 9 to 11 are not calculated). Part 5 gives each quarter's taxable wages and liability; cent rounding goes to the last quarter with wages so Line 17 equals Line 12. The deposit column applies the $500 rule: undeposited liability over $500 at a quarter's end is due the last day of the next month, otherwise it carries forward, and the Q4 balance is due January 31. The FUTA lines on the paychecks are summed for comparison; each paycheck rounds separately, so they can differ by cents.
 
 **Oklahoma SUTA report.** For one company and quarter, lists each employee paid in the quarter with total wages, taxable wages, excess wages and contributions. Only approved and paid paychecks count. Taxable wages apply the report year's Oklahoma wage base from **Tax Settings** (per employee; marked if an earlier year's figure is used) to the employee's year-to-date subject wages (gross less cafeteria-plan pre-tax deductions; 401(k) deferrals stay in) in pay date order, so earlier quarters and earlier paychecks use up the base first. Excess wages are total wages minus taxable wages. Contributions are the sum of the SUTA lines already calculated on the paychecks, so a mid-year rate change shows what was actually withheld. SSNs are shown as last four digits only.
 
